@@ -6,6 +6,7 @@ const { authenticateToken, requireRoles } = require("../middleware/authMiddlewar
 const {
   addToIdMakerQueue,
   getIdMakerQueue,
+  getIdMakerQueueApplicationIds,
   updateIdMakerQueue,
   bulkUpdateIdMakerQueue,
 } = require("../controllers/idMakerQueueController");
@@ -13,6 +14,9 @@ const {
   generateIdMakerAnalyticsInsights,
 } = require("../controllers/idMakerAnalyticsController");
 
+
+// Staff issuance only needs queue identifiers, not production records or media.
+router.get("/application-ids", authenticateToken, requireRoles("admin", "staff"), getIdMakerQueueApplicationIds);
 
 // GET ID MAKER QUEUE
 router.get("/", authenticateToken, requireRoles("admin", "idmaker"), getIdMakerQueue);
