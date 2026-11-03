@@ -64,13 +64,17 @@ test("replacement request routes require authenticated permitted roles", () => {
   }
 });
 
-test("audit log routes are administrator only", () => {
+test("audit log viewing and imports are administrator only while Staff can record exports", () => {
   const source = route("auditLogRoutes.js");
-  for (const routePath of ["/", "/exports", "/imports"]) {
-    const method = routePath === "/" ? "get" : "post";
-    assertRouteHasMiddleware(source, method, routePath, "authenticateToken");
-    assertRouteHasMiddleware(source, method, routePath, "requireAdmin");
-  }
+
+  assertRouteHasMiddleware(source, "get", "/", "authenticateToken");
+  assertRouteHasMiddleware(source, "get", "/", "requireAdmin");
+
+  assertRouteHasMiddleware(source, "post", "/exports", "authenticateToken");
+  assertRouteHasMiddleware(source, "post", "/exports", 'requireRoles("admin", "staff")');
+
+  assertRouteHasMiddleware(source, "post", "/imports", "authenticateToken");
+  assertRouteHasMiddleware(source, "post", "/imports", "requireAdmin");
 });
 
 test("backup routes apply administrator authorization router-wide", () => {
