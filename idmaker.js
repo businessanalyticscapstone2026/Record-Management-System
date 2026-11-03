@@ -176,7 +176,7 @@ async function loadIdMakerQueueFromDatabase(showMessage = false) {
       updateIdMakerAnalytics();
     }
 
-    const response = await fetch(ID_MAKER_API, { cache: 'no-store' });
+    const response = await fetch(ID_MAKER_API, { headers: getAuthHeaders(), cache: 'no-store' });
 
     const result = await response.json();
 
@@ -1205,7 +1205,7 @@ async function inlineStatusChange(appId, newStatus) {
     if (newStatus === 'Completed') {
       try {
         const replacementsApi = ID_MAKER_API.replace(/\/id-maker-queue\/?$/, '/replacements');
-        const requestsResponse = await fetch(replacementsApi, { cache: 'no-store' });
+        const requestsResponse = await fetch(replacementsApi, { headers: getAuthHeaders(), cache: 'no-store' });
         const requestsResult = await requestsResponse.json().catch(() => ({}));
         if (!requestsResponse.ok || !requestsResult.success) {
           throw new Error(requestsResult.message || 'Could not load linked replacement requests.');
@@ -1944,7 +1944,7 @@ async function generateIdMakerInsights(stats) {
   try {
     const response = await fetch(`${ID_MAKER_API}/analytics-insights`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       signal: controller.signal,
       body: JSON.stringify({ cards: stats.cards }),
     });
