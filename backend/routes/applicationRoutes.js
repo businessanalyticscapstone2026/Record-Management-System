@@ -6,6 +6,7 @@ const { authenticateToken, requireRoles } = require("../middleware/authMiddlewar
 const {
   getApplications,
   getApplicationById,
+  getIssuanceDetails,
   saveApplicationValidation,
   updateApplicationStatus,
   updateMembershipStatus,
@@ -16,9 +17,11 @@ const {
 
 router.get("/", authenticateToken, requireRoles("admin", "staff"), getApplications);
 
+router.get("/:applicationId/issuance-details", authenticateToken, requireRoles("admin", "staff", "idmaker"), getIssuanceDetails);
+
 router.get("/:applicationId", authenticateToken, requireRoles("admin", "staff"), getApplicationById);
 
-router.post("/:applicationId/issuance-document", authenticateToken, requireRoles("admin", "staff"), downloadIssuanceDocument);
+router.post("/:applicationId/issuance-document", authenticateToken, requireRoles("admin", "staff", "idmaker"), downloadIssuanceDocument);
 
 router.put("/:applicationId/status", authenticateToken, requireRoles("admin", "staff", "idmaker"), updateApplicationStatus);
 
