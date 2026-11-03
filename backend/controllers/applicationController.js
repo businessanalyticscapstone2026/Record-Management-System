@@ -16,16 +16,26 @@ const {
 } = require("docx");
 
 const normalizeStorageObjectPath = (value) => {
-  const original = String(value || "").trim();
-  if (!original) return null;
-  let path = original;
-  if (/^https?:\\/\\//i.test(path)) {
-    const match = path.match(/\\/storage\\/v1\\/object\\/(?:public|sign|authenticated)\\/documents\\/([^?]+)/i);
-    if (!match) return null;
-    path = match[1];
+  let path = String(value || "").trim();
+  if (!path) return null;
+
+  // Database rows may contain either a bucket-relative object path or a
+  // Supabase public/signed URL. Convert both to the documents bucket path.
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    const marker = "/storage/v1/object/";
+    const markerIndex = path.indexOf(marker);
+    if (markerIndex < 0) return null;
+    const objectPart = path.slice(markerIndex + marker.length);
+    const bucketMarker = "documents/";
+    const bucketIndex = objectPart.indexOf(bucketMarker);
+    if (bucketIndex < 0) return null;
+    path = objectPart.slice(bucketIndex + bucketMarker.length);
   }
-  try { path = decodeURIComponent(path); } catch (_) { /* keep original encoded path */ }
-  path = path.split("?")[0].replace(/^\\/+/, "").replace(/^documents\\//i, "");
+
+  path = path.split("?")[0];
+  while (path.startsWith("/")) path = path.slice(1);
+  if (path.toLowerCase().startsWith("documents/")) path = path.slice("documents/".length);
+  try { path = decodeURIComponent(path); } catch (_) { /* retain a valid stored path */ }
   return path || null;
 };
 
