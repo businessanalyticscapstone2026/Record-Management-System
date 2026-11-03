@@ -3955,9 +3955,10 @@ async function _populateDigitalIssuance(appId) {
   // ==================================================
 
   try {
+    const issuanceDetailsPath = DI_MODE === 'idmaker' ? '/issuance-details' : '';
     const response = await fetch(
       'https://management-backend-3cij.onrender.com/api/applications/' +
-      encodeURIComponent(appId),
+      encodeURIComponent(appId) + issuanceDetailsPath,
       {
         method: 'GET',
         headers: getAuthHeaders(),
@@ -3966,6 +3967,9 @@ async function _populateDigitalIssuance(appId) {
     );
 
     const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Unable to load the applicant details needed for ID issuance.');
+    }
 
     if (response.ok && result.success) {
       const liveApplication =
