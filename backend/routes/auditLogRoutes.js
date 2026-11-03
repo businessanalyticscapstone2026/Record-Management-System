@@ -9,6 +9,7 @@ const {
 const {
   authenticateToken,
   requireAdmin,
+  requireRoles,
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
