@@ -23,7 +23,7 @@ router.get(
 router.post(
   "/exports",
   authenticateToken,
-  requireAdmin,
+  requireRoles("admin", "staff"),
   recordExportAudit
 );
 
