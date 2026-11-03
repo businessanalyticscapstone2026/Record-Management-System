@@ -4918,7 +4918,7 @@ async function submitReplacementDecision() {
       encodeURIComponent(requestId) + '/decision',
       {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: decision })
       }
     );
