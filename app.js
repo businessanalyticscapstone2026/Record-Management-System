@@ -6946,17 +6946,17 @@ async function refreshIdMakerQueueApplicationIds() {
 
   ID_MAKER_QUEUE_APPLICATION_IDS_PROMISE = (async () => {
     const response = await fetch(
-      'https://management-backend-3cij.onrender.com/api/id-maker-queue',
-      { cache: 'no-store' }
+      'https://management-backend-3cij.onrender.com/api/id-maker-queue/application-ids',
+      { headers: getAuthHeaders(), cache: 'no-store' }
     );
     const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.success || !Array.isArray(result.queue)) {
+    if (!response.ok || !result.success || !Array.isArray(result.application_ids)) {
       throw new Error(result.message || 'Could not verify previous ID Maker submissions.');
     }
 
     ID_MAKER_QUEUE_APPLICATION_IDS = new Set(
-      result.queue
-        .map(item => String(item.application_id || item.id || '').trim())
+      result.application_ids
+        .map(id => String(id || '').trim())
         .filter(Boolean)
     );
     return ID_MAKER_QUEUE_APPLICATION_IDS;
