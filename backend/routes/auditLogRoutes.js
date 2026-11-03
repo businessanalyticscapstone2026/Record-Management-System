@@ -23,12 +23,14 @@ router.get(
 router.post(
   "/exports",
   authenticateToken,
+  requireAdmin,
   recordExportAudit
 );
 
 router.post(
   "/imports",
   authenticateToken,
+  requireAdmin,
   recordImportAudit
 );
 

@@ -240,6 +240,7 @@ async function loadAdminDashboardData() {
         {
           method: 'GET',
           headers: {
+            ...getAuthHeaders(),
             Accept: 'application/json'
           },
           cache: 'no-store'

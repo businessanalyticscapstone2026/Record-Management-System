@@ -1,7 +1,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { authenticateToken } = require("../middleware/authMiddleware");
+const { authenticateToken, requireRoles } = require("../middleware/authMiddleware");
 
 const {
   getReplacementRequests,
@@ -9,8 +9,8 @@ const {
   decideReplacementRequest,
 } = require("../controllers/replacementController");
 
-router.get("/", getReplacementRequests);
-router.get("/:id", getReplacementRequestById);
-router.put("/:id/decision", authenticateToken, decideReplacementRequest);
+router.get("/", authenticateToken, requireRoles("admin", "staff", "idmaker"), getReplacementRequests);
+router.get("/:id", authenticateToken, requireRoles("admin", "staff", "idmaker"), getReplacementRequestById);
+router.put("/:id/decision", authenticateToken, requireRoles("admin", "staff", "idmaker"), decideReplacementRequest);
 
 module.exports = router;

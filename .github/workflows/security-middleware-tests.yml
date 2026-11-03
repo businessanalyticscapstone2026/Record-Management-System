@@ -1,0 +1,28 @@
+name: Security Middleware Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - security/route-authorization-audit
+
+permissions:
+  contents: read
+
+jobs:
+  auth-middleware-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run authorization middleware tests
+        run: npm test
