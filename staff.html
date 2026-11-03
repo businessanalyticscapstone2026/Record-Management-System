@@ -14,8 +14,11 @@
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
 
-  <!-- Chart.js (unchanged) -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- PDF export support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
   <!-- Flaticon Uicons -->
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-regular-rounded/css/uicons-regular-rounded.css" />
@@ -986,6 +989,11 @@
             <p class="page-header__sub">
               Review and process existing senior citizens' ID requests.
             </p>
+            <select class="filter-select" style="height:40px" aria-label="Export replacement requests" onchange="if(this.value){exportReplacementRequests(this.value);this.value='';}">
+              <option value="">Export As...</option>
+              <option value="pdf">Export PDF</option>
+              <option value="csv">Export CSV</option>
+            </select>
           </div>
         </header>
 
@@ -1278,7 +1286,6 @@
             <select class="filter-select" style="height:36px" onchange="exportData(this.value)">
               <option value="">Export As...</option>
               <option value="pdf">Export PDF</option>
-              <option value="excel">Export Excel</option>
               <option value="csv">Export CSV</option>
             </select>
           </div>
@@ -2389,11 +2396,18 @@
           <div id="staff-export-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px"></div>
           <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0">For barangay summary, select which count columns to include. The overall total row is included automatically.</p>
         </div>
+        <div>
+          <label for="staff-export-format" style="display:block;font-weight:600;margin-bottom:6px">Export format</label>
+          <select id="staff-export-format" onchange="updateStaffExportFormatLabel()" style="width:100%;padding:10px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px">
+            <option value="csv">CSV</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </div>
         <div id="staff-export-error" role="alert" style="display:none;color:#dc2626"></div>
       </div>
       <div class="confirm-actions">
         <button type="button" class="btn btn--ghost" onclick="closeStaffExport()">Cancel</button>
-        <button type="button" class="btn btn--primary" onclick="downloadStaffExport()">Export CSV</button>
+        <button type="button" class="btn btn--primary" id="staff-export-submit" onclick="downloadStaffExport()">Export CSV</button>
       </div>
     </div>
   </div>
@@ -2403,8 +2417,8 @@
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=46"></script>
-  <script src="staff.js?v=multi-provider-ai-5"></script>
+  <script src="app.js?v=47"></script>
+  <script src="staff.js?v=multi-provider-ai-6"></script>
 </body>
 
 </html>
