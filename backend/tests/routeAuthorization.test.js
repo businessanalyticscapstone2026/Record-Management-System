@@ -43,6 +43,11 @@ test("application data reads require authenticated admin or staff", () => {
   assertRouteHasMiddleware(source, "get", "/:applicationId", 'requireRoles("admin", "staff")');
 });
 
+test("staff can only read limited ID Maker queue identifiers", () => {
+  const source = route("idMakerQueueRoutes.js");
+  assertRouteHasMiddleware(source, "get", "/application-ids", "authenticateToken");
+  assertRouteHasMiddleware(source, "get", "/application-ids", 'requireRoles("admin", "staff")');
+});
 test("ID Maker queue reads and updates are role restricted", () => {
   const source = route("idMakerQueueRoutes.js");
   assertRouteHasMiddleware(source, "get", "/", "authenticateToken");
