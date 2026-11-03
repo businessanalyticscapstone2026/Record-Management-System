@@ -201,6 +201,24 @@ const addToIdMakerQueue = async (req, res) => {
   }
 };
 
+// Return identifiers only for Staff issuance duplicate checks.
+const getIdMakerQueueApplicationIds = async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    const { data, error } = await supabase
+      .from("id_maker_queue")
+      .select("application_id")
+      .not("application_id", "is", null);
+    if (error) throw error;
+    const applicationIds = Array.from(new Set((data || [])
+      .map((item) => String(item.application_id || "").trim())
+      .filter(Boolean)));
+    return res.status(200).json({ success: true, application_ids: applicationIds });
+  } catch (error) {
+    console.error("Error fetching ID Maker queue application IDs:", error);
+    return res.status(500).json({ success: false, message: "Failed to verify existing ID Maker queue entries." });
+  }
+};
 // ============================================
 // GET ID MAKER QUEUE
 // ============================================
@@ -727,6 +745,7 @@ const updateIdMakerQueue = async (req, res) => {
 module.exports = {
   addToIdMakerQueue,
   getIdMakerQueue,
+  getIdMakerQueueApplicationIds,
   updateIdMakerQueue,
   bulkUpdateIdMakerQueue,
 };
