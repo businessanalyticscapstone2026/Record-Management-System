@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node local-server.js --port=5500",
     "dev": "node local-server.js --port=5500",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test backend/tests/*.test.js"
   },
   "keywords": [],
   "author": "",
