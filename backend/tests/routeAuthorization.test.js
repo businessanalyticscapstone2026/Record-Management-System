@@ -7,17 +7,32 @@ const route = (name) =>
   fs.readFileSync(path.join(__dirname, "..", "routes", name), "utf8");
 
 function assertRouteHasMiddleware(source, method, routePath, middleware) {
-  const routeStartPattern = new RegExp(
-    `router\\\\.${method}\\\\(\\\\s*["']${routePath.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}["']`
+  const methodMarker = `router.${method}(`;
+  let searchFrom = 0;
+  let declarationStart = -1;
+
+  while ((searchFrom = source.indexOf(methodMarker, searchFrom)) !== -1) {
+    const doubleQuotedPath = source.indexOf(`"${routePath}"`, searchFrom + methodMarker.length);
+    const singleQuotedPath = source.indexOf(`'${routePath}'`, searchFrom + methodMarker.length);
+    const candidates = [doubleQuotedPath, singleQuotedPath].filter(index => index !== -1);
+    const pathIndex = candidates.length ? Math.min(...candidates) : -1;
+
+    if (pathIndex !== -1) {
+      const close = source.indexOf(");", pathIndex);
+      if (close !== -1) {
+        const declaration = source.slice(searchFrom, close);
+        if (declaration.includes(middleware)) return;
+        declarationStart = searchFrom;
+      }
+    }
+    searchFrom += methodMarker.length;
+  }
+
+  assert.fail(
+    declarationStart === -1
+      ? `${method.toUpperCase()} ${routePath} route with ${middleware} was not found`
+      : `${method.toUpperCase()} ${routePath} route is missing ${middleware}`
   );
-  const match = routeStartPattern.exec(source);
-  assert.ok(match, `${method.toUpperCase()} ${routePath} route must exist`);
-
-  const close = source.indexOf(");", match.index);
-  assert.notEqual(close, -1, `${method.toUpperCase()} ${routePath} route must close`);
-
-  const declaration = source.slice(match.index, close);
-  assert.ok(declaration.includes(middleware), `${method.toUpperCase()} ${routePath} must use ${middleware}`);
 }
 
 test("application data reads require authenticated admin or staff", () => {
