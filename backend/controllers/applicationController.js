@@ -15,22 +15,35 @@ const {
   BorderStyle,
 } = require("docx");
 
-const getStorageFileBuffer = async (filePath) => {
-  if (!filePath) {
-    return null;
+const normalizeStorageObjectPath = (value) => {
+  const original = String(value || "").trim();
+  if (!original) return null;
+  let path = original;
+  if (/^https?:\\/\\//i.test(path)) {
+    const match = path.match(/\\/storage\\/v1\\/object\\/(?:public|sign|authenticated)\\/documents\\/([^?]+)/i);
+    if (!match) return null;
+    path = match[1];
   }
+  try { path = decodeURIComponent(path); } catch (_) { /* keep original encoded path */ }
+  path = path.split("?")[0].replace(/^\\/+/, "").replace(/^documents\\//i, "");
+  return path || null;
+};
+
+const getStorageFileBuffer = async (filePath) => {
+  const objectPath = normalizeStorageObjectPath(filePath);
+  if (!objectPath) return null;
 
   const {
     data,
     error,
   } = await supabase.storage
     .from("documents")
-    .download(filePath);
+    .download(objectPath);
 
   if (error || !data) {
     console.error(
       "Unable to download Storage file:",
-      filePath,
+      objectPath,
       error
     );
 
@@ -70,13 +83,12 @@ const getDocxImageType = (filePath) => {
 };
 
 const createSignedFileUrl = async (filePath) => {
-  if (!filePath) {
-    return null;
-  }
+  const objectPath = normalizeStorageObjectPath(filePath);
+  if (!objectPath) return null;
 
   const { data, error } = await supabase.storage
     .from("documents")
-    .createSignedUrl(filePath, 60 * 30);
+    .createSignedUrl(objectPath, 60 * 30);
 
   if (error) {
     console.error("Unable to create signed URL:", filePath, error);
@@ -1500,6 +1512,50 @@ const getApplicationById = async (req, res) => {
   }
 };
 
+// Return only the fields required to prepare an ID issuance form.
+// This endpoint is intentionally available to ID Maker without exposing the full applicant record.
+const getIssuanceDetails = async (req, res) => {
+  try {
+    const applicationId = String(req.params.applicationId || '').trim();
+    if (!applicationId) {
+      return res.status(400).json({ success: false, message: 'Application ID is required.' });
+    }
+
+    const [applicationResult, filesResult] = await Promise.all([
+      supabase.from('applications')
+        .select('application_id, first_name, middle_name, surname, house_street, barangay_district, date_of_birth, sex')
+        .eq('application_id', applicationId)
+        .maybeSingle(),
+      supabase.from('application_files')
+        .select('latest_photo_url, signature_url')
+        .eq('application_id', applicationId)
+        .maybeSingle(),
+    ]);
+    if (applicationResult.error) throw applicationResult.error;
+    if (filesResult.error) throw filesResult.error;
+    if (!applicationResult.data) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    const files = filesResult.data || {};
+    const [photoUrl, signatureUrl] = await Promise.all([
+      createSignedFileUrl(files.latest_photo_url),
+      createSignedFileUrl(files.signature_url),
+    ]);
+    return res.status(200).json({
+      success: true,
+      application: applicationResult.data,
+      applicationFiles: {
+        latest_photo_signed_url: photoUrl,
+        signature_signed_url: signatureUrl,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching issuance details:', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve issuance details.' });
+  }
+};
+
 // SAVE APPLICATION VALIDATION
 const saveApplicationValidation = async (req, res) => {
   try {
@@ -2319,6 +2375,7 @@ const updateMembershipStatus = async (req, res) => {
 module.exports = {
   getApplications,
   getApplicationById,
+  getIssuanceDetails,
   saveApplicationValidation,
   updateApplicationStatus,
   updateMembershipStatus,
