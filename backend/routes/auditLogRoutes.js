@@ -9,6 +9,7 @@ const {
 const {
   authenticateToken,
   requireAdmin,
+  requireRoles,
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -23,7 +24,7 @@ router.get(
 router.post(
   "/exports",
   authenticateToken,
-  requireAdmin,
+  requireRoles("admin", "staff"),
   recordExportAudit
 );
 
