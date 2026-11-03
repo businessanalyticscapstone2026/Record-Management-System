@@ -7,11 +7,18 @@ const route = (name) =>
   fs.readFileSync(path.join(__dirname, "..", "routes", name), "utf8");
 
 function assertRouteHasMiddleware(source, method, routePath, middleware) {
-  const escapedPath = routePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(
-    `router\\.${method}\\(\\s*["']${escapedPath}["'][\\s\\S]{0,180}?${middleware}`
+  const declaration = `router.${method}("${routePath}"`;
+  const start = source.indexOf(declaration);
+  assert.notEqual(start, -1, `${method.toUpperCase()} ${routePath} route must exist`);
+
+  const close = source.indexOf(");", start);
+  assert.notEqual(close, -1, `${method.toUpperCase()} ${routePath} route must close`);
+
+  const routeDeclaration = source.slice(start, close);
+  assert.ok(
+    routeDeclaration.includes(middleware),
+    `${method.toUpperCase()} ${routePath} must use ${middleware}`
   );
-  assert.match(source, pattern, `${method.toUpperCase()} ${routePath} must use ${middleware}`);
 }
 
 test("application data reads require authenticated admin or staff", () => {
