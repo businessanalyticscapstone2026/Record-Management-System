@@ -7089,7 +7089,8 @@ async function initSmallFormIssuance() {
     if (!app) return;
     try {
       const response = await fetch(
-        `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(app.id)}`
+        `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(app.id)}`,
+        { headers: getAuthHeaders(), cache: 'no-store' }
       );
       if (!response.ok) return;
       const result = await response.json();
@@ -7241,7 +7242,10 @@ async function sendFromIssuanceToIdMaker() {
   };
   try {
     // Pull this applicant's current photo and signature URLs from the database.
-    const detailResponse = await fetchWithTimeout(`${apiBase}/applications/${encodeURIComponent(appId)}`);
+    const detailResponse = await fetchWithTimeout(`${apiBase}/applications/${encodeURIComponent(appId)}`, {
+      headers: getAuthHeaders(),
+      cache: 'no-store'
+    });
     if (!detailResponse.ok) {
       throw new Error(`Unable to load this applicant's database images (${detailResponse.status}).`);
     }
