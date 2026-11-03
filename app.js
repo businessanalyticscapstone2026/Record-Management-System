@@ -7085,9 +7085,24 @@ async function initSmallFormIssuance() {
 
   // Autofill the form whenever the selected applicant changes
   select.onchange = async function () {
-    updatePreview();
     const app = getCurrentApplicant();
-    if (!app) return;
+    if (!app) {
+      updatePreview();
+      return;
+    }
+
+    // The application list may contain legacy bucket-relative paths.
+    // Never assign those directly to <img src>; they are not browser URLs.
+    // Clear them until the authenticated API returns short-lived signed URLs.
+    app.photo = '';
+    app.signature = '';
+    app.documents = {
+      ...(app.documents || {}),
+      photo: '',
+      signature: ''
+    };
+    updatePreview();
+
     try {
       const response = await fetch(
         `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(app.id)}`,
