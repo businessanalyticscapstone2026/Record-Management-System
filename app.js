@@ -2987,7 +2987,8 @@ async function openApplicationDetail(appId) {
   // Get the complete application information from the database
   try {
     const response = await fetch(
-      `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(appId)}`
+      `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(appId)}`,
+      { headers: getAuthHeaders(), cache: 'no-store' }
     );
 
     if (response.ok) {
