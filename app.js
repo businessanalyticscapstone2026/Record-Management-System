@@ -2987,7 +2987,8 @@ async function openApplicationDetail(appId) {
   // Get the complete application information from the database
   try {
     const response = await fetch(
-      `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(appId)}`
+      `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(appId)}`,
+      { headers: getAuthHeaders(), cache: 'no-store' }
     );
 
     if (response.ok) {
@@ -3955,16 +3956,21 @@ async function _populateDigitalIssuance(appId) {
   // ==================================================
 
   try {
+    const issuanceDetailsPath = DI_MODE === 'idmaker' ? '/issuance-details' : '';
     const response = await fetch(
       'https://management-backend-3cij.onrender.com/api/applications/' +
-      encodeURIComponent(appId),
+      encodeURIComponent(appId) + issuanceDetailsPath,
       {
         method: 'GET',
+        headers: getAuthHeaders(),
         cache: 'no-store'
       }
     );
 
     const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Unable to load the applicant details needed for ID issuance.');
+    }
 
     if (response.ok && result.success) {
       const liveApplication =
@@ -4608,7 +4614,7 @@ async function sendToIdMaker() {
     // Update the linked ID request status in the database too.
     const requestsResponse = await fetch(
       'https://management-backend-3cij.onrender.com/api/replacements',
-      { cache: 'no-store' }
+      { headers: getAuthHeaders(), cache: 'no-store' }
     );
 
     const requestsResult = await requestsResponse.json();
@@ -4798,19 +4804,8 @@ async function downloadDigitalIssuanceDocs() {
         {
           method: 'POST',
 
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-
-          body: JSON.stringify({
-            name,
-            address,
-            dob,
-            sex,
-            dateIssued,
-            controlNo
-          })
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ name, address, dob, sex, dateIssued, controlNo })
         }
       );
 
@@ -6435,9 +6430,28 @@ function sendBulkReminder() {
   addNotifyLog('—', 'Bulk Missing Document Reminder', 'SMS', 'Queued');
 }
 
-/* Exports — real CSV download, PDF/Excel as demo */
-function exportPDF() { showToast('Exported PDF (demo)', 'success'); }
-function exportExcel() { showToast('Exported Excel (demo)', 'success'); }
+/* Report export helpers: real CSV and PDF downloads. */
+function downloadReportFile(format, title, headers, rows, filenameBase) {
+  const safeBase = String(filenameBase || 'osca-report').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  if (format === 'pdf') {
+    const JsPDF = window.jspdf?.jsPDF;
+    if (!JsPDF) throw new Error('PDF export library did not load. Refresh the page and try again.');
+    const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text(String(title || 'OSCA Report'), 14, 15);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('Generated: ' + new Date().toLocaleString('en-PH'), 14, 21);
+    if (typeof doc.autoTable !== 'function') throw new Error('PDF table support did not load. Refresh the page and try again.');
+    doc.autoTable({ head: [headers], body: rows, startY: 26, theme: 'grid', styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, overflow: 'linebreak' }, headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' }, margin: { left: 14, right: 14 }, didDrawPage: function () { const page = doc.internal.getNumberOfPages(); doc.setFontSize(8); doc.text('OSCA Bauan · Page ' + page, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 7, { align: 'right' }); } });
+    doc.save(safeBase + '-' + dateStamp + '.pdf'); return;
+  }
+  if (format !== 'csv') throw new Error('Choose PDF or CSV as the export format.');
+  const csv = '\uFEFF' + [headers, ...rows].map(row => row.map(staffExportCsvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.href = url; link.download = safeBase + '-' + dateStamp + '.csv';
+  document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportPDF() { return exportData('pdf'); }
+function exportExcel() { showToast('Only PDF and CSV exports are available.', 'info'); }
 const STAFF_EXPORT_FIELDS = {
   barangay: [
     { key: 'barangay', label: 'Barangay', checked: true, locked: true },
@@ -6499,12 +6513,20 @@ function openStaffExport() {
 
   const typeSelect = document.getElementById('staff-export-type');
   if (typeSelect) typeSelect.value = 'barangay';
+  const formatSelect = document.getElementById('staff-export-format');
+  if (formatSelect) formatSelect.value = 'csv';
+  updateStaffExportFormatLabel();
   updateStaffExportFields();
   const error = document.getElementById('staff-export-error');
   if (error) error.style.display = 'none';
   modal.classList.add('show');
 }
 
+function updateStaffExportFormatLabel() {
+  const format = document.getElementById('staff-export-format')?.value || 'csv';
+  const button = document.getElementById('staff-export-submit');
+  if (button) button.textContent = 'Export ' + format.toUpperCase();
+}
 function closeStaffExport() {
   document.getElementById('staff-export-modal')?.classList.remove('show');
 }
@@ -6563,6 +6585,7 @@ async function recordStaffDataActivity(action, report, format, recordCount) {
 }
 
 async function downloadStaffExport() {
+  const format = document.getElementById('staff-export-format')?.value || 'csv';
   const type = document.getElementById('staff-export-type')?.value || 'barangay';
   const barangayFilter = document.getElementById('staff-export-barangay')?.value || '';
   const statusFilter = document.getElementById('staff-export-status')?.value || '';
@@ -6637,7 +6660,7 @@ async function downloadStaffExport() {
     await recordStaffDataActivity(
       'DATA_EXPORTED',
       type === 'barangay' ? 'Staff barangay summary' : 'Staff applicant records',
-      'CSV',
+      format.toUpperCase(),
       type === 'barangay' ? rows.length - 1 : filtered.length
     );
   } catch (auditError) {
@@ -6650,30 +6673,28 @@ async function downloadStaffExport() {
     return;
   }
 
-  const csv = '\uFEFF' + [header, ...rows].map(row => row.map(staffExportCsvCell).join(',')).join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `osca-${type === 'barangay' ? 'barangay-summary' : 'applicant-records'}-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-
-  appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported ${type === 'barangay' ? 'barangay summary' : 'applicant records'} (CSV)`, 'System');
+  const reportTitle = type === 'barangay' ? 'OSCA Barangay Summary' : 'OSCA Applicant Records';
+  downloadReportFile(format, reportTitle, header, rows, type === 'barangay' ? 'osca-barangay-summary' : 'osca-applicant-records');
+  appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported ${type === 'barangay' ? 'barangay summary' : 'applicant records'} (${format.toUpperCase()})`, 'System');
   closeStaffExport();
-  showToast(`CSV exported: ${filtered.length} application records included in the selected report.`, 'success');
+  showToast(`${format.toUpperCase()} exported: ${filtered.length} application records included in the selected report.`, 'success');
 }
 
 function exportCSV() {
   openStaffExport();
 }
 
-function exportData(format) {
-  if (format === 'pdf') exportPDF();
-  else if (format === 'excel') exportExcel();
-  else if (format === 'csv') exportCSV();
+async function exportData(format) {
+  if (!['pdf', 'csv'].includes(format)) return;
+  const data = analyticsScope();
+  const headers = ['Month', 'Submitted', 'Approved', 'Rejected'];
+  const rows = MONTHS.map((month, index) => [month, Number(data.submitted?.[index] || 0), Number(data.approvedMonthly?.[index] || 0), Number(data.rejectedMonthly?.[index] || 0)]);
+  try {
+    await recordStaffDataActivity('DATA_EXPORTED', 'Staff analytics monthly summary', format.toUpperCase(), rows.length);
+    downloadReportFile(format, 'OSCA Staff Analytics Report', headers, rows, 'osca-staff-analytics');
+    appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported staff analytics (${format.toUpperCase()})`, 'System');
+    showToast(`${format.toUpperCase()} analytics report exported.`, 'success');
+  } catch (error) { console.error('[Analytics Export]', error); showToast(error.message || 'Unable to export analytics report.', 'error'); }
 }
 function scheduleWeeklyReport() { showToast('Weekly report scheduled (every Monday 8:00 AM) — demo', 'success'); }
 
@@ -7069,7 +7090,8 @@ async function initSmallFormIssuance() {
     if (!app) return;
     try {
       const response = await fetch(
-        `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(app.id)}`
+        `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(app.id)}`,
+        { headers: getAuthHeaders(), cache: 'no-store' }
       );
       if (!response.ok) return;
       const result = await response.json();
@@ -7221,7 +7243,10 @@ async function sendFromIssuanceToIdMaker() {
   };
   try {
     // Pull this applicant's current photo and signature URLs from the database.
-    const detailResponse = await fetchWithTimeout(`${apiBase}/applications/${encodeURIComponent(appId)}`);
+    const detailResponse = await fetchWithTimeout(`${apiBase}/applications/${encodeURIComponent(appId)}`, {
+      headers: getAuthHeaders(),
+      cache: 'no-store'
+    });
     if (!detailResponse.ok) {
       throw new Error(`Unable to load this applicant's database images (${detailResponse.status}).`);
     }
