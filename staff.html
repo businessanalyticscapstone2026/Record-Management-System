@@ -362,7 +362,7 @@
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <select class="filter-select" id="recent-barangay-filter" multiple size="4" title="Select multiple barangays with Ctrl-click" onchange="filterRecentSubmissions()"
+                <select class="filter-select" id="recent-barangay-filter" title="Filter by barangay" onchange="filterRecentSubmissions()"
                   aria-label="Filter recent submissions by barangay">
                   <option value="">Barangay: All</option>
                   <option value="Alagao">Alagao</option>
@@ -1277,18 +1277,19 @@
               for frontline staff</p>
           </div>
           <div class="page-header__controls">
-            <select class="filter-select range" id="report-range"
-              onchange="showToast('Date range set: '+this.value,'info')">
-              <option>Last 7 days</option>
-              <option selected>Last 30 days</option>
-              <option>This Quarter</option>
-              <option>This Year</option>
-              <option>Custom Range (demo)</option>
+            <select class="filter-select range" id="report-range" aria-label="Analytics date range"
+              onchange="applyAnalyticsDateRange(true)">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="quarter">This Quarter</option>
+              <option value="year">This Year</option>
+              <option value="all">All time</option>
             </select>
-            <select class="filter-select" style="height:36px" onchange="exportData(this.value)">
+            <select class="filter-select" style="height:36px" aria-label="Export analytics data" onchange="exportData(this.value); this.value='';">
               <option value="">Export As...</option>
-              <option value="pdf">Export PDF</option>
-              <option value="csv">Export CSV</option>
+              <option value="pdf">PDF — Formal Report</option>
+              <option value="excel">Excel — Data Tables</option>
+              <option value="csv">CSV — Structured Report</option>
             </select>
           </div>
         </header>
@@ -2359,44 +2360,44 @@
 
   <!-- EXPORT DATA MODAL -->
   <div class="modal-backdrop" id="staff-export-modal">
-    <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="staff-export-title" style="max-width:680px;width:calc(100% - 32px)">
-      <div class="confirm-hero">
-        <div class="confirm-icon"><i class="fi fi-rr-file-export"></i></div>
+    <div class="modal confirm-modal staff-export-modal" role="dialog" aria-modal="true" aria-labelledby="staff-export-title">
+      <div class="confirm-hero staff-export__header">
+        <div class="confirm-icon staff-export__icon"><i class="fi fi-rr-file-export"></i></div>
         <div>
-          <div class="confirm-title" id="staff-export-title">Export applicant data</div>
-          <div class="confirm-desc">Choose the report type, filters, and columns to include in your export.</div>
+          <div class="confirm-title staff-export__title" id="staff-export-title">Export applicant data</div>
+          <div class="confirm-desc staff-export__description">Choose a report format, narrow your results, and select the fields to include.</div>
         </div>
       </div>
-      <div class="confirm-body" style="display:grid;gap:16px">
-        <div>
-          <label for="staff-export-type" style="display:block;font-weight:600;margin-bottom:6px">Report type</label>
-          <select id="staff-export-type" onchange="updateStaffExportFields()" style="width:100%;padding:11px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px">
+      <div class="confirm-body staff-export__body">
+        <div class="staff-export__control">
+          <label class="staff-export__label" for="staff-export-type">Report type</label>
+          <select class="staff-export__select" id="staff-export-type" onchange="updateStaffExportFields()">
             <option value="barangay">Barangay summary (male, female, overall total)</option>
             <option value="records">Individual applicant records</option>
           </select>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
-          <div>
-            <label for="staff-export-barangay" style="display:block;font-weight:600;margin-bottom:6px">Barangay</label>
-            <select id="staff-export-barangay" style="width:100%;padding:10px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px"><option value="">Barangay: All</option></select>
+        <div class="staff-export__filters">
+          <div class="staff-export__control">
+            <label class="staff-export__label" for="staff-export-barangay">Barangay</label>
+            <select class="staff-export__select" id="staff-export-barangay"><option value="">Barangay: All</option></select>
           </div>
-          <div>
-            <label for="staff-export-status" style="display:block;font-weight:600;margin-bottom:6px">Application status</label>
-            <select id="staff-export-status" style="width:100%;padding:10px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px">
+          <div class="staff-export__control">
+            <label class="staff-export__label" for="staff-export-status">Application status</label>
+            <select class="staff-export__select" id="staff-export-status">
               <option value="">All statuses</option><option>Pending</option><option>Under Review</option><option>In Process</option><option>Ready for Release</option><option>Completed</option><option>Rejected</option>
             </select>
           </div>
-          <div>
-            <label for="staff-export-membership" style="display:block;font-weight:600;margin-bottom:6px">Membership status</label>
-            <select id="staff-export-membership" style="width:100%;padding:10px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px">
+          <div class="staff-export__control">
+            <label class="staff-export__label" for="staff-export-membership">Membership status</label>
+            <select class="staff-export__select" id="staff-export-membership">
               <option value="">All membership statuses</option><option>Active</option><option>Deceased</option><option value="Unassigned">Not assigned</option>
             </select>
           </div>
         </div>
-        <div>
-          <div style="font-weight:600;margin-bottom:8px">Data fields to include</div>
-          <div id="staff-export-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px"></div>
-          <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0">For barangay summary, select which count columns to include. The overall total row is included automatically.</p>
+        <div class="staff-export__fields-section">
+          <div class="staff-export__fields-heading">Data fields to include</div>
+          <div class="staff-export__fields" id="staff-export-fields"></div>
+          <p class="staff-export__help">For barangay summaries, choose the count columns to include. The overall total row is always included.</p>
         </div>
         <div>
           <label for="staff-export-format" style="display:block;font-weight:600;margin-bottom:6px">Export format</label>
@@ -2405,9 +2406,9 @@
             <option value="pdf">PDF</option>
           </select>
         </div>
-        <div id="staff-export-error" role="alert" style="display:none;color:#dc2626"></div>
+        <div class="staff-export__error" id="staff-export-error" role="alert" aria-live="polite" style="display:none"></div>
       </div>
-      <div class="confirm-actions">
+      <div class="confirm-actions staff-export__actions">
         <button type="button" class="btn btn--ghost" onclick="closeStaffExport()">Cancel</button>
         <button type="button" class="btn btn--primary" id="staff-export-submit" onclick="downloadStaffExport()">Export CSV</button>
       </div>

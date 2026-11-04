@@ -274,6 +274,65 @@ window.updateBatchState = updateBatchState;
 
 // UPDATE LIVE ANALYTICS DATA
 
+function getAnalyticsRangeApplications(applications = LIVE_APPLICATIONS) {
+  if (!Array.isArray(applications)) return [];
+  const range = document.getElementById('report-range')?.value || '30';
+  if (range === 'all') return applications;
+
+  const now = new Date();
+  let start;
+  if (range === '7' || range === '30') {
+    start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (Number(range) - 1));
+  } else if (range === 'quarter') {
+    start = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+  } else if (range === 'year') {
+    start = new Date(now.getFullYear(), 0, 1);
+  }
+
+  if (!start) return applications;
+  return applications.filter(application => {
+    const value = application.created_at || application.submitted_at || application.application_date;
+    if (!value) return false;
+    const date = new Date(value);
+    return !Number.isNaN(date.getTime()) && date >= start && date <= now;
+  });
+}
+
+function applyAnalyticsDateRange(showFeedback = false) {
+  const filtered = getAnalyticsRangeApplications();
+  const counts = { pending: 0, review: 0, approved: 0, rejected: 0 };
+  filtered.forEach(application => {
+    const status = normalizeApplicationStatus(application.status);
+    if (status === 'pending') counts.pending++;
+    else if (status === 'review') counts.review++;
+    else if (status === 'rejected') counts.rejected++;
+    else if (['approved', 'ready', 'issued', 'completed'].includes(status)) counts.approved++;
+  });
+
+  const values = {
+    'analytics-status-approved': counts.approved,
+    'analytics-status-pending': counts.pending,
+    'analytics-status-review': counts.review,
+    'analytics-status-rejected': counts.rejected,
+    'analytics-kpi-pending': counts.pending + counts.review,
+    'analytics-kpi-review': counts.review,
+    'analytics-kpi-ready': counts.approved,
+    'analytics-kpi-rejected': counts.rejected
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = Number(value).toLocaleString();
+  });
+
+  updateLiveAnalyticsCharts(filtered);
+  if (showFeedback) {
+    const label = document.getElementById('report-range')?.selectedOptions[0]?.textContent || 'selected period';
+    showToast(`Analytics updated: ${label} (${filtered.length} applications).`, 'info');
+  }
+}
+
 function updateLiveAnalyticsData(applications) {
 
   if (!Array.isArray(applications)) {
@@ -505,6 +564,9 @@ function updateLiveAnalyticsData(applications) {
     processedThisMonth,
     rejectedThisMonth
   });
+
+  // Keep analytics scoped to the selected submission period after live updates.
+  applyAnalyticsDateRange();
 
 }
 
@@ -3145,9 +3207,7 @@ async function loadApplicationsFromDatabase() {
       "function"
     ) {
 
-      updateLiveAnalyticsCharts(
-        applications
-      );
+      applyAnalyticsDateRange();
 
       if (typeof requestStaffAnalyticsInsights === "function") {
         scheduleStaffAnalyticsInsights(applications, "applications");

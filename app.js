@@ -6538,7 +6538,7 @@ function updateStaffExportFields() {
 
   const fields = STAFF_EXPORT_FIELDS[type] || STAFF_EXPORT_FIELDS.barangay;
   container.innerHTML = fields.map(field => `
-    <label style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--border-color,#dbe3ef);border-radius:9px">
+    <label class="staff-export__field">
       <input type="checkbox" name="staff-export-field" value="${field.key}" ${field.checked ? 'checked' : ''} ${field.locked ? 'disabled checked' : ''}>
       <span>${field.label}</span>
     </label>
@@ -6567,6 +6567,549 @@ function staffExportValue(application, key) {
 
 function staffExportCsvCell(value) {
   return '"' + String(value ?? '').replace(/"/g, '""') + '"';
+}
+
+function staffExportXml(value) {
+  return String(value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function staffPdfText(value) {
+  return String(value ?? '').normalize('NFKD').replace(/[^\x20-\x7E]/g, '?').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+}
+
+function saveStaffExport(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildAnalyticsExportReport() {
+  const applications = getAnalyticsRangeApplications(getStaffExportApplications());
+  const rangeLabel = document.getElementById('report-range')?.selectedOptions[0]?.textContent || 'All time';
+  const now = new Date();
+  const stamp = now.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+  const reportId = `OSCA-AN-${stamp}`;
+  const reportTitle = document.getElementById('analytics-title')?.textContent.trim() || 'Staff Analytics';
+  const scopeLabel = document.getElementById('analytics-scope-badge')?.textContent.trim() || 'Staff Scope';
+  const statusCounts = { Pending: 0, 'Under Review': 0, 'In Process': 0, Approved: 0, 'Ready for Release': 0, 'ID Issued / Completed': 0, Rejected: 0 };
+  const barangayCounts = new Map();
+  const weeklyCounts = new Map();
+  const processingDays = [];
+  const monthly = Array.from({ length: 12 }, () => ({ submitted: 0, approved: 0, rejected: 0, issued: 0, processingTotal: 0, processingCount: 0 }));
+  const ageCounts = [0, 0, 0, 0, 0, 0];
+  const currentYear = now.getFullYear();
+
+  applications.forEach(application => {
+    const status = normalizeApplicationStatus(application.status);
+    if (status === 'pending') statusCounts.Pending++;
+    else if (status === 'review') statusCounts['Under Review']++;
+    else if (status === 'process') statusCounts['In Process']++;
+    else if (status === 'approved') statusCounts.Approved++;
+    else if (status === 'ready') statusCounts['Ready for Release']++;
+    else if (status === 'issued' || status === 'completed') statusCounts['ID Issued / Completed']++;
+    else if (status === 'rejected') statusCounts.Rejected++;
+
+    const barangay = String(application.barangay_district || 'Unknown').trim() || 'Unknown';
+    const barangayCount = barangayCounts.get(barangay) || { total: 0, approved: 0, pending: 0 };
+    barangayCount.total++;
+    if (['approved', 'ready', 'issued', 'completed'].includes(status)) barangayCount.approved++;
+    if (status === 'pending' || status === 'review') barangayCount.pending++;
+    barangayCounts.set(barangay, barangayCount);
+
+    const submittedValue = application.created_at || application.submitted_at || application.application_date;
+    const submitted = submittedValue ? new Date(submittedValue) : null;
+    if (submitted && !Number.isNaN(submitted.getTime())) {
+      const weekStart = new Date(submitted);
+      weekStart.setHours(0, 0, 0, 0);
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+      const key = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+      weeklyCounts.set(key, (weeklyCounts.get(key) || 0) + 1);
+
+      const statusValue = application.status_updated_at || application.updated_at;
+      const statusDate = statusValue ? new Date(statusValue) : null;
+      if (submitted.getFullYear() === currentYear) monthly[submitted.getMonth()].submitted++;
+      if (statusDate && !Number.isNaN(statusDate.getTime()) && statusDate >= submitted && ['approved', 'ready', 'issued', 'completed', 'rejected'].includes(status)) {
+        processingDays.push((statusDate - submitted) / 86400000);
+      }
+
+      const currentStatusDateValue = application.status_updated_at || application.updated_at || submittedValue;
+      const currentStatusDate = currentStatusDateValue ? new Date(currentStatusDateValue) : submitted;
+      if (currentStatusDate && !Number.isNaN(currentStatusDate.getTime()) && currentStatusDate.getFullYear() === currentYear) {
+        const month = monthly[currentStatusDate.getMonth()];
+        if (['approved', 'ready', 'issued', 'completed'].includes(status)) month.approved++;
+        if (status === 'rejected') month.rejected++;
+        if (status === 'issued' || status === 'completed') month.issued++;
+        if (['approved', 'ready', 'issued', 'completed', 'rejected'].includes(status)) {
+          const days = Math.max(0, Math.round((currentStatusDate.getTime() - submitted.getTime()) / 86400000));
+          month.processingTotal += days;
+          month.processingCount++;
+        }
+      }
+    }
+
+    const age = Number(application.age);
+    if (Number.isFinite(age)) {
+      if (age >= 60 && age <= 64) ageCounts[0]++;
+      else if (age >= 65 && age <= 69) ageCounts[1]++;
+      else if (age >= 70 && age <= 74) ageCounts[2]++;
+      else if (age >= 75 && age <= 79) ageCounts[3]++;
+      else if (age >= 80 && age <= 84) ageCounts[4]++;
+      else if (age >= 85) ageCounts[5]++;
+    }
+  });
+
+  const statusRows = Object.entries(statusCounts).map(([status, count]) => [status, count]);
+  const barangayRows = [...barangayCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, count]) => [name, count.total, count.approved, count.pending]);
+  const weeklyRows = [...weeklyCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([week, count]) => [new Date(`${week}T00:00:00`), count]);
+  const applicationFlowRows = monthly.map((month, index) => [
+    new Date(currentYear, index, 1), month.submitted, month.approved, month.rejected
+  ]);
+  const queueRows = [
+    ['Approved', statusCounts.Approved + statusCounts['Ready for Release'] + statusCounts['ID Issued / Completed']],
+    ['Pending', statusCounts.Pending],
+    ['In Review', statusCounts['Under Review']],
+    ['Rejected', statusCounts.Rejected]
+  ];
+  const replacements = Array.isArray(window.LIVE_REPLACEMENT_REQUESTS) ? window.LIVE_REPLACEMENT_REQUESTS : [];
+  const replacementCounts = { Pending: 0, 'In Process': 0, Completed: 0, Rejected: 0 };
+  replacements.forEach(request => {
+    const status = String(request.request_status || 'Pending').trim().toLowerCase();
+    if (status === 'pending') replacementCounts.Pending++;
+    else if (['in process', 'under review', 'ready for release'].includes(status)) replacementCounts['In Process']++;
+    else if (status === 'completed') replacementCounts.Completed++;
+    else if (status === 'rejected') replacementCounts.Rejected++;
+  });
+  const readyForHandoff = statusCounts['Ready for Release'];
+  const ageTotal = ageCounts.reduce((sum, count) => sum + count, 0);
+  let cumulativeIssued = 0;
+  const issuanceRows = monthly.map((month, index) => {
+    cumulativeIssued += month.issued;
+    return [new Date(currentYear, index, 1), month.issued, cumulativeIssued];
+  });
+  const turnaroundRows = monthly.map((month, index) => [
+    new Date(currentYear, index, 1),
+    month.processingCount ? Number((month.processingTotal / month.processingCount).toFixed(1)) : 0,
+    month.processingCount
+  ]);
+  const total = applications.length;
+  const pendingReview = statusCounts.Pending + statusCounts['Under Review'];
+  const averageDays = processingDays.length ? Number((processingDays.reduce((sum, days) => sum + days, 0) / processingDays.length).toFixed(1)) : null;
+
+  return {
+    reportId, reportTitle, scopeLabel, rangeLabel, generatedAt: now, generated: now.toLocaleString('en-PH', {
+      year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    }), generatedBy: CURRENT_ROLE || 'Staff', currentYear,
+    summary: [
+      ['Applications received', total],
+      ['Pending review', pendingReview],
+      ['Under review', statusCounts['Under Review']],
+      ['Approved applications', statusCounts.Approved],
+      ['Ready for ID handoff', statusCounts['Ready for Release']],
+      ['IDs issued or completed', statusCounts['ID Issued / Completed']],
+      ['Rejected', statusCounts.Rejected],
+      ['Average processing time (days)', averageDays ?? 'Insufficient timestamp data']
+    ],
+    statusRows,
+    barangayRows,
+    weeklyRows,
+    applicationFlowRows,
+    queueRows,
+    replacementRows: Object.entries(replacementCounts),
+    handoffRows: [
+      ['Applications ready for handoff', readyForHandoff],
+      ['Share of selected applications', total ? readyForHandoff / total : 0]
+    ],
+    ageRows: ageCounts.map((count, index) => [
+      ['60–64', '65–69', '70–74', '75–79', '80–84', '85+'][index],
+      count,
+      ageTotal ? count / ageTotal : 0
+    ]),
+    issuanceRows,
+    turnaroundRows,
+    notes: [
+      'Application totals and application-based sections use the selected reporting period.',
+      'Replacement requests are all currently loaded requests; the Analytics page does not apply the application date-range filter to this panel.',
+      'Weekly submissions exclude records without a valid submission date. Monthly charts show the current calendar year and use the same selected applications as the Analytics page.',
+      'Turnaround averages include records with valid submission and status dates; months with no qualifying records display 0, matching the chart.'
+    ],
+    recordCount: total
+  };
+}
+
+function analyticsReportSheets(report) {
+  return [
+    { name: 'Report Details', header: ['Report information', 'Value'], rows: [
+      ['Office', 'Office of the Senior Citizen Affairs (OSCA)'],
+      ['Report title', report.reportTitle],
+      ['Report ID', report.reportId],
+      ['Reporting period', report.rangeLabel],
+      ['Analytics scope', report.scopeLabel],
+      ['Generated', report.generatedAt],
+      ['Generated by role', report.generatedBy],
+      ['Applications included', report.recordCount]
+    ], widths: [25, 42], pdfWidths: [190, 342], formats: { 1: 'integer' }, rowFormats: [{}, {}, {}, {}, {}, { 1: 'datetime' }] },
+    { name: 'Executive Summary', header: ['Measure', 'Value'], rows: report.summary, widths: [38, 34], pdfWidths: [370, 162], formats: { 1: 'integer' }, rowFormats: [{}, {}, {}, {}, {}, {}, {}, { 1: 'decimal' }] },
+    { name: 'Status Breakdown', header: ['Application status', 'Applications'], rows: report.statusRows, widths: [32, 18], pdfWidths: [370, 162], formats: { 1: 'integer' } },
+    { name: 'Barangay Workload', header: ['Barangay', 'Applications', 'Approved / ID-ready', 'Pending review'], rows: report.barangayRows, widths: [34, 17, 22, 18], pdfWidths: [205, 100, 125, 102], formats: { 1: 'integer', 2: 'integer', 3: 'integer' }, wrapColumns: [0] },
+    { name: 'Weekly Submissions', header: ['Week starting', 'Applications'], rows: report.weeklyRows, widths: [20, 18], pdfWidths: [370, 162], formats: { 0: 'date', 1: 'integer' } },
+    { name: 'Application Flow', header: ['Month', 'Submitted', 'Approved', 'Rejected'], rows: report.applicationFlowRows, widths: [20, 16, 16, 16], pdfWidths: [205, 110, 110, 107], formats: { 0: 'month', 1: 'integer', 2: 'integer', 3: 'integer' } },
+    { name: 'Queue Mix', header: ['Current status group', 'Applications'], rows: report.queueRows, widths: [32, 18], pdfWidths: [370, 162], formats: { 1: 'integer' } },
+    { name: 'Replacement Requests', header: ['Request status', 'Requests'], rows: report.replacementRows, widths: [32, 18], pdfWidths: [370, 162], formats: { 1: 'integer' } },
+    { name: 'Ready for Handoff', header: ['Measure', 'Value'], rows: report.handoffRows, widths: [36, 20], pdfWidths: [370, 162], formats: { 1: 'integer' }, rowFormats: [{}, { 1: 'percent' }] },
+    { name: 'Age Distribution', header: ['Age group (years)', 'Seniors', 'Share of known ages'], rows: report.ageRows, widths: [24, 16, 22], pdfWidths: [235, 115, 182], formats: { 1: 'integer', 2: 'percent' } },
+    { name: 'ID Issuance', header: ['Month', 'IDs issued this month', 'Cumulative IDs issued'], rows: report.issuanceRows, widths: [20, 23, 24], pdfWidths: [205, 165, 162], formats: { 0: 'month', 1: 'integer', 2: 'integer' } },
+    { name: 'Turnaround Time', header: ['Month', 'Average processing days', 'Completed records'], rows: report.turnaroundRows, widths: [20, 26, 19], pdfWidths: [205, 205, 122], formats: { 0: 'month', 1: 'decimal', 2: 'integer' } },
+    { name: 'Report Notes', header: ['Topic', 'Explanation'], rows: [
+      ['Selected date range', report.notes[0]],
+      ['Replacement-request scope', report.notes[1]],
+      ['Submission and monthly chart scope', report.notes[2]],
+      ['Turnaround calculations', report.notes[3]]
+    ], widths: [28, 80], pdfWidths: [170, 362], wrapColumns: [0, 1] }
+  ];
+}
+
+function analyticsReportCsv(report) {
+  const headers = ['Report section', 'Measure', 'Period or group', 'Value', 'Notes'];
+  const rows = [];
+  const add = (section, measure, group = '', value = '', notes = '') => rows.push([section, measure, group, value, notes]);
+  const csvCell = value => {
+    const text = String(value ?? '');
+    const safeText = typeof value === 'string' && /^[=+\-@\t\r]/.test(text) ? `'${text}` : value;
+    return staffExportCsvCell(safeText);
+  };
+  add('Report details', 'Office', '', 'Office of the Senior Citizen Affairs (OSCA)');
+  add('Report details', 'Report title', '', report.reportTitle);
+  add('Report details', 'Report ID', '', report.reportId);
+  add('Report details', 'Reporting period', '', report.rangeLabel);
+  add('Report details', 'Analytics scope', '', report.scopeLabel);
+  add('Report details', 'Generated', '', report.generated);
+  add('Report details', 'Generated by role', '', report.generatedBy);
+  add('Report details', 'Applications included', '', report.recordCount);
+  report.summary.forEach(([metric, value]) => add('Executive summary', metric, '', value ?? 'Not available'));
+  report.statusRows.forEach(([status, count]) => add('Status breakdown', 'Applications', status, count));
+  report.barangayRows.forEach(([barangay, total, approved, pending]) => add(
+    'Barangay workload', 'Applications', barangay, total, `Approved / ID-ready: ${approved}; pending review: ${pending}`
+  ));
+  report.weeklyRows.forEach(([week, count]) => add('Weekly submissions', 'Applications', week.toLocaleDateString('en-PH'), count));
+  report.applicationFlowRows.forEach(([month, submitted, approved, rejected]) => {
+    add('Application flow', 'Submitted', month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }), submitted);
+    add('Application flow', 'Approved', month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }), approved);
+    add('Application flow', 'Rejected', month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }), rejected);
+  });
+  report.queueRows.forEach(([status, count]) => add('Queue mix', 'Applications', status, count));
+  report.replacementRows.forEach(([status, count]) => add(
+    'Replacement requests', 'Requests', status, count, 'All currently loaded requests; not limited by the application date range.'
+  ));
+  report.handoffRows.forEach(([metric, value]) => add(
+    'Ready for handoff', metric, '', metric === 'Share of selected applications' ? `${Math.round(value * 100)}%` : value
+  ));
+  report.ageRows.forEach(([group, count, share]) => add('Age distribution', 'Seniors', group, count, `${(share * 100).toFixed(1)}% of known ages`));
+  report.issuanceRows.forEach(([month, issued, cumulative]) => {
+    const label = month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+    add('ID issuance', 'IDs issued this month', label, issued);
+    add('ID issuance', 'Cumulative IDs issued', label, cumulative);
+  });
+  report.turnaroundRows.forEach(([month, average, count]) => add(
+    'Turnaround time', 'Average processing days', month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }),
+    average.toFixed(1), `${count} completed records`
+  ));
+  report.notes.forEach(note => add('Notes', 'Data interpretation', '', '', note));
+  return new Blob(['\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+}
+
+function analyticsReportExcel(report) {
+  const sheets = analyticsReportSheets(report);
+  const columnName = number => {
+    let name = '';
+    while (number > 0) {
+      const remainder = (number - 1) % 26;
+      name = String.fromCharCode(65 + remainder) + name;
+      number = Math.floor((number - 1) / 26);
+    }
+    return name;
+  };
+  const sheetParts = sheets.map((sheet, sheetIndex) => {
+    const sourceRows = [sheet.header, ...sheet.rows];
+    const maxColumns = Math.max(...sourceRows.map(row => row.length));
+    const rows = sourceRows.map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, columnIndex) => {
+      const ref = `${columnName(columnIndex + 1)}${rowIndex + 1}`;
+      const format = sheet.rowFormats?.[rowIndex - 1]?.[columnIndex] || sheet.formats?.[columnIndex];
+      const style = rowIndex === 0 ? 1 : sheet.wrapColumns?.includes(columnIndex) && typeof value === 'string' ? 8 : format === 'date' ? 2 : format === 'month' ? 3 : format === 'decimal' ? 4 : format === 'percent' ? 5 : format === 'datetime' ? 6 : format === 'integer' ? 7 : 0;
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        const serial = Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), value.getHours(), value.getMinutes(), value.getSeconds()) / 86400000 + 25569;
+        return `<c r="${ref}" s="${style}"><v>${serial}</v></c>`;
+      }
+      if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${ref}"${style ? ` s="${style}"` : ''}><v>${value}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"${style ? ` s="${style}"` : ''}><is><t xml:space="preserve">${staffExportXml(value)}</t></is></c>`;
+    }).join('')}</row>`).join('');
+    const lastColumn = columnName(maxColumns);
+    const lastRow = sourceRows.length;
+    const columns = sheet.widths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
+    return {
+      name: sheet.name,
+      xml: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><cols>${columns}</cols><sheetData>${rows}</sheetData><autoFilter ref="A1:${lastColumn}${lastRow}"/></worksheet>`,
+      relationshipId: `rId${sheetIndex + 1}`
+    };
+  });
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheetParts.map((sheet, index) => `<sheet name="${staffExportXml(sheet.name)}" sheetId="${index + 1}" r:id="${sheet.relationshipId}"/>`).join('')}</sheets></workbook>`;
+  const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheetParts.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`).join('')}<Relationship Id="rId${sheetParts.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="5"><numFmt numFmtId="164" formatCode="0.0"/><numFmt numFmtId="165" formatCode="0%"/><numFmt numFmtId="166" formatCode="mmm yyyy"/><numFmt numFmtId="167" formatCode="#,##0"/><numFmt numFmtId="168" formatCode="mmm d, yyyy h:mm AM/PM"/></numFmts><fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF19345C"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD7E0EA"/></left><right style="thin"><color rgb="FFD7E0EA"/></right><top style="thin"><color rgb="FFD7E0EA"/></top><bottom style="thin"><color rgb="FFD7E0EA"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="14" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="168" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheetParts.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`;
+
+  const encoder = new TextEncoder();
+  const crcTable = Array.from({ length: 256 }, (_, index) => {
+    let value = index;
+    for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xEDB88320 ^ (value >>> 1) : value >>> 1;
+    return value >>> 0;
+  });
+  const crc32 = bytes => {
+    let crc = 0xFFFFFFFF;
+    bytes.forEach(byte => { crc = crcTable[(crc ^ byte) & 0xFF] ^ (crc >>> 8); });
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  };
+  const parts = [
+    ['[Content_Types].xml', contentTypes], ['_rels/.rels', rootRels],
+    ['xl/workbook.xml', workbook], ['xl/_rels/workbook.xml.rels', workbookRels], ['xl/styles.xml', styles],
+    ...sheetParts.map((sheet, index) => [`xl/worksheets/sheet${index + 1}.xml`, sheet.xml])
+  ];
+  const localFiles = [];
+  const centralFiles = [];
+  let localOffset = 0;
+  parts.forEach(([path, contents]) => {
+    const name = encoder.encode(path);
+    const data = encoder.encode(contents);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + name.length + data.length);
+    const localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034B50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, data.length, true);
+    localView.setUint32(22, data.length, true);
+    localView.setUint16(26, name.length, true);
+    local.set(name, 30);
+    local.set(data, 30 + name.length);
+    localFiles.push(local);
+
+    const central = new Uint8Array(46 + name.length);
+    const centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014B50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, data.length, true);
+    centralView.setUint32(24, data.length, true);
+    centralView.setUint16(28, name.length, true);
+    centralView.setUint32(42, localOffset, true);
+    central.set(name, 46);
+    centralFiles.push(central);
+    localOffset += local.length;
+  });
+  const centralSize = centralFiles.reduce((size, part) => size + part.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054B50, true);
+  endView.setUint16(8, parts.length, true);
+  endView.setUint16(10, parts.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, localOffset, true);
+  return new Blob([...localFiles, ...centralFiles, end], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+function analyticsReportPdf(report) {
+  const pageWidth = 612;
+  const contentLeft = 40;
+  const contentWidth = 532;
+  const bottomLimit = 54;
+  const pages = [[]];
+  let pageIndex = 0;
+  let cursorY = 690;
+  const sheets = analyticsReportSheets(report).slice(1);
+  const wrapText = (value, maxCharacters) => {
+    const words = staffPdfText(value).split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+      while (word.length > maxCharacters) {
+        if (line) {
+          lines.push(line);
+          line = '';
+        }
+        lines.push(word.slice(0, maxCharacters));
+        word = word.slice(maxCharacters);
+      }
+      if (!word) return;
+      if (line && `${line} ${word}`.length > maxCharacters) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    });
+    if (line || !lines.length) lines.push(line);
+    return lines;
+  };
+  const displayValue = (value, format) => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return format === 'month'
+        ? value.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })
+        : value.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      if (format === 'percent') return `${Math.round(value * 100)}%`;
+      if (format === 'decimal') return value.toFixed(1);
+      return value.toLocaleString('en-PH');
+    }
+    return String(value ?? '');
+  };
+  const startNewPage = () => {
+    pages.push([]);
+    pageIndex++;
+    cursorY = 690;
+  };
+  const addSectionHeading = title => {
+    pages[pageIndex].push(
+      'q', '0.91 0.94 0.98 rg', `40 ${cursorY - 16} ${contentWidth} 18 re f`, 'Q',
+      'BT', '/F2 10 Tf', '0.10 0.18 0.33 rg', '48', String(cursorY - 12), 'Td',
+      `(${staffPdfText(title)}) Tj`, 'ET'
+    );
+    cursorY -= 23;
+  };
+  const addTableHeading = sheet => {
+    let x = contentLeft;
+    sheet.header.forEach((value, columnIndex) => {
+      const width = sheet.pdfWidths[columnIndex];
+      pages[pageIndex].push(
+        'q', '0.10 0.18 0.33 rg', `${x} ${cursorY - 18} ${width} 19 re f`, 'Q',
+        'BT', '/F2 8 Tf', '1 1 1 rg', `${x + 6}`, String(cursorY - 12), 'Td',
+        `(${staffPdfText(value)}) Tj`, 'ET'
+      );
+      x += width;
+    });
+    cursorY -= 20;
+  };
+  const startSection = sheet => {
+    addSectionHeading(sheet.name.toUpperCase());
+    addTableHeading(sheet);
+  };
+
+  sheets.forEach(sheet => {
+    if (cursorY - 45 < bottomLimit) startNewPage();
+    startSection(sheet);
+    const rows = sheet.rows.length ? sheet.rows : [['No records for this period', ...Array(Math.max(0, sheet.header.length - 1)).fill('')]];
+    rows.forEach((row, rowIndex) => {
+      const cellLines = row.map((value, columnIndex) => {
+        const format = sheet.rowFormats?.[rowIndex]?.[columnIndex] || sheet.formats?.[columnIndex];
+        const text = displayValue(value, format);
+        return wrapText(text, Math.max(8, Math.floor((sheet.pdfWidths[columnIndex] - 12) / 4.2)));
+      });
+      const rowHeight = Math.max(18, Math.max(...cellLines.map(lines => lines.length)) * 10 + 7);
+      if (cursorY - rowHeight < bottomLimit) {
+        startNewPage();
+        startSection(sheet);
+      }
+      const top = cursorY;
+      pages[pageIndex].push('q', rowIndex % 2 ? '0.96 0.97 0.98 rg' : '1 1 1 rg', `${contentLeft} ${top - rowHeight} ${contentWidth} ${rowHeight} re f`, 'Q');
+      let x = contentLeft;
+      cellLines.forEach((lines, columnIndex) => {
+        const width = sheet.pdfWidths[columnIndex];
+        lines.forEach((line, lineIndex) => {
+          pages[pageIndex].push(
+            'BT', '/F1 8 Tf', '0.12 0.16 0.22 rg', `${x + 6}`, String(top - 12 - lineIndex * 10), 'Td',
+            `(${line}) Tj`, 'ET'
+          );
+        });
+        pages[pageIndex].push('q', '0.84 0.87 0.90 RG', '0.5 w', `${x + width} ${top - rowHeight} m`, `${x + width} ${top} l`, 'S', 'Q');
+        x += width;
+      });
+      pages[pageIndex].push('q', '0.84 0.87 0.90 RG', '0.5 w', `${contentLeft} ${top - rowHeight} m`, `${contentLeft + contentWidth} ${top - rowHeight} l`, 'S', 'Q');
+      cursorY -= rowHeight;
+    });
+    cursorY -= 12;
+  });
+
+  const objects = [];
+  const pageIds = pages.map((_, index) => 3 + index * 2);
+  const regularFontId = 3 + pages.length * 2;
+  const boldFontId = regularFontId + 1;
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[2] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+  pages.forEach((pageLines, index) => {
+    const pageId = pageIds[index];
+    const contentId = pageId + 1;
+    const commands = [
+      'q', '0.10 0.18 0.33 rg', '36 758 540 70 re f', 'Q',
+      'BT', '/F2 10 Tf', '1 1 1 rg', '50 805 Td', `(OFFICE OF THE SENIOR CITIZEN AFFAIRS - OSCA) Tj`, 'ET',
+      'BT', '/F2 17 Tf', '1 1 1 rg', '50 778 Td', `(${staffPdfText(report.reportTitle.toUpperCase())} REPORT) Tj`, 'ET',
+      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '42 740 Td', `(Report ID: ${staffPdfText(report.reportId)}) Tj`, 'ET',
+      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '42 727 Td', `(Reporting period: ${staffPdfText(report.rangeLabel)}) Tj`, 'ET',
+      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '42 714 Td', `(Generated: ${staffPdfText(report.generated)}) Tj`, 'ET',
+      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '330 740 Td', `(Analytics scope: ${staffPdfText(report.scopeLabel)}) Tj`, 'ET',
+      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '330 727 Td', `(Generated by role: ${staffPdfText(report.generatedBy)}) Tj`, 'ET'
+    ];
+    commands.push(...pageLines);
+    commands.push('BT', '/F1 8 Tf', '0.35 0.40 0.48 rg', '42 24 Td', '(Official use - aggregate statistics; applicant identifiers are excluded.) Tj', 'ET', 'BT', '/F1 8 Tf', '0.35 0.40 0.48 rg', '505 24 Td', `(Page ${index + 1} of ${pages.length}) Tj`, 'ET');
+    const stream = commands.join('\n');
+    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} 842] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    objects[contentId] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  });
+  objects[regularFontId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+  objects[boldFontId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (let id = 1; id < objects.length; id++) {
+    offsets[id] = pdf.length;
+    pdf += `${id} 0 obj\n${objects[id]}\nendobj\n`;
+  }
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  for (let id = 1; id < objects.length; id++) pdf += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+
+async function downloadAnalyticsReport(format) {
+  const report = buildAnalyticsExportReport();
+  const formatCode = format === 'excel' ? 'XLSX' : format.toUpperCase();
+  const formatLabel = format === 'excel' ? 'Excel' : format.toUpperCase();
+  try {
+    await recordStaffDataActivity('DATA_EXPORTED', `Staff operations analytics (${report.rangeLabel}; ${report.reportId})`, formatCode, report.recordCount);
+  } catch (error) {
+    console.error('[Analytics Export] Audit logging failed:', error);
+    showToast(`Export blocked: audit log failed${error?.message ? ` (${error.message})` : ''}.`, 'error');
+    return;
+  }
+
+  const dateSlug = new Date().toISOString().slice(0, 10);
+  const rangeSlug = report.rangeLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const base = `osca-staff-analytics-${rangeSlug}-${dateSlug}`;
+  let blob;
+  let extension;
+  if (format === 'pdf') {
+    blob = analyticsReportPdf(report);
+    extension = 'pdf';
+  } else if (format === 'excel') {
+    blob = analyticsReportExcel(report);
+    extension = 'xlsx';
+  } else {
+    blob = analyticsReportCsv(report);
+    extension = 'csv';
+  }
+  saveStaffExport(blob, `${base}.${extension}`);
+  appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported staff analytics (${formatLabel})`, 'System');
+  showToast(`${formatLabel} analytics report downloaded. ${report.recordCount} applications included.`, 'success');
 }
 
 async function recordStaffDataActivity(action, report, format, recordCount) {
@@ -6684,17 +7227,9 @@ function exportCSV() {
   openStaffExport();
 }
 
-async function exportData(format) {
-  if (!['pdf', 'csv'].includes(format)) return;
-  const data = analyticsScope();
-  const headers = ['Month', 'Submitted', 'Approved', 'Rejected'];
-  const rows = MONTHS.map((month, index) => [month, Number(data.submitted?.[index] || 0), Number(data.approvedMonthly?.[index] || 0), Number(data.rejectedMonthly?.[index] || 0)]);
-  try {
-    await recordStaffDataActivity('DATA_EXPORTED', 'Staff analytics monthly summary', format.toUpperCase(), rows.length);
-    downloadReportFile(format, 'OSCA Staff Analytics Report', headers, rows, 'osca-staff-analytics');
-    appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported staff analytics (${format.toUpperCase()})`, 'System');
-    showToast(`${format.toUpperCase()} analytics report exported.`, 'success');
-  } catch (error) { console.error('[Analytics Export]', error); showToast(error.message || 'Unable to export analytics report.', 'error'); }
+function exportData(format) {
+  if (!['csv', 'pdf', 'excel'].includes(format)) return;
+  downloadAnalyticsReport(format);
 }
 function scheduleWeeklyReport() { showToast('Weekly report scheduled (every Monday 8:00 AM) — demo', 'success'); }
 
@@ -8034,4 +8569,3 @@ function sortTable(tbodyId, colIdx, thEl) {
     activeIcon.style.opacity = '1';
   }
 }
-

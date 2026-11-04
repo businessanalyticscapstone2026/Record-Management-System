@@ -1208,7 +1208,9 @@ body>.status-select__menu {
 }
 
 .barangay-empty-card .bar-chart-wrap {
-  height: 224px;
+  flex: 1 1 224px;
+  min-height: 224px;
+  height: auto;
   display: block
 }
 
@@ -1327,6 +1329,28 @@ body>.status-select__menu {
 
 :root[data-theme="dark"] .barangay-empty-card .bar-col.is-peak .bar-col__value {
   color: #93C5FD
+}
+
+.dash-charts-row .donut-wrap,
+.dash-charts-row .donut-svg {
+  width: 190px;
+  height: 190px;
+}
+
+.dash-charts-row .donut-wrap {
+  max-width: 100%;
+}
+
+.dash-charts-row .donut-inner__pct {
+  font-size: 30px;
+}
+
+@media (max-width: 560px) {
+  .dash-charts-row .donut-wrap,
+  .dash-charts-row .donut-svg {
+    width: 150px;
+    height: 150px;
+  }
 }
 
 /* Staff analytics command center */
@@ -2589,4 +2613,209 @@ body>.status-select__menu {
 :root[data-theme="dark"] #mod-applicants .applicant-id-copy:hover,
 :root[data-theme="dark"] #mod-applicants .applicant-id-copy.is-copied {
   color: #93C5FD;
+}
+#staff-export-modal .staff-export-modal {
+  width: min(760px, 100%);
+  max-height: calc(100dvh - 40px);
+  border-radius: var(--r-2xl);
+}
+
+#staff-export-modal .staff-export__header {
+  gap: 16px;
+  padding: 22px 26px;
+}
+
+#staff-export-modal .staff-export__icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: var(--primary-glass);
+  box-shadow: inset 0 0 0 1px var(--primary-border);
+}
+
+#staff-export-modal .staff-export__icon i {
+  font-size: 19px;
+}
+
+#staff-export-modal .staff-export__title {
+  font-size: 19px;
+  letter-spacing: -.025em;
+}
+
+#staff-export-modal .staff-export__description {
+  max-width: 520px;
+  font-size: 13px;
+}
+
+#staff-export-modal .staff-export__body {
+  display: grid;
+  gap: 20px;
+  padding: 22px 26px 24px;
+  overflow: auto;
+}
+
+#staff-export-modal .staff-export__control {
+  min-width: 0;
+}
+
+#staff-export-modal .staff-export__label,
+#staff-export-modal .staff-export__fields-heading {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#staff-export-modal .staff-export__select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  transition: border-color var(--tf), box-shadow var(--tf);
+}
+
+#staff-export-modal .staff-export__select:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glass);
+}
+
+#staff-export-modal .staff-export__filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+#staff-export-modal .staff-export__fields-section {
+  min-width: 0;
+}
+
+#staff-export-modal .staff-export__fields-heading {
+  margin-bottom: 10px;
+}
+
+#staff-export-modal .staff-export__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+#staff-export-modal .staff-export__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--tf), border-color var(--tf), color var(--tf);
+}
+
+#staff-export-modal .staff-export__field:has(input:checked) {
+  border-color: var(--primary-border);
+  background: var(--primary-glass);
+  color: var(--text-primary);
+}
+
+#staff-export-modal .staff-export__field:has(input:disabled) {
+  cursor: default;
+}
+
+#staff-export-modal .staff-export__field input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+#staff-export-modal .staff-export__field input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+#staff-export-modal .staff-export__help {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#staff-export-modal .staff-export__error {
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 35, 58, .2);
+  border-radius: var(--r-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+#staff-export-modal .staff-export__actions {
+  gap: 10px;
+  padding: 16px 26px 20px;
+}
+
+#staff-export-modal .staff-export__actions .btn--primary {
+  gap: 9px;
+  padding-inline: 18px;
+}
+
+#staff-export-modal .staff-export__actions .btn--primary i {
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  #staff-export-modal.modal-backdrop {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  #staff-export-modal .staff-export-modal {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    border-radius: 20px;
+  }
+
+  #staff-export-modal .staff-export__header {
+    padding: 18px 18px 16px;
+  }
+
+  #staff-export-modal .staff-export__body {
+    gap: 17px;
+    padding: 18px;
+  }
+
+  #staff-export-modal .staff-export__filters,
+  #staff-export-modal .staff-export__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #staff-export-modal .staff-export__actions {
+    padding: 14px 18px 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  #staff-export-modal .staff-export__filters,
+  #staff-export-modal .staff-export__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #staff-export-modal .staff-export__actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
