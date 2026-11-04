@@ -7304,7 +7304,10 @@ async function sendFromIssuanceToIdMaker() {
     // Also update the linked ID request in the database.
     const requestsResponse = await fetchWithTimeout(
       `${apiBase}/replacements`,
-      { cache: 'no-store' }
+      {
+        headers: getAuthHeaders(),
+        cache: 'no-store'
+      }
     );
 
     const requestsResult = await requestsResponse.json();
