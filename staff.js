@@ -5621,7 +5621,8 @@ APPLICANT_IMPORT_FIELDS.push(
   { key: "application_files.authentication_method", label: "Authentication Method", table: "application_files", column: "authentication_method", aliases: ["authentication method","authentication_method"] },
   { key: "application_files.authentication_remarks", label: "Authentication Remarks", table: "application_files", column: "authentication_remarks", aliases: ["authentication remarks","authentication_remarks"] },
   { key: "application_files.supporting_document_type", label: "Supporting Document Type", table: "application_files", column: "supporting_document_type", aliases: ["supporting document type","supporting_document_type"] },
-  { key: "application_status_history.updated_at", label: "Updated At", table: "application_status_history", column: "updated_at", aliases: ["updated at","updated_at"] }
+  { key: "application_status_history.status", label: "Application Status", table: "application_status_history", column: "status", aliases: ["application status","status","registration status","record status"] },
+  { key: "application_status_history.updated_at", label: "Status Updated At", table: "application_status_history", column: "updated_at", aliases: ["status updated at","updated at","updated_at"] }
 );
 
 let APPLICANT_IMPORT_STATE = {
@@ -6317,36 +6318,75 @@ async function submitApplicantImport() {
 function initializeApplicantImport() {
   const input = document.getElementById("applicant-import-file");
   const dropzone = document.getElementById("applicant-import-dropzone");
+  const overlay = document.getElementById("applicant-import-overlay");
+
   if (input && !input.dataset.importBound) {
     input.dataset.importBound = "true";
-    input.addEventListener("change", event => handleApplicantImportFile(event.target.files && event.target.files[0]));
+    input.addEventListener("change", event => {
+      const file = event.target.files && event.target.files[0];
+      if (file) handleApplicantImportFile(file);
+    });
   }
+
   const dateFormat = document.getElementById("applicant-import-date-format");
   if (dateFormat && !dateFormat.dataset.importBound) {
     dateFormat.dataset.importBound = "true";
     dateFormat.addEventListener("change", renderApplicantImportPreview);
   }
-  if (dropzone && !dropzone.dataset.importBound) {
-    dropzone.dataset.importBound = "true";
-    ["dragenter", "dragover"].forEach(name => dropzone.addEventListener(name, event => {
+
+  // Listen on both the visible drop target and modal overlay. Some browsers
+  // dispatch the drop on a child element rather than the label itself.
+  const bindDropTarget = (target, isOverlay = false) => {
+    if (!target || target.dataset.importDropBound) return;
+    target.dataset.importDropBound = "true";
+
+    ["dragenter", "dragover"].forEach(name => target.addEventListener(name, event => {
       event.preventDefault();
-      dropzone.classList.add("is-dragover");
+      event.stopPropagation();
+      if (dropzone) dropzone.classList.add("is-dragover");
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
     }));
-    ["dragleave", "drop"].forEach(name => dropzone.addEventListener(name, event => {
+
+    ["dragleave"].forEach(name => target.addEventListener(name, event => {
       event.preventDefault();
-      dropzone.classList.remove("is-dragover");
+      event.stopPropagation();
+      // Only clear the highlight when the pointer actually leaves this target.
+      if (!event.relatedTarget || !target.contains(event.relatedTarget)) {
+        if (dropzone) dropzone.classList.remove("is-dragover");
+      }
     }));
-    dropzone.addEventListener("drop", event => {
-      const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
-      if (!file) return;
-      const transfer = new DataTransfer();
-      transfer.items.add(file);
-      input.files = transfer.files;
-      handleApplicantImportFile(file);
+
+    target.addEventListener("drop", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (dropzone) dropzone.classList.remove("is-dragover");
+      const files = event.dataTransfer && event.dataTransfer.files;
+      if (!files || !files.length) {
+        setApplicantImportError("No file was detected. Try choosing the file using the upload area instead.");
+        return;
+      }
+      if (isOverlay && dropzone && !dropzone.contains(event.target)) {
+        // The overlay accepts drops too, but guide users toward the visible target.
+        setApplicantImportError("Drop the file inside the dashed upload area, or click Choose a CSV or PDF file.");
+        return;
+      }
+      handleApplicantImportFile(files[0]);
     });
+  };
+
+  bindDropTarget(dropzone);
+  bindDropTarget(overlay, true);
+
+  // Prevent the browser from opening a dropped file in the current tab while
+  // the import dialog is open.
+  if (!document.documentElement.dataset.applicantImportGlobalDropBound) {
+    document.documentElement.dataset.applicantImportGlobalDropBound = "true";
+    ["dragover", "drop"].forEach(name => document.addEventListener(name, event => {
+      const currentOverlay = document.getElementById("applicant-import-overlay");
+      if (currentOverlay && !currentOverlay.hidden) event.preventDefault();
+    }));
   }
 }
-
 document.addEventListener("DOMContentLoaded", initializeApplicantImport);
 window.openApplicantImportModal = openApplicantImportModal;
 window.closeApplicantImportModal = closeApplicantImportModal;
