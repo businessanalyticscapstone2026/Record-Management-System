@@ -2477,6 +2477,23 @@ const importApplicantRecords = async (req, res) => {
     columns.filter(column => /^(income_|asset_|living_|skill_|involvement_|economic_|social_|health_|housing_|community_)/.test(column) &&
       !column.endsWith("_specify") && !["monthly_income"].includes(column)).map(column => table + "." + column)
   ));
+  const normalizeFamilyCivilStatus = value => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return null;
+    const key = normalizeText(raw);
+    const accepted = {
+      single: "Single",
+      unmarried: "Single",
+      never married: "Single",
+      separated: "Separated",
+      legally separated: "Separated",
+      married: "Married",
+      widower: "Widower",
+      widow: "Widower",
+      widowed: "Widower"
+    };
+    return accepted[key] || null;
+  };
   const parseBoolean = value => {
     const normalized = String(value ?? "").trim().toLowerCase();
     if (["true", "1", "yes", "y", "checked", "✓", "✔"].includes(normalized)) return true;
@@ -2592,6 +2609,9 @@ const importApplicantRecords = async (req, res) => {
             } else if (["association_date", "application_date"].includes(column)) {
               const date = normalizeDate(value);
               if (date) record[column] = date;
+            } else if (table === "family_composition" && column === "civil_status") {
+              const normalizedStatus = normalizeFamilyCivilStatus(value);
+              if (normalizedStatus) record[column] = normalizedStatus;
             } else {
               record[column] = String(value).trim();
             }
