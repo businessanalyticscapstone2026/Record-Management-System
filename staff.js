@@ -5491,6 +5491,22 @@ const APPLICANT_IMPORT_FIELDS = [
 ];
 
 
+// Additional columns available on the applications table.
+APPLICANT_IMPORT_FIELDS.push(
+  { key: "place_of_birth", label: "Place of birth", aliases: ["place of birth", "birthplace"] },
+  { key: "civil_status", label: "Civil status", aliases: ["civil status", "marital status"] },
+  { key: "educational_attainment", label: "Educational attainment", aliases: ["educational attainment", "education", "highest education"] },
+  { key: "religion", label: "Religion", aliases: ["religion", "religious affiliation"] },
+  { key: "religion_specify", label: "Religion (specify)", aliases: ["religion specify", "other religion"] },
+  { key: "occupation", label: "Occupation", aliases: ["occupation", "previous occupation", "work"] },
+  { key: "osca_id_number", label: "OSCA ID number", aliases: ["osca id number", "osca number"] },
+  { key: "sss_id_number", label: "SSS ID number", aliases: ["sss id", "sss number"] },
+  { key: "philhealth_id_number", label: "PhilHealth ID number", aliases: ["philhealth id", "philhealth number"] },
+  { key: "gsis_id_number", label: "GSIS ID number", aliases: ["gsis id", "gsis number"] },
+  { key: "tin_id_number", label: "TIN ID number", aliases: ["tin id", "tin number", "tax identification number"] },
+  { key: "application_type", label: "Application type", aliases: ["application type", "record type"] }
+);
+
 // Related-table fields use the real Supabase schema. They are optional and
 // are inserted only when the source file provides a value.
 APPLICANT_IMPORT_FIELDS.push(
