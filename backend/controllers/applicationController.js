@@ -2484,9 +2484,9 @@ const importApplicantRecords = async (req, res) => {
     const accepted = {
       single: "Single",
       unmarried: "Single",
-      never married: "Single",
+      "never married": "Single",
       separated: "Separated",
-      legally separated: "Separated",
+      "legally separated": "Separated",
       married: "Married",
       widower: "Widower",
       widow: "Widower",
