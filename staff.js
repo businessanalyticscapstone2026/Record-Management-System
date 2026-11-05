@@ -6,46 +6,46 @@ const STAFF_KPIS = [
   {
     label: 'Total applications',
     value: '0',
-    sub: 'System Volume',
+    sub: 'All recorded applications',
     icon: 'fi fi-rr-apps',
-    trend: 'Live',
-    trendClass: 'trend-up',
+    trend: '',
+    trendClass: 'trend-neutral',
     iconWrap: 'blue'
   },
   {
     label: 'Pending Review',
     value: '0',
-    sub: 'Awaiting action',
+    sub: 'Pending or in review',
     icon: 'fi fi-rr-clock',
-    trend: 'Live',
-    trendClass: 'trend-up',
+    trend: '',
+    trendClass: 'trend-neutral',
     iconWrap: 'warn'
   },
   {
     label: 'Approved Today',
     value: '0',
-    sub: 'Approved today',
+    sub: 'Approved, ready, or issued today',
     icon: 'fi fi-rr-check-double',
-    trend: 'Live',
-    trendClass: 'trend-good',
+    trend: '',
+    trendClass: 'trend-neutral',
     iconWrap: 'green'
   },
   {
     label: 'Applications processed',
     value: '0',
-    sub: 'This month',
+    sub: 'Applications advanced this month',
     icon: 'fi fi-rr-chart-line-up',
-    trend: 'Live',
-    trendClass: 'trend-good',
+    trend: '',
+    trendClass: 'trend-neutral',
     iconWrap: 'teal'
   },
   {
     label: 'Rejected Applications',
     value: '0',
-    sub: 'This month',
+    sub: 'Rejected this month',
     icon: 'fi fi-rr-x',
-    trend: 'Live',
-    trendClass: 'trend-down',
+    trend: '',
+    trendClass: 'trend-neutral',
     iconWrap: 'red'
   }
 ];
@@ -273,6 +273,89 @@ window.updateBatchState = updateBatchState;
 
 
 // UPDATE LIVE ANALYTICS DATA
+
+function getAnalyticsRangeApplications(applications = LIVE_APPLICATIONS) {
+  if (!Array.isArray(applications)) return [];
+  const range = document.getElementById('report-range')?.value || '30';
+  if (range === 'all') return applications;
+
+  const now = new Date();
+  let start;
+  if (range === '7' || range === '30') {
+    start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (Number(range) - 1));
+  } else if (range === 'quarter') {
+    start = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+  } else if (range === 'year') {
+    start = new Date(now.getFullYear(), 0, 1);
+  }
+
+  if (!start) return applications;
+  return applications.filter(application => {
+    const value = application.created_at || application.submitted_at || application.application_date;
+    if (!value) return false;
+    const date = new Date(value);
+    return !Number.isNaN(date.getTime()) && date >= start && date <= now;
+  });
+}
+
+function applyAnalyticsDateRange(showFeedback = false) {
+  const filtered = getAnalyticsRangeApplications();
+  const counts = { pending: 0, review: 0, approved: 0, rejected: 0 };
+  filtered.forEach(application => {
+    const status = normalizeApplicationStatus(application.status);
+    if (status === 'pending') counts.pending++;
+    else if (status === 'review') counts.review++;
+    else if (status === 'rejected') counts.rejected++;
+    else if (['approved', 'ready', 'issued', 'completed'].includes(status)) counts.approved++;
+  });
+
+  if (typeof ANALYTICS_DATA !== 'undefined') {
+    ['Admin', 'Staff', 'ID Maker'].forEach(role => {
+      const data = ANALYTICS_DATA[role];
+      if (!data) return;
+      data.pending = counts.pending;
+      data.inReview = counts.review;
+      data.approved = counts.approved;
+      data.rejected = counts.rejected;
+      data.statusDenominator = filtered.length;
+    });
+  }
+
+  const statusTotal = filtered.length;
+  const values = {
+    'analytics-status-approved': counts.approved,
+    'analytics-status-pending': counts.pending,
+    'analytics-status-review': counts.review,
+    'analytics-status-rejected': counts.rejected,
+    'analytics-status-approved-percent': statusTotal ? `${(counts.approved / statusTotal * 100).toFixed(1)}%` : '0.0%',
+    'analytics-status-pending-percent': statusTotal ? `${(counts.pending / statusTotal * 100).toFixed(1)}%` : '0.0%',
+    'analytics-status-review-percent': statusTotal ? `${(counts.review / statusTotal * 100).toFixed(1)}%` : '0.0%',
+    'analytics-status-rejected-percent': statusTotal ? `${(counts.rejected / statusTotal * 100).toFixed(1)}%` : '0.0%',
+    'queue-mix-total': statusTotal.toLocaleString(),
+    'queue-mix-sample': `n = ${statusTotal.toLocaleString()} applications`,
+    'analytics-kpi-pending': counts.pending + counts.review,
+    'analytics-kpi-review': counts.review,
+    'analytics-kpi-ready': counts.approved,
+    'analytics-kpi-rejected': counts.rejected
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = typeof value === 'number' ? value.toLocaleString() : value;
+  });
+
+  updateLiveAnalyticsCharts(filtered);
+  const allStatusesZero = Object.values(counts).every(count => count === 0);
+  const emptyRing = document.getElementById('queue-mix-empty-ring');
+  const chartCanvas = document.getElementById('chart-status');
+  if (emptyRing) emptyRing.style.display = allStatusesZero ? 'flex' : 'none';
+  if (chartCanvas) chartCanvas.style.opacity = allStatusesZero ? '0' : '1';
+  if (showFeedback) {
+    const label = document.getElementById('report-range')?.selectedOptions[0]?.textContent || 'selected period';
+    showToast(`Analytics updated: ${label} (${filtered.length} applications).`, 'info');
+  }
+}
 
 function updateLiveAnalyticsData(applications) {
 
@@ -503,8 +586,12 @@ function updateLiveAnalyticsData(applications) {
     pendingReview,
     approvedToday,
     processedThisMonth,
-    rejectedThisMonth
+    rejectedThisMonth,
+    applications
   });
+
+  // Keep analytics scoped to the selected submission period after live updates.
+  applyAnalyticsDateRange();
 
 }
 
@@ -1125,24 +1212,55 @@ function updateApplicationSummaryCards(
 // STAFF DASHBOARD KPI CARDS
 
 function updateStaffKPICards(metrics) {
+  const strip = document.getElementById('staff-kpi-strip');
+  if (!strip) return;
 
-  const strip =
-    document.getElementById(
-      'staff-kpi-strip'
-    );
+  const applications = Array.isArray(metrics.applications) ? metrics.applications : [];
+  const now = new Date();
+  const startOfThisWeek = new Date(now.getFullYear(), now.getMonth(),
+    now.getDate() - ((now.getDay() + 6) % 7));
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const comparisonDay = Math.min(now.getDate(), new Date(now.getFullYear(), now.getMonth(), 0).getDate());
+  const endOfLastMonthComparison = new Date(now.getFullYear(), now.getMonth() - 1, comparisonDay + 1);
+  const getDate = value => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+  const submittedDate = application => getDate(
+    application.created_at ||
+    application.submitted_at ||
+    application.date_submitted ||
+    application.application_date ||
+    application.applied_at ||
+    application.submission_date ||
+    application.date_created
+  );
+  const statusDate = application => getDate(application.status_updated_at || application.created_at);
+  const processedStatuses = new Set(['process', 'approved', 'ready', 'issued', 'completed', 'rejected']);
+  const isBetween = (date, start, end) => date && date >= start && date < end;
 
-  if (!strip) {
-    return;
-  }
-
-  const cards =
-    strip.querySelectorAll(
-      '.stat-card'
-    );
-
-  if (!cards.length) {
-    return;
-  }
+  const newThisWeek = applications.filter(application => {
+    const submitted = submittedDate(application);
+    return submitted && submitted >= startOfThisWeek && submitted <= now;
+  }).length;
+  const overduePending = applications.filter(application =>
+    ['pending', 'review'].includes(normalizeApplicationStatus(application.status)) &&
+    (getApplicationDaysPending(application) || 0) > 5).length;
+  const processedThisMonth = applications.filter(application =>
+    processedStatuses.has(normalizeApplicationStatus(application.status)) &&
+    isBetween(statusDate(application), startOfThisMonth, startOfNextMonth)).length;
+  const processedLastMonth = applications.filter(application =>
+    processedStatuses.has(normalizeApplicationStatus(application.status)) &&
+    isBetween(statusDate(application), startOfLastMonth, endOfLastMonthComparison)).length;
+  const rejectedThisMonth = applications.filter(application =>
+    normalizeApplicationStatus(application.status) === 'rejected' &&
+    isBetween(statusDate(application), startOfThisMonth, startOfNextMonth)).length;
+  const rejectedLastMonth = applications.filter(application =>
+    normalizeApplicationStatus(application.status) === 'rejected' &&
+    isBetween(statusDate(application), startOfLastMonth, endOfLastMonthComparison)).length;
 
   const values = [
     Number(metrics.total) || 0,
@@ -1151,57 +1269,86 @@ function updateStaffKPICards(metrics) {
     Number(metrics.processedThisMonth) || 0,
     Number(metrics.rejectedThisMonth) || 0
   ];
-
   const subtitles = [
-    'System volume',
-    'Awaiting staff action',
-    'Completed today',
-    'Processed this month',
+    'All recorded applications',
+    'Pending or in review',
+    'Approved, ready, or issued today',
+    'Applications advanced this month',
     'Rejected this month'
   ];
+  const processedBadge = processedLastMonth > 0
+    ? (() => {
+      const difference = processedThisMonth - processedLastMonth;
+      return {
+        text: difference === 0 ? 'No change vs last month' :
+          `${difference > 0 ? '\u25B2 +' : '\u25BC '}${Math.abs(difference)} vs last month`,
+        className: difference > 0 ? 'trend-good' : difference < 0 ? 'trend-down' : 'trend-neutral',
+        title: `${processedThisMonth} applications were advanced this month versus ${processedLastMonth} in the same period last month (${Math.abs(difference)} difference).`
+      };
+    })()
+    : {
+      text: 'No baseline',
+      className: 'trend-neutral',
+      title: 'No completed prior-period comparison data is available for this metric.'
+    };
+  const rejectedBadge = rejectedThisMonth === 0
+    ? { text: 'None', className: 'trend-neutral', title: 'No applications were rejected this month.' }
+    : rejectedLastMonth > 0
+      ? (() => {
+        const difference = rejectedThisMonth - rejectedLastMonth;
+        const percentage = Math.round(Math.abs(difference / rejectedLastMonth) * 100);
+        return {
+          text: difference === 0 ? 'No change vs last month' :
+            `${difference > 0 ? '\u25B2' : '\u25BC'} ${percentage}% vs last month`,
+          className: difference > 0 ? 'trend-up' : difference < 0 ? 'trend-good' : 'trend-neutral',
+          title: `${rejectedThisMonth} applications were rejected this month versus ${rejectedLastMonth} in the same period last month.`
+        };
+      })()
+      : {
+        text: `${rejectedThisMonth} this month`,
+        className: 'trend-up',
+        title: `${rejectedThisMonth} applications were rejected this month; none were rejected in the comparable period last month.`
+      };
+  const badges = [
+    { text: newThisWeek > 0 ? `+${newThisWeek} this week` : 'No new this week',
+      className: 'trend-neutral',
+      title: newThisWeek > 0
+        ? `${newThisWeek} applications were submitted this week.`
+        : 'No applications have been submitted since the start of this week.' },
+    overduePending > 0
+      ? { text: `${overduePending} overdue`, className: 'trend-up', title: `${overduePending} pending applications are more than 5 days old.` }
+      : { text: 'On track', className: 'trend-good', title: 'No pending applications are more than 5 days old.' },
+    metrics.approvedToday > 0
+      ? { text: 'Target: 10', className: 'trend-neutral', title: 'Daily approval target: 10 applications.' }
+      : { text: '\u2014', className: 'trend-neutral', title: 'No approvals have been recorded today yet. Daily target: 10 applications.' },
+    processedBadge,
+    rejectedBadge
+  ];
 
-  cards.forEach(
-    (card, index) => {
+  strip.querySelectorAll('.stat-card').forEach((card, index) => {
+    const value = card.querySelector('.stat-card__value');
+    const subtitle = card.querySelector('.stat-card__sub');
+    const badgeElement = card.querySelector('.stat-card__trend');
+    if (value) value.textContent = values[index].toLocaleString();
+    if (subtitle) subtitle.textContent = subtitles[index];
+    if (!badgeElement) return;
 
-      const value =
-        card.querySelector(
-          '.stat-card__value'
-        );
-
-      const sub =
-        card.querySelector(
-          '.stat-card__sub'
-        );
-
-      const trend =
-        card.querySelector(
-          '.stat-card__trend'
-        );
-
-      if (value) {
-
-        value.textContent =
-          values[index].toLocaleString();
-
-      }
-
-      if (sub) {
-
-        sub.textContent =
-          subtitles[index] || '';
-
-      }
-
-      if (trend) {
-
-        trend.textContent =
-          'Live';
-
-      }
-
+    const badge = badges[index];
+    badgeElement.classList.remove('trend-good', 'trend-up', 'trend-down', 'trend-neutral');
+    if (!badge) {
+      badgeElement.textContent = '';
+      badgeElement.removeAttribute('title');
+      badgeElement.removeAttribute('aria-label');
+      badgeElement.style.display = 'none';
+      return;
     }
-  );
 
+    badgeElement.textContent = badge.text;
+    badgeElement.classList.add(badge.className);
+    badgeElement.title = badge.title;
+    badgeElement.setAttribute('aria-label', badge.title);
+    badgeElement.style.display = '';
+  });
 }
 
 function updateAgeDistributionLegend() {
@@ -1837,16 +1984,16 @@ function updateLiveAnalyticsCharts(
 
         CHARTS.status.data.labels = [
           'Approved',
+          'Rejected',
           'Pending',
-          'In Review',
-          'Rejected'
+          'In Review'
         ];
 
         CHARTS.status.data.datasets[0].data = [
           Number(data.approved) || 0,
+          Number(data.rejected) || 0,
           Number(data.pending) || 0,
-          Number(data.inReview) || 0,
-          Number(data.rejected) || 0
+          Number(data.inReview) || 0
         ];
 
         CHARTS.status.update();
@@ -1961,6 +2108,10 @@ function updateAnalyticsHandoff(applications) {
   if (percentEl) {
     percentEl.textContent =
       `${percent}%`;
+    percentEl.closest('.analytics-handoff__ring')?.style.setProperty(
+      '--handoff-progress',
+      `${percent}%`
+    );
   }
 
   if (titleEl) {
@@ -2732,10 +2883,37 @@ function renderRecentSubmissions(
     return;
   }
 
+  window.STAFF_RECENT_SUBMISSIONS = applications.slice();
 
-  const recentApplications =
-    applications
-      .sort(
+  const searchQuery = (document.getElementById('recent-submission-search')?.value || '')
+    .trim()
+    .toLowerCase();
+  const selectedBarangays = new Set(
+    Array.from(document.getElementById('recent-barangay-filter')?.selectedOptions || [])
+      .map(option => String(option.value || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const matchingApplications = applications
+    .filter(application => {
+      const fullName = [
+        application.first_name,
+        application.middle_name,
+        application.surname
+      ].filter(Boolean).join(' ').trim();
+      const barangay = application.barangay_district || application.barangay || '—';
+      const status = application.status || 'Pending';
+      const submittedAt = application.created_at || application.submitted_at || application.date_submitted;
+      const submittedDate = submittedAt ? new Date(submittedAt) : null;
+      const formattedDate = submittedDate && !Number.isNaN(submittedDate.getTime())
+        ? submittedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+      const searchableText = `${fullName} ${formattedDate} ${barangay} ${status}`.toLowerCase();
+
+      return (!searchQuery || searchableText.includes(searchQuery)) &&
+        (!selectedBarangays.size || selectedBarangays.has(String(barangay).trim().toLowerCase()));
+    })
+    .sort(
         (a, b) => {
           const dateValue = application => {
             const value = application.created_at || application.submitted_at || application.date_submitted;
@@ -2744,8 +2922,8 @@ function renderRecentSubmissions(
           };
           return dateValue(b) - dateValue(a);
         }
-      )
-      .slice(0, 5);
+      );
+  const recentApplications = matchingApplications.slice(0, 5);
 
 
   if (
@@ -2762,7 +2940,7 @@ function renderRecentSubmissions(
             color:var(--text-muted);
           "
         >
-          No recent submissions found.
+          ${searchQuery || selectedBarangays.size ? 'No matching submissions found.' : 'No recent submissions found.'}
         </td>
       </tr>
     `;
@@ -2792,6 +2970,7 @@ function renderRecentSubmissions(
 
             const barangay =
               application.barangay_district ||
+              application.barangay ||
               '—';
 
 
@@ -2921,9 +3100,9 @@ function renderRecentSubmissions(
         return;
       }
 
-      footer.textContent =
-        `Showing ${recentApplications.length
-        } latest submissions`;
+      footer.textContent = searchQuery || selectedBarangays.size
+        ? `Showing ${recentApplications.length} of ${matchingApplications.length} matching submissions`
+        : `Showing ${recentApplications.length} latest submissions`;
 
     }
   );
@@ -3145,9 +3324,7 @@ async function loadApplicationsFromDatabase() {
       "function"
     ) {
 
-      updateLiveAnalyticsCharts(
-        applications
-      );
+      applyAnalyticsDateRange();
 
       if (typeof requestStaffAnalyticsInsights === "function") {
         scheduleStaffAnalyticsInsights(applications, "applications");
@@ -3406,6 +3583,19 @@ document.addEventListener(
 
 // Registry view helpers: group request rows into one profile per senior.
 var STAFF_APPLICANT_PROFILES = [];
+var APPLICANTS_SORT_STATE = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const sort = params.get('sort');
+  if (sort === 'oldest') return { mode: 'oldest', key: 'registration', direction: 'asc' };
+  if (sort === 'name-az') return { mode: 'name-az', key: 'name', direction: 'asc' };
+  if (sort === 'name-za') return { mode: 'name-za', key: 'name', direction: 'desc' };
+  if (sort === 'custom') return {
+    mode: 'custom',
+    key: 'barangay',
+    direction: params.get('order') === 'desc' ? 'desc' : 'asc'
+  };
+  return { mode: 'latest', key: 'registration', direction: 'desc' };
+})();
 var APPLICATIONS_FILTER_STATE = { search: '', barangay: [], type: 'all', status: [] };
 
 function getApplicationName(application) {
@@ -3537,7 +3727,8 @@ function renderLiveApplicants(applications) {
     const ids = profile.applications.map(a => a.application_id || a.id || '').join(' ');
     const searchText = [profile.name, profile.seniorId, profile.barangay, ids].join(' ').toLowerCase();
     return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}"
-      data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-search="${escapeApplicationHtml(searchText)}">
+      data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-name="${escapeApplicationHtml(profile.name || '')}"
+      data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
       <td><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info">
         <span class="applicant-name">${escapeApplicationHtml(profile.name)}</span><span class="applicant-id">${profile.applications.length} linked request${profile.applications.length === 1 ? '' : 's'}</span></div></div></td>
       <td><span class="cell-text">${escapeApplicationHtml(profile.seniorId || '—')}</span>${profile.seniorId ? ` <button type="button" class="applicant-id-copy" data-copy-id="${escapeApplicationHtml(profile.seniorId)}" aria-label="Copy application ID ${escapeApplicationHtml(profile.seniorId)}" title="Copy application ID" onclick="copyApplicantApplicationId(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button>` : ''}</td>
@@ -3553,7 +3744,9 @@ function renderLiveApplicants(applications) {
 }
 
 function applyApplicantsFilters() {
-  const rows = document.querySelectorAll('#applicants-tbody tr[data-profile-index]');
+  const tbody = document.getElementById('applicants-tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr[data-profile-index]'));
   const search = String(APPLICANTS_FILTER_STATE.search || '').trim().toLowerCase();
   const barangays = Array.isArray(APPLICANTS_FILTER_STATE.barangay)
     ? APPLICANTS_FILTER_STATE.barangay.map(value => String(value).trim().toLowerCase())
@@ -3561,20 +3754,131 @@ function applyApplicantsFilters() {
   const statuses = Array.isArray(APPLICANTS_FILTER_STATE.status)
     ? APPLICANTS_FILTER_STATE.status.map(value => String(value).trim().toLowerCase())
     : [];
-  let visible = 0;
-  rows.forEach(row => {
+  const matchingRows = rows.filter(row => {
     const rowBarangay = String(row.dataset.barangay || '').trim().toLowerCase();
     const rowStatus = String(row.dataset.status || '').trim().toLowerCase();
-    const matches = (!search || (row.dataset.search || row.textContent).toLowerCase().includes(search)) &&
+    return (!search || (row.dataset.search || row.textContent).toLowerCase().includes(search)) &&
       (!barangays.length || barangays.includes(rowBarangay)) &&
       (!statuses.length || statuses.includes(rowStatus));
-    row.style.display = matches ? '' : 'none';
-    if (matches) visible++;
   });
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const compareIds = (a, b) => collator.compare(
+    String(a.dataset.sortId || ''),
+    String(b.dataset.sortId || '')
+  );
+  const compareStable = (a, b) => compareIds(a, b) ||
+    Number(a.dataset.profileIndex) - Number(b.dataset.profileIndex);
+  const orderedRows = rows.slice().sort((a, b) => {
+    let comparison = 0;
+    if (APPLICANTS_SORT_STATE.key === 'registration') {
+      comparison = Number(a.dataset.registeredAt || 0) - Number(b.dataset.registeredAt || 0);
+    } else if (APPLICANTS_SORT_STATE.key === 'name') {
+      comparison = collator.compare(String(a.dataset.name || '').trim(), String(b.dataset.name || '').trim());
+    } else {
+      comparison = collator.compare(String(a.dataset.barangay || '').trim(), String(b.dataset.barangay || '').trim());
+    }
+
+    if (APPLICANTS_SORT_STATE.direction === 'desc') comparison *= -1;
+    if (comparison) return comparison;
+
+    if (APPLICANTS_SORT_STATE.key === 'name') {
+      const byRegistrationDate = Number(b.dataset.registeredAt || 0) - Number(a.dataset.registeredAt || 0);
+      if (byRegistrationDate) return byRegistrationDate;
+    }
+    return compareStable(a, b);
+  });
+  const matchingSet = new Set(matchingRows);
+  orderedRows.forEach(row => {
+    row.style.display = matchingSet.has(row) ? '' : 'none';
+    tbody.appendChild(row);
+  });
+
+  const visible = matchingRows.length;
   const footer = document.querySelector('#mod-applicants .table-footer__info');
   if (footer) footer.textContent = `Showing ${visible.toLocaleString()} of ${rows.length.toLocaleString()} registered seniors`;
 }
 
+function filterRegisteredApplicantsByBarangay(control) {
+  APPLICANTS_FILTER_STATE.barangay = control?.value
+    ? [String(control.value).trim().toLowerCase()]
+    : [];
+  applyApplicantsFilters();
+}
+
+function resetRegisteredApplicantFilters() {
+  const search = document.getElementById('applicant-search');
+  const barangay = document.getElementById('applicants-barangay-filter');
+  if (search) search.value = '';
+  if (barangay) barangay.value = '';
+  APPLICANTS_FILTER_STATE.search = '';
+  APPLICANTS_FILTER_STATE.barangay = [];
+  APPLICANTS_FILTER_STATE.status = [];
+  applyApplicantsFilters();
+}
+
+function updateApplicantsSortUI() {
+  const select = document.getElementById('applicants-sort-select');
+  if (select) select.value = APPLICANTS_SORT_STATE.mode;
+
+  const headers = [
+    { key: 'name', element: document.querySelector('#mod-applicants thead th:nth-child(1)') },
+    { key: 'barangay', element: document.querySelector('#mod-applicants thead th:nth-child(3)') },
+    { key: 'registration', element: document.querySelector('#mod-applicants thead th:nth-child(5)') }
+  ];
+  headers.forEach(({ key, element }) => {
+    if (!element) return;
+    const icon = element.querySelector('.sort-icon');
+    const active = APPLICANTS_SORT_STATE.key === key;
+    if (icon) icon.textContent = active ? (APPLICANTS_SORT_STATE.direction === 'asc' ? '↑' : '↓') : '↕';
+    element.setAttribute('aria-sort', active
+      ? (APPLICANTS_SORT_STATE.direction === 'asc' ? 'ascending' : 'descending')
+      : 'none');
+  });
+}
+
+function persistApplicantsSort() {
+  const url = new URL(window.location.href);
+  url.searchParams.set('sort', APPLICANTS_SORT_STATE.mode);
+  if (APPLICANTS_SORT_STATE.mode === 'custom') {
+    url.searchParams.set('order', APPLICANTS_SORT_STATE.direction);
+  } else {
+    url.searchParams.delete('order');
+  }
+  window.history.replaceState(null, '', url);
+}
+
+function changeApplicantsSort(mode) {
+  const modes = {
+    latest: { key: 'registration', direction: 'desc' },
+    oldest: { key: 'registration', direction: 'asc' },
+    'name-az': { key: 'name', direction: 'asc' },
+    'name-za': { key: 'name', direction: 'desc' }
+  };
+  if (!modes[mode]) return;
+  APPLICANTS_SORT_STATE = { mode, ...modes[mode] };
+  persistApplicantsSort();
+  updateApplicantsSortUI();
+  applyApplicantsFilters();
+}
+
+function sortApplicantsByColumn(key) {
+  if (!['name', 'barangay', 'registration'].includes(key)) return;
+  const isSameSort = APPLICANTS_SORT_STATE.key === key;
+  const direction = isSameSort
+    ? (APPLICANTS_SORT_STATE.direction === 'desc' ? 'asc' : 'desc')
+    : (key === 'registration' ? 'desc' : 'asc');
+  const mode = key === 'registration'
+    ? (direction === 'desc' ? 'latest' : 'oldest')
+    : key === 'name'
+      ? (direction === 'asc' ? 'name-az' : 'name-za')
+      : 'custom';
+  APPLICANTS_SORT_STATE = { mode, key, direction };
+  persistApplicantsSort();
+  updateApplicantsSortUI();
+  applyApplicantsFilters();
+}
+
+updateApplicantsSortUI();
 function getProfileStatusPillClass(status) {
   const norm = String(status || '').trim().toLowerCase();
   if (/issued|complete|verified|approved|ready/.test(norm)) {
@@ -4234,6 +4538,23 @@ function filterApplicationsByBarangay(control) {
   applyApplicationsModuleFilters();
 }
 
+function resetApplicationsFilters() {
+  const search = document.querySelector('#mod-applications .table-search-wrap input');
+  const stage = document.getElementById('filter-application-stage');
+  const barangay = document.querySelector('#mod-applications .barangay-select-wrap select');
+
+  if (search) search.value = '';
+  if (stage) stage.value = 'all';
+  if (barangay) barangay.value = '';
+
+  APPLICATIONS_FILTER_STATE.search = '';
+  APPLICATIONS_FILTER_STATE.barangay = [];
+  APPLICATIONS_FILTER_STATE.type = 'all';
+  APPLICATIONS_FILTER_STATE.status = [];
+  applyApplicationsModuleFilters('all');
+}
+window.resetApplicationsFilters = resetApplicationsFilters;
+
 function handleApplicationsSort(val) {
   if (typeof sortTable !== 'function') return;
   const thDate = document.querySelector('#mod-applications thead th:nth-child(4)');
@@ -4255,6 +4576,26 @@ function updateApplicantSummaryCards(applications) {
   const ongoingApplicationCount = applications.filter(application =>
     !['completed', 'rejected'].includes(normalizeApplicationStatus(application.status))).length;
   const now = new Date();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthComparableDay = Math.min(now.getDate(), new Date(now.getFullYear(), now.getMonth(), 0).getDate());
+  const endOfLastMonthComparablePeriod = new Date(
+    now.getFullYear(), now.getMonth() - 1, lastMonthComparableDay + 1
+  );
+  const registeredProfiles = profiles.filter(profile => profile.isRegistered);
+  const newThisMonth = registeredProfiles.filter(profile =>
+    profile.registeredAt && profile.registeredAt >= startOfThisMonth && profile.registeredAt <= now).length;
+  const newLastMonth = registeredProfiles.filter(profile =>
+    profile.registeredAt && profile.registeredAt >= startOfLastMonth &&
+    profile.registeredAt < endOfLastMonthComparablePeriod).length;
+  const startOfThisWeek = new Date(now.getFullYear(), now.getMonth(),
+    now.getDate() - ((now.getDay() + 6) % 7));
+  const activeProfilesAddedThisWeek = ongoingProfiles.filter(profile =>
+    profile.ongoingApplications.some(application => {
+      const submittedAt = new Date(getApplicationSubmittedDate(application) || '');
+      return !Number.isNaN(submittedAt.getTime()) &&
+        submittedAt >= startOfThisWeek && submittedAt <= now;
+    })).length;
   const identityCounts = new Map();
   profiles.forEach(profile => {
     if (!profile.nameDobKey || profile.nameDobKey.startsWith('|')) return;
@@ -4262,12 +4603,44 @@ function updateApplicantSummaryCards(applications) {
   });
   const duplicateProfiles = profiles.filter(profile => profile.hasDuplicateFlag ||
     (profile.nameDobKey && !profile.nameDobKey.startsWith('|') && identityCounts.get(profile.nameDobKey) > 1)).length;
+  const setTrend = (id, text, trendClass) => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.textContent = text;
+    element.classList.remove('trend-good', 'trend-up', 'trend-down', 'trend-neutral');
+    element.classList.add(trendClass);
+  };
+  const registrationComparison = newLastMonth === 0
+    ? (newThisMonth === 0 ? { text: 'No change vs last month', trendClass: 'trend-neutral' } :
+      { text: `+${newThisMonth} vs last month`, trendClass: 'trend-good' })
+    : newThisMonth === newLastMonth
+      ? { text: 'No change vs last month', trendClass: 'trend-neutral' }
+      : (() => {
+        const change = Math.round(Math.abs((newThisMonth - newLastMonth) / newLastMonth) * 100);
+        const increased = newThisMonth > newLastMonth;
+        return {
+          text: `${increased ? '\u25B2' : '\u25BC'} ${change}% vs last month`,
+          trendClass: increased ? 'trend-good' : 'trend-down'
+        };
+      })();
+  const totalRegistered = registeredProfiles.length;
+  const growthPercent = totalRegistered > newThisMonth
+    ? Number((newThisMonth / (totalRegistered - newThisMonth) * 100).toFixed(1))
+    : null;
+  setTrend('applicants-total-trend', newThisMonth
+    ? (growthPercent === null ? `+${newThisMonth} this month` : `\u25B2 ${growthPercent}% this month`)
+    : 'No growth this month',
+    newThisMonth ? 'trend-good' : 'trend-neutral');
+  setTrend('applicants-active-trend',
+    activeProfilesAddedThisWeek ? `${activeProfilesAddedThisWeek} new this week` : 'No new this week',
+    activeProfilesAddedThisWeek ? 'trend-good' : 'trend-neutral');
+  setTrend('applicants-registrations-trend', registrationComparison.text, registrationComparison.trendClass);
+  setTrend('applicants-duplicates-trend', duplicateProfiles === 0 ? 'All clear' : 'Needs review',
+    duplicateProfiles === 0 ? 'trend-good' : 'trend-up');
   const counts = {
-    'applicants-total-count': profiles.filter(profile => profile.isRegistered).length,
+    'applicants-total-count': totalRegistered,
     'applicants-verified-count': ongoingProfiles.length,
-    'applicants-unverified-count': profiles.filter(profile => profile.registeredAt &&
-      profile.registeredAt.getFullYear() === now.getFullYear() &&
-      profile.registeredAt.getMonth() === now.getMonth()).length,
+    'applicants-unverified-count': newThisMonth,
     'applicants-issued-count': duplicateProfiles,
     'applicants-sidebar-count': ongoingApplicationCount,
     'applicants-total-badge': ongoingProfiles.length.toLocaleString() + ' Ongoing Profiles'
@@ -4281,18 +4654,111 @@ function updateApplicantSummaryCards(applications) {
 function updateApplicationSummaryCards(applications) {
   if (!Array.isArray(applications)) return;
   const now = new Date();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const comparisonDay = Math.min(now.getDate(), new Date(now.getFullYear(), now.getMonth(), 0).getDate());
+  const endOfLastMonthComparison = new Date(now.getFullYear(), now.getMonth() - 1, comparisonDay + 1);
+  const getCompletedDate = application => {
+    const value = application.status_updated_at || application.updated_at || application.created_at;
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+  const openReviewApplications = applications.filter(application =>
+    ['pending', 'review'].includes(normalizeApplicationStatus(application.status)));
+  const newReviewToday = openReviewApplications.filter(application => {
+    const submittedAt = new Date(getApplicationSubmittedDate(application) || '');
+    return !Number.isNaN(submittedAt.getTime()) && isSameDay(submittedAt, now);
+  }).length;
+  const oldestReviewAge = openReviewApplications.reduce((oldest, application) => {
+    const age = getApplicationDaysPending(application);
+    if (age === null) return oldest;
+    return oldest === null ? Math.floor(age) : Math.max(oldest, Math.floor(age));
+  }, null);
+  const incompleteApplications = applications.filter(application =>
+    typeof getDocsStatus === 'function' && getDocsStatus(application).missing.length > 0);
+  const overdueApplications = openReviewApplications.filter(application =>
+    (getApplicationDaysPending(application) || 0) > 5);
+  const readyApplications = applications.filter(application =>
+    normalizeApplicationStatus(application.status) === 'ready');
+  const completedThisMonth = applications.filter(application => {
+    if (normalizeApplicationStatus(application.status) !== 'completed') return false;
+    const date = getCompletedDate(application);
+    return date && date >= startOfThisMonth && date < startOfNextMonth;
+  }).length;
+  const completedLastMonthToDate = applications.filter(application => {
+    if (normalizeApplicationStatus(application.status) !== 'completed') return false;
+    const date = getCompletedDate(application);
+    return date && date >= startOfLastMonth && date < endOfLastMonthComparison;
+  }).length;
+
+  const setSummaryBadge = (id, text, variant, description) => {
+    const badge = document.getElementById(id);
+    if (!badge) return;
+    badge.textContent = text;
+    badge.classList.remove('trend-good', 'trend-up', 'trend-down', 'trend-neutral');
+    badge.classList.add(variant);
+    badge.title = description;
+    badge.setAttribute('aria-label', description);
+  };
+
+  if (newReviewToday > 0) {
+    setSummaryBadge('summary-pending-badge', `\u25B2 ${newReviewToday} today`, 'trend-neutral',
+      `${newReviewToday} pending or in-review applications submitted today.`);
+  } else if (oldestReviewAge !== null) {
+    setSummaryBadge('summary-pending-badge',
+      `Oldest: ${oldestReviewAge}d`, oldestReviewAge > 5 ? 'trend-up' : 'trend-neutral',
+      `Oldest pending or in-review application is ${oldestReviewAge} days old.`);
+  } else if (openReviewApplications.length > 0) {
+    setSummaryBadge('summary-pending-badge', 'Awaiting review', 'trend-neutral',
+      `${openReviewApplications.length} pending or in-review applications are awaiting staff review.`);
+  } else {
+    setSummaryBadge('summary-pending-badge', 'No items to review', 'trend-good',
+      'There are no pending or in-review applications.');
+  }
+
+  setSummaryBadge('summary-incomplete-badge',
+    incompleteApplications.length ? 'Needs follow-up' : 'All clear',
+    incompleteApplications.length ? 'trend-up' : 'trend-good',
+    incompleteApplications.length
+      ? `${incompleteApplications.length} applications have required documents missing.`
+      : 'No applications are missing required documents.');
+  setSummaryBadge('summary-overdue-badge',
+    overdueApplications.length ? '\u25BC Urgent' : 'None',
+    overdueApplications.length ? 'trend-down' : 'trend-good',
+    overdueApplications.length
+      ? `${overdueApplications.length} applications have been open for more than 5 days.`
+      : 'No applications are overdue by more than 5 days.');
+  setSummaryBadge('summary-ready-badge',
+    readyApplications.length ? 'Needs action' : 'None awaiting pickup',
+    readyApplications.length ? 'trend-down' : 'trend-good',
+    readyApplications.length
+      ? `${readyApplications.length} approved applications are awaiting pickup.`
+      : 'No approved applications are awaiting pickup.');
+
+  if (completedLastMonthToDate === 0) {
+    setSummaryBadge('summary-completed-month-badge',
+      completedThisMonth > 0 ? 'First this month' : 'This month', 'trend-neutral',
+      completedThisMonth > 0
+        ? 'No completed applications were recorded in the comparable period last month.'
+        : 'Completed application count for this month.');
+  } else {
+    const difference = completedThisMonth - completedLastMonthToDate;
+    const percent = Math.round(Math.abs(difference / completedLastMonthToDate) * 100);
+    const direction = difference > 0 ? '\u25B2' : difference < 0 ? '\u25BC' : '';
+    const variant = difference > 0 ? 'trend-good' : difference < 0 ? 'trend-down' : 'trend-neutral';
+    const label = difference === 0 ? 'No change vs last month' : `${direction} ${percent}% vs last month`;
+    setSummaryBadge('summary-completed-month-badge', label, variant,
+      `${completedThisMonth} completed this month versus ${completedLastMonthToDate} in the same period last month.`);
+  }
+
   const count = {
     'summary-pending': applications.filter(a => normalizeApplicationStatus(a.status) === 'pending').length,
-    'summary-incomplete': applications.filter(a =>
-      typeof getDocsStatus === 'function' ? getDocsStatus(a).missing.length > 0 : false
-    ).length,
-    'summary-overdue': applications.filter(a => ['pending', 'review'].includes(normalizeApplicationStatus(a.status)) && (getApplicationDaysPending(a) || 0) > 5).length,
-    'summary-ready': applications.filter(a => normalizeApplicationStatus(a.status) === 'ready').length,
-    'summary-completed-month': applications.filter(a => {
-      if (normalizeApplicationStatus(a.status) !== 'completed') return false;
-      const date = new Date(a.status_updated_at || a.updated_at || a.created_at || 0);
-      return !Number.isNaN(date.getTime()) && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-    }).length
+    'summary-incomplete': incompleteApplications.length,
+    'summary-overdue': overdueApplications.length,
+    'summary-ready': readyApplications.length,
+    'summary-completed-month': completedThisMonth
   };
   Object.entries(count).forEach(([id, value]) => { const el = document.getElementById(id); if (el) el.textContent = value.toLocaleString(); });
 }
@@ -4419,8 +4885,9 @@ function ensureStaffAnalyticsInsightAreas() {
     const card = cards.find(node => node.querySelector(".an-card__title")?.textContent.trim() === title);
     if (!card || card.querySelector(`[data-ai-insight="${key}"]`)) continue;
     const box = document.createElement("div");
+    box.className = "staff-ai-insight";
     box.dataset.aiInsight = key;
-    box.style.cssText = "margin:0 18px 18px;padding:12px 14px;border:1px solid var(--border-color,#dbe3ef);border-radius:12px;background:var(--surface-muted,rgba(100,116,139,.06));font-size:13px;line-height:1.55";
+    box.style.cssText = "margin:0 18px 18px;padding:12px 14px;font-size:13px;line-height:1.55";
     box.innerHTML = '<div style="display:flex;gap:7px;align-items:center;font-weight:700;margin-bottom:5px"><span aria-hidden="true">✦</span> AI-Driven Insight <span data-ai-source style="margin-left:auto;font-size:10px;opacity:.7">DATA SUMMARY</span></div><div data-ai-text>Preparing insight from current analytics…</div>';
     card.appendChild(box);
   }
@@ -4431,8 +4898,9 @@ function ensureStaffAnalyticsInsightAreas() {
   for (const [card,key] of chartTargets) {
     if (!card || card.querySelector(`[data-ai-insight="${key}"]`)) continue;
     const box = document.createElement("div");
+    box.className = "staff-ai-insight";
     box.dataset.aiInsight = key;
-    box.style.cssText = "margin:12px 0 0;padding:12px 14px;border:1px solid var(--border-color,#dbe3ef);border-radius:12px;background:var(--surface-muted,rgba(100,116,139,.06));font-size:13px;line-height:1.55";
+    box.style.cssText = "margin:12px 0 0;padding:12px 14px;font-size:13px;line-height:1.55";
     box.innerHTML = '<div style="display:flex;gap:7px;align-items:center;font-weight:700;margin-bottom:5px"><span aria-hidden="true">✦</span> AI-Driven Insight <span data-ai-source style="margin-left:auto;font-size:10px;opacity:.7">DATA SUMMARY</span></div><div data-ai-text>Preparing insight from current analytics…</div>';
     card.appendChild(box);
   }

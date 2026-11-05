@@ -22,8 +22,8 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-solid-rounded/css/uicons-solid-rounded.css" />
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
-  <link rel="stylesheet" href="base.css?v=42" />
-  <link rel="stylesheet" href="idmaker.css?v=47" />
+  <link rel="stylesheet" href="base.css?v=44" />
+  <link rel="stylesheet" href="idmaker.css?v=56" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -112,6 +112,13 @@
             <p class="page-header__sub">Process pre-approved applications, generate documents, and track issuance status.</p>
           </div>
           <div class="page-header__controls">
+            <div class="date-pill date-pill--static idmaker-date-pill" aria-label="Today's date">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <rect x="1" y="2" width="14" height="13" rx="2" />
+                <path d="M5 1v2M11 1v2M1 6h14" />
+              </svg>
+              <span data-idmaker-date></span>
+            </div>
             <button class="theme-toggle theme-toggle--header" type="button" data-theme-toggle aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false">
               <svg data-theme-icon="light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
               <svg data-theme-icon="dark" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg>
@@ -140,7 +147,7 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-clock ic-warn"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-up">0</div>
+                <div class="stat-card__trend trend-good">On schedule</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -153,7 +160,7 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-document ic-blue"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-neutral">0</div>
+                <div class="stat-card__trend trend-good">In progress</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -166,7 +173,7 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check-double ic-green"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">0</div>
+                <div class="stat-card__trend trend-good">On track</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -179,7 +186,7 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-purple"><i class="fi fi-rr-id-card-clip-alt ic-purple"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">0</div>
+                <div class="stat-card__trend trend-good">On the way</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -191,7 +198,7 @@
           <div class="stat-card stat-card--success">
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check ic-green"></i></div>
-              <div class="stat-card__meta"><div class="stat-card__trend trend-good">0</div></div>
+              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Done</div></div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Completed</div>
@@ -203,7 +210,7 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-red"><i class="fi fi-rr-x ic-red"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-down">0</div>
+                <div class="stat-card__trend trend-good">Active</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -234,7 +241,7 @@
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <select class="filter-select" id="queue-barangay-filter" multiple size="4" title="Select multiple values. Hold Ctrl while clicking to select more than one."
+                <select class="filter-select" id="queue-barangay-filter"
                   onchange="filterQueueByBarangay(this)" aria-label="Filter queue by barangay">
                   <option value="">Barangay: All</option>
                   <option value="Alagao">Alagao</option>
@@ -406,10 +413,6 @@
 
       </div>
       <div class="page-header__controls">
-        <button class="theme-toggle theme-toggle--header" type="button" data-theme-toggle aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false">
-          <svg data-theme-icon="light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
-          <svg data-theme-icon="dark" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg>
-        </button>
       </div>
 
     </header>
@@ -1227,8 +1230,8 @@
   <div class="toast-container" id="toast-container"></div>
 
 <script src="theme.js?v=1"></script>
-<script src="app.js?v=48"></script>
-  <script src="idmaker.js?v=multi-provider-ai-23"></script>
+<script src="app.js?v=50"></script>
+  <script src="idmaker.js?v=multi-provider-ai-24"></script>
 </body>
 
 </html>

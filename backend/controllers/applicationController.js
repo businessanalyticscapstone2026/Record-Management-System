@@ -1886,6 +1886,67 @@ const updateDocumentAuthentication = async (req, res) => {
       savedRecord = data;
     }
 
+    let applicationStatus;
+    let applicationStatusError;
+    if (status === "approved") {
+      try {
+        const { data: currentStatusRecord, error: currentStatusError } = await supabase
+          .from("application_status_history")
+          .select("status")
+          .eq("application_id", applicationId)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (currentStatusError) throw currentStatusError;
+        applicationStatus = currentStatusRecord?.status || "Pending";
+
+        if (applicationStatus === "Pending") {
+          if (currentStatusRecord) {
+            const { data: updatedStatusRecords, error: statusUpdateError } = await supabase
+              .from("application_status_history")
+              .update({ status: "Under Review", updated_at: now })
+              .eq("application_id", applicationId)
+              .eq("status", "Pending")
+              .select("status");
+
+            if (statusUpdateError) throw statusUpdateError;
+
+            if (updatedStatusRecords?.length) {
+              applicationStatus = "Under Review";
+            } else {
+              const { data: latestStatusRecord, error: latestStatusError } = await supabase
+                .from("application_status_history")
+                .select("status")
+                .eq("application_id", applicationId)
+                .order("updated_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latestStatusError) throw latestStatusError;
+              applicationStatus = latestStatusRecord?.status || "Pending";
+            }
+          } else {
+            const { data: insertedStatusRecord, error: statusInsertError } = await supabase
+              .from("application_status_history")
+              .insert({
+                application_id: applicationId,
+                status: "Under Review",
+                updated_at: now,
+              })
+              .select("status")
+              .single();
+
+            if (statusInsertError) throw statusInsertError;
+            applicationStatus = insertedStatusRecord.status;
+          }
+        }
+      } catch (error) {
+        applicationStatus = undefined;
+        applicationStatusError = error.message;
+        console.error("[Application Status] Document approval saved, but status synchronization failed:", error);
+      }
+    }
+
     await createAuditLogFromRequest(req, {
       action: "DOCUMENT_AUTHENTICATION_UPDATED",
       entityType: "APPLICATION_DOCUMENT",
@@ -1897,6 +1958,8 @@ const updateDocumentAuthentication = async (req, res) => {
       success: true,
       message: "Document authentication saved successfully.",
       documentAuthentication: savedRecord,
+      ...(applicationStatus ? { application_status: applicationStatus } : {}),
+      ...(applicationStatusError ? { application_status_error: applicationStatusError } : {}),
     });
   } catch (error) {
     console.error(

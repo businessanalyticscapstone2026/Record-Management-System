@@ -1300,35 +1300,21 @@ function getQueueBySelectedBarangay() {
 }
 
 function updateIdMakerKPIs() {
-  const now = Date.now();
   const queue = getQueueBySelectedBarangay();
   const counts = Object.fromEntries(QUEUE_STAGES.map(s => [s, 0]));
-  const delayed = Object.fromEntries(QUEUE_STAGES.map(s => [s, 0]));
-  let delayedTotal = 0;
 
   queue.forEach(app => {
     if (app.printStatus in counts) counts[app.printStatus]++;
-    if (isQueueItemDelayed(app, now)) {
-      if (app.printStatus in delayed) delayed[app.printStatus]++;
-      delayedTotal++;
-    }
   });
 
   // Order matches the cards: Queued, In Production, Printed, In Transit, Completed, Total
   const values = [...QUEUE_STAGES.map(s => counts[s]), queue.length];
-  const badges = [...QUEUE_STAGES.map(s => delayed[s]), delayedTotal];
 
   document
     .querySelectorAll('#mod-id-maker-dashboard .admin-kpi-strip .stat-card')
     .forEach((card, i) => {
       const value = card.querySelector('.stat-card__value');
-      const trend = card.querySelector('.stat-card__trend');
       if (value && values[i] !== undefined) value.textContent = values[i];
-      if (trend && badges[i] !== undefined) {
-        trend.textContent = badges[i];
-        trend.className = 'stat-card__trend ' + (badges[i] ? 'trend-down' : 'trend-good');
-        trend.title = badges[i] + ' delayed (over 48 hours without progress)';
-      }
     });
 
   updateQueueTagCounts();
@@ -1491,7 +1477,7 @@ function toggleRowStatus(btn, event){
 function populateQueueFilters(){
   const sel = document.getElementById('queue-barangay-filter');
   if(!sel) return;
-  const current = Array.from(sel.selectedOptions).map(option => option.value);
+  const current = String(sel.value || '');
   // Keep the full static barangay list from the page, then merge in any
   // queue barangays that are not listed yet (so live data never loses options).
   const brgys = [];
@@ -1504,16 +1490,16 @@ function populateQueueFilters(){
   });
   brgys.sort((a, b) => a.localeCompare(b));
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const allLabel = (sel.options[0] && sel.options[0].value === 'all') ? sel.options[0].textContent : 'All Barangay';
-  sel.innerHTML = '<option value="' + QUEUE_NO_BARANGAY + '">Not specified</option>' +
+  sel.innerHTML = '<option value="">Barangay: All</option>' +
+    '<option value="' + QUEUE_NO_BARANGAY + '">Not specified</option>' +
     brgys.map(b => '<option value="' + esc(b) + '">' + esc(b) + '</option>').join('');
-  Array.from(sel.options).forEach(option => { option.selected = current.includes(option.value); });
-  QUEUE_FILTER_STATE.barangay = current.filter(value => value === QUEUE_NO_BARANGAY || brgys.includes(value));
+  sel.value = current === QUEUE_NO_BARANGAY || brgys.includes(current) ? current : '';
+  QUEUE_FILTER_STATE.barangay = sel.value ? [sel.value] : [];
 }
 
 function filterQueueByBarangay(control) {
   QUEUE_FILTER_STATE.barangay = control instanceof HTMLSelectElement
-    ? Array.from(control.selectedOptions).map(option => option.value).filter(Boolean)
+    ? (control.value ? [control.value] : [])
     : (control ? [control] : []);
   applyQueueFilters();
   updateIdMakerKPIs();
@@ -2030,6 +2016,13 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('DOMContentLoaded', async function () {
+
+  const idMakerDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+  });
+  document.querySelectorAll('[data-idmaker-date]').forEach(label => {
+    label.textContent = idMakerDate;
+  });
 
   // Load queue from Supabase
   await loadIdMakerQueueFromDatabase(false);

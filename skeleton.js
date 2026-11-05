@@ -84,10 +84,16 @@ window.Skeleton = (function () {
     for (let i = 0; i < num; i++) {
       if (type === 'analytics') {
         html +=
-          '<article class="analytics-kpi analytics-kpi--skeleton is-loading animate-pulse" aria-hidden="true">' +
-            '<span class="analytics-kpi__label skeleton" style="width: 55%; height: 12px; border-radius: 4px; display: block;"></span>' +
-            '<strong class="skeleton" style="width: 42%; height: 28px; border-radius: 6px; display: block; margin: 8px 0 4px;"></strong>' +
-            '<span class="skeleton" style="width: 68%; height: 12px; border-radius: 4px; display: block;"></span>' +
+          '<article class="stat-card analytics-kpi analytics-kpi--skeleton is-loading animate-pulse" aria-hidden="true">' +
+            '<div class="stat-card__top">' +
+              '<div class="stat-card__icon-wrap skeleton" style="width: 38px; height: 38px; border-radius: 11px;"></div>' +
+              '<div class="stat-card__meta"><span class="stat-card__period skeleton" style="width: 64px; height: 12px; border-radius: 4px;"></span></div>' +
+            '</div>' +
+            '<div class="stat-card__body">' +
+              '<span class="stat-card__label analytics-kpi__label skeleton" style="width: 68%; height: 13px; border-radius: 4px; display: block;"></span>' +
+              '<strong class="stat-card__value skeleton" style="width: 44%; height: 26px; border-radius: 6px; display: block; margin: 6px 0 3px;"></strong>' +
+              '<span class="stat-card__sub skeleton" style="width: 58%; height: 12px; border-radius: 4px; display: block;"></span>' +
+            '</div>' +
           '</article>';
       } else {
         html +=

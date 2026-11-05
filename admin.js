@@ -20,6 +20,7 @@ let ADMIN_APPLICATIONS = [];
 let ADMIN_USER_ACCOUNTS = [];
 
 let AUDIT_LOG_DATA = [];
+let ADMIN_USER_SORT = { column: null, ascending: true };
 
 
 /* ADMIN SYSTEM SETTINGS */
@@ -2090,14 +2091,6 @@ function renderUserMgmtTable() {
       'user-mgmt-tbody'
     );
 
-  if (tbody) {
-    if (typeof Skeleton !== 'undefined') {
-      Skeleton.setTable(tbody, 6);
-    } else {
-      startLoading(tbody);
-    }
-  }
-
   if (!tbody) {
 
     return;
@@ -2111,8 +2104,13 @@ function renderUserMgmtTable() {
         'user-search'
       )?.value ||
       ''
-    ).toLowerCase();
+    ).trim();
 
+  const normalizeSearchText = value => String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase();
+  const searchTerms = normalizeSearchText(q).split(/\s+/).filter(Boolean);
 
   const roleF = Array.from(document.getElementById('user-role-filter')?.selectedOptions || []).map(option => option.value).filter(Boolean);
   const statusF = Array.from(document.getElementById('user-status-filter')?.selectedOptions || []).map(option => option.value).filter(Boolean);
@@ -2133,16 +2131,27 @@ function renderUserMgmtTable() {
 
   const filtered = ADMIN_USER_ACCOUNTS.filter(u => {
     const searchable = [
-      u.fullName, u.username, u.email, u.role, u.status, u.approvalStatus
-    ].join(' ').toLowerCase();
+      u.fullName, u.username, u.email, u.role, u.status, u.approvalStatus,
+      u.lastActive, u.key, u.id, u.createdAt
+    ].map(normalizeSearchText).join(' ');
 
-    const matchQ = !q || searchable.includes(q);
+    const matchQ = searchTerms.every(term => searchable.includes(term));
     const matchRole = !roleF.length || roleF.some(role => normalizeAccountRole(u.role) === normalizeAccountRole(role));
     const matchStatus = !statusF.length || statusF.some(status => normalizeAccountStatus(u.status) === normalizeAccountStatus(status));
 
     return matchQ && matchRole && matchStatus;
   });
 
+  if (ADMIN_USER_SORT.column !== null) {
+    const sortFields = ['fullName', 'username', 'role', 'approvalStatus', 'status', 'lastActive'];
+    const sortField = sortFields[ADMIN_USER_SORT.column];
+    filtered.sort((first, second) => {
+      const left = normalizeSearchText(first[sortField]);
+      const right = normalizeSearchText(second[sortField]);
+      return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }) *
+        (ADMIN_USER_SORT.ascending ? 1 : -1);
+    });
+  }
 
   tbody.innerHTML =
     '';
@@ -2157,7 +2166,9 @@ function renderUserMgmtTable() {
       '<tr>' +
       '<td colspan="7" class="table-empty">' +
       '<i class="fi fi-rr-users"></i> ' +
-      'No user accounts yet. They will appear here once connected to the live system.' +
+      (ADMIN_USER_ACCOUNTS.length
+        ? 'No accounts match your search and selected filters.'
+        : 'No user accounts are available.') +
       '</td>' +
       '</tr>';
 
@@ -2394,10 +2405,56 @@ function renderUserMgmtTable() {
 }
 
 
-function filterUsers() {
+function filterUsers(value) {
+  const search = document.getElementById('user-search');
+  if (search && typeof value === 'string') search.value = value;
+  const dashboardSearch = document.getElementById('admin-dashboard-search');
+  if (dashboardSearch && search) dashboardSearch.value = search.value;
 
   renderUserMgmtTable();
 
+}
+
+function updateAdminDashboardSearch(value) {
+  const userSearch = document.getElementById('user-search');
+  if (!userSearch) return;
+  userSearch.value = value;
+  renderUserMgmtTable();
+}
+
+function submitAdminDashboardSearch(event) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const query = String(event.currentTarget.value || '').trim();
+  if (!query) return;
+
+  if (typeof navigate === 'function') navigate('user-mgmt');
+  const userSearch = document.getElementById('user-search');
+  if (userSearch) {
+    userSearch.value = query;
+    renderUserMgmtTable();
+    userSearch.focus({ preventScroll: true });
+  }
+}
+
+function sortAdminUsers(column, header) {
+  if (ADMIN_USER_SORT.column === column) {
+    ADMIN_USER_SORT.ascending = !ADMIN_USER_SORT.ascending;
+  } else {
+    ADMIN_USER_SORT = { column, ascending: true };
+  }
+
+  const table = header?.closest('table');
+  table?.querySelectorAll('th .sort-icon').forEach(icon => {
+    icon.textContent = '↕';
+    icon.removeAttribute('aria-label');
+  });
+  const sortIcon = header?.querySelector('.sort-icon');
+  if (sortIcon) {
+    sortIcon.textContent = ADMIN_USER_SORT.ascending ? '↑' : '↓';
+    sortIcon.setAttribute('aria-label', ADMIN_USER_SORT.ascending ? 'Sorted ascending' : 'Sorted descending');
+  }
+  renderUserMgmtTable();
 }
 
 
@@ -3909,6 +3966,10 @@ function renderAuditTable() {
                     ? 'badge-inactive'
                     : 'badge-active';
 
+            const timestamp =
+              Number.isFinite(e._tsMs)
+                ? new Date(e._tsMs)
+                : null;
 
             return `
 
@@ -3916,30 +3977,23 @@ function renderAuditTable() {
                 aria-label="View details for audit event ${escHtml(e.action)}"
                 onclick="openAuditEventDetails('${escHtml(String(e.id))}', this)"
                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAuditEventDetails('${escHtml(String(e.id))}', this)}">
-                <td data-label="Time">
-
-                  <span class="cell-text">
-                    ${escHtml(e.ts)}
-                  </span>
-
+                <td data-label="Timestamp" title="${escHtml(e.ts)}">
+                  ${timestamp ? `
+                    <span class="audit-timestamp">
+                      <span class="audit-timestamp__date">${escHtml(timestamp.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }))}</span>
+                      <span class="audit-timestamp__time">${escHtml(timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))}</span>
+                    </span>
+                  ` : '<span class="audit-timestamp__date">—</span>'}
                 </td>
 
 
-                <td data-label="User">
-
-                  <span class="cell-text">
-                    ${escHtml(e.user)}
-                  </span>
-
+                <td data-label="User Account" title="${escHtml(e.user)}">
+                  <span class="cell-text audit-trail__truncate">${escHtml(e.user)}</span>
                 </td>
 
 
-                <td data-label="Username">
-
-                  <span class="cell-text" style="font-family:var(--font-data)">
-                    ${escHtml(e.username || '—')}
-                  </span>
-
+                <td data-label="Username" title="${escHtml(e.username || '—')}">
+                  <span class="cell-text audit-trail__truncate" style="font-family:var(--font-data)">${escHtml(e.username || '—')}</span>
                 </td>
 
 
@@ -3953,32 +4007,17 @@ function renderAuditTable() {
 
 
                 <td data-label="Action">
-
-                  <span class="cell-text">
-                    ${escHtml(e.action)}
-                  </span>
-
+                  <span class="cell-text">${escHtml(e.action)}</span>
                 </td>
 
 
-                <td data-label="IP Address">
-
-                  <span
-                    class="cell-text"
-                    style="font-family:var(--font-data)"
-                  >
-                    ${escHtml(e.ip)}
-                  </span>
-
+                <td data-label="IP Address" title="${escHtml(e.ip)}">
+                  <span class="cell-text audit-trail__truncate" style="font-family:var(--font-data)">${escHtml(e.ip)}</span>
                 </td>
 
 
-                <td data-label="Device">
-
-                  <span class="cell-text">
-                    ${escHtml(e.device)}
-                  </span>
-
+                <td data-label="Device" title="${escHtml(e.device)}">
+                  <span class="cell-text audit-trail__device">${escHtml(e.device)}</span>
                 </td>
 
               </tr>
