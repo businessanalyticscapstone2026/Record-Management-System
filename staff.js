@@ -5621,7 +5621,8 @@ APPLICANT_IMPORT_FIELDS.push(
   { key: "application_files.authentication_method", label: "Authentication Method", table: "application_files", column: "authentication_method", aliases: ["authentication method","authentication_method"] },
   { key: "application_files.authentication_remarks", label: "Authentication Remarks", table: "application_files", column: "authentication_remarks", aliases: ["authentication remarks","authentication_remarks"] },
   { key: "application_files.supporting_document_type", label: "Supporting Document Type", table: "application_files", column: "supporting_document_type", aliases: ["supporting document type","supporting_document_type"] },
-  { key: "application_status_history.updated_at", label: "Updated At", table: "application_status_history", column: "updated_at", aliases: ["updated at","updated_at"] }
+  { key: "application_status_history.status", label: "Application Status", table: "application_status_history", column: "status", aliases: ["application status","status","registration status","record status"] },
+  { key: "application_status_history.updated_at", label: "Status Updated At", table: "application_status_history", column: "updated_at", aliases: ["status updated at","updated at","updated_at"] }
 );
 
 let APPLICANT_IMPORT_STATE = {
