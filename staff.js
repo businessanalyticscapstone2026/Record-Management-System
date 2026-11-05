@@ -5505,9 +5505,9 @@ function normalizeApplicantImportHeader(value) {
 }
 
 function parseApplicantCsv(text) {
-  const source = String(text || "").replace(/^\\uFEFF/, "");
-  const firstLine = source.split(/\\r?\\n/, 1)[0] || "";
-  const delimiters = [",", ";", "\\t"];
+  const source = String(text || "").replace(/^\uFEFF/, "");
+  const firstLine = source.split(/\r?\n/, 1)[0] || "";
+  const delimiters = [",", ";", "\t"];
   let delimiter = ",";
   let delimiterCount = -1;
   delimiters.forEach(candidate => {
