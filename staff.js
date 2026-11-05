@@ -5969,6 +5969,8 @@ function resetApplicantImportModal() {
   if (summary) summary.textContent = "";
   const bar = document.getElementById("applicant-import-progress-bar");
   if (bar) bar.style.width = "0%";
+  const dateFormat = document.getElementById("applicant-import-date-format");
+  if (dateFormat) dateFormat.value = "auto";
   const submit = document.getElementById("applicant-import-submit");
   if (submit) { submit.disabled = true; submit.textContent = "Import records"; }
   setApplicantImportError("");
@@ -6123,8 +6125,17 @@ async function submitApplicantImport() {
 
     APPLICANT_IMPORT_STATE.imported = true;
     if (submit) { submit.textContent = "Import complete"; submit.disabled = true; }
-    if (typeof loadApplicationsFromDatabase === "function") await loadApplicationsFromDatabase();
-    if (typeof showToast === "function") showToast(totals.imported + " historical applicant record(s) imported.", totals.failed ? "warning" : "success");
+    if (typeof loadApplicationsFromDatabase === "function") {
+      try {
+        await loadApplicationsFromDatabase();
+      } catch (refreshError) {
+        console.warn("[Applicant Import] Saved records, but the Applicants list could not be refreshed:", refreshError);
+        setApplicantImportError("The records were saved, but the Applicants list could not refresh. Reload the page to see the imported records.");
+      }
+    }
+    if (typeof showToast === "function") {
+      showToast(totals.imported + " historical applicant record(s) imported.", totals.failed ? "warning" : "success");
+    }
   } catch (error) {
     setApplicantImportError(error.message || "The import failed.");
     if (submit) { submit.textContent = "Retry import"; submit.disabled = false; }
