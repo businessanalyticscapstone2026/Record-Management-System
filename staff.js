@@ -6021,7 +6021,7 @@ function renderApplicantImportPreview() {
 
   const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
   const validRows = mappedRows.filter(row =>
-    row.first_name && row.surname &&
+    row.first_name && row.surname && row.date_of_birth &&
     !row._invalidDateOfBirth &&
     !row._invalidRegistrationDate &&
     !isApplicantImportRepeatedHeader(row)
@@ -6226,13 +6226,13 @@ async function submitApplicantImport() {
       return mapped;
     })
     .filter(row =>
-      row.first_name && row.surname &&
+      row.first_name && row.surname && row.date_of_birth &&
       !row._invalidDateOfBirth &&
       !row._invalidRegistrationDate &&
       !isApplicantImportRepeatedHeader(row)
     );
   if (!mappedRows.length) {
-    setApplicantImportError("No valid rows remain. Map First name and Surname, then review the preview.");
+    setApplicantImportError("No valid rows remain. Map First name, Surname, and a valid Date of birth, then review the preview.");
     return;
   }
 
