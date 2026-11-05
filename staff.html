@@ -465,12 +465,11 @@
             <p class="page-header__sub">Manage registered senior citizens and their completed applications</p>
           </div>
           <div class="page-header__controls">
-            <button class="btn btn--primary" onclick="showToast('New applicant form opened','info')">
-              <svg viewBox="0 0 16 16" fill="currentColor">
-                <path
-                  d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" />
+            <button class="btn btn--primary" type="button" onclick="openApplicantImportModal()">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 10V2m-3 3 3-3 3 3M2 10v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/>
               </svg>
-              Add Applicant
+              Import Applicant Records
             </button>
             <button class="btn btn--ghost" onclick="exportCSV()">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -2412,12 +2411,66 @@
     </div>
   </div>
 
+
+  <!-- HISTORICAL APPLICANT RECORD IMPORT -->
+  <div class="applicant-import-overlay" id="applicant-import-overlay" hidden>
+    <section class="applicant-import-modal" role="dialog" aria-modal="true" aria-labelledby="applicant-import-title">
+      <header class="applicant-import-header">
+        <div>
+          <span class="applicant-import-eyebrow">REGISTERED SENIOR CITIZEN RECORDS</span>
+          <h2 id="applicant-import-title">Import Applicant Records</h2>
+          <p>Bring existing OSCA records into the system from a CSV file or searchable PDF.</p>
+        </div>
+        <button class="applicant-import-close" type="button" aria-label="Close import" onclick="closeApplicantImportModal()">×</button>
+      </header>
+      <div class="applicant-import-body">
+        <div class="applicant-import-notice">
+          <strong>Before you import</strong>
+          <ul>
+            <li>Imported records are saved as existing registered seniors (Completed).</li>
+            <li>Existing records are never overwritten. Duplicate rows are skipped and reported.</li>
+            <li>Column names do not need to match. Review and adjust the field mapping before importing.</li>
+            <li>PDFs must contain selectable text. Scanned image-only PDFs should be converted to searchable PDFs or CSV first.</li>
+          </ul>
+        </div>
+        <label class="applicant-import-dropzone" id="applicant-import-dropzone" for="applicant-import-file">
+          <span class="applicant-import-file-icon">↑</span>
+          <strong>Choose a CSV or PDF file</strong>
+          <span>or drag and drop it here · maximum 15 MB</span>
+          <input id="applicant-import-file" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
+        </label>
+        <div class="applicant-import-file-meta" id="applicant-import-file-meta" hidden></div>
+        <div class="applicant-import-error" id="applicant-import-error" role="alert" hidden></div>
+        <section class="applicant-import-mapping" id="applicant-import-mapping" hidden>
+          <div class="applicant-import-section-heading">
+            <div><h3>Match your columns</h3><p>Choose which system field each source column represents.</p></div>
+            <span id="applicant-import-row-count" class="applicant-import-count"></span>
+          </div>
+          <div id="applicant-import-map-list" class="applicant-import-map-list"></div>
+          <div class="applicant-import-preview-heading"><strong>Data preview</strong><span>First 8 rows</span></div>
+          <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table" id="applicant-import-preview"></table></div>
+          <div class="applicant-import-summary" id="applicant-import-summary"></div>
+        </section>
+        <div class="applicant-import-progress" id="applicant-import-progress" hidden>
+          <div class="applicant-import-progress-track"><span id="applicant-import-progress-bar"></span></div>
+          <div class="applicant-import-progress-label" id="applicant-import-progress-label">Preparing import…</div>
+        </div>
+        <div class="applicant-import-result" id="applicant-import-result" hidden></div>
+      </div>
+      <footer class="applicant-import-footer">
+        <button class="btn btn--ghost" type="button" onclick="closeApplicantImportModal()">Close</button>
+        <button class="btn btn--primary" type="button" id="applicant-import-submit" onclick="submitApplicantImport()" disabled>Import records</button>
+      </footer>
+    </section>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toast-container"></div>
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
   <script src="app.js?v=52"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="staff.js?v=multi-provider-ai-15"></script>
 </body>
 
