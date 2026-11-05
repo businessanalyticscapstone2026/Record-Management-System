@@ -2444,9 +2444,202 @@ const updateMembershipStatus = async (req, res) => {
   }
 };
 
+
+/* ============================================================
+   IMPORT HISTORICAL / LEGACY APPLICANT RECORDS
+   These are existing registered senior citizens, not new requests.
+   ============================================================ */
+const importApplicantRecords = async (req, res) => {
+  const normalizeText = (value) => String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\\s+/g, " ");
+
+  const normalizeDate = (value) => {
+    if (!value) return "";
+    const raw = String(value).trim();
+    const iso = raw.match(/^(\\d{4}-\\d{2}-\\d{2})/);
+    if (iso) return iso[1];
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+  };
+
+  const safeDateTime = (value) => {
+    if (!value) return new Date().toISOString();
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  };
+
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (!rows.length) {
+      return res.status(400).json({ success: false, message: "No applicant rows were provided." });
+    }
+    if (rows.length > 100) {
+      return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
+    }
+
+    // Read the existing identity keys once. Imports never update existing records.
+    const existingRows = await fetchAllRows(
+      "applications",
+      "application_id, first_name, middle_name, surname, date_of_birth, barangay_district",
+      "created_at"
+    );
+    const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
+    const identityKeys = new Set(
+      (existingRows || [])
+        .map(row => {
+          const first = normalizeText(row.first_name);
+          const last = normalizeText(row.surname);
+          const dob = normalizeDate(row.date_of_birth);
+          const barangay = normalizeText(row.barangay_district);
+          return first && last && dob ? [first, last, dob, barangay].join("|") : "";
+        })
+        .filter(Boolean)
+    );
+
+    const importedIdentityKeys = new Set();
+    const result = {
+      success: true,
+      received: rows.length,
+      imported: 0,
+      skippedDuplicates: 0,
+      skippedInvalid: 0,
+      failed: 0,
+      errors: [],
+      warnings: [],
+    };
+    const now = new Date().toISOString();
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const source = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
+      const firstName = String(source.first_name || "").trim();
+      const surname = String(source.surname || "").trim();
+      const middleName = String(source.middle_name || "").trim();
+      const dateOfBirth = normalizeDate(source.date_of_birth);
+      const barangay = String(source.barangay_district || "").trim();
+
+      if (!firstName || !surname) {
+        result.skippedInvalid += 1;
+        result.errors.push({ row: index + 1, reason: "First name and surname are required." });
+        continue;
+      }
+
+      const identityKey = dateOfBirth
+        ? [normalizeText(firstName), normalizeText(surname), dateOfBirth, normalizeText(barangay)].join("|")
+        : "";
+      const providedId = String(source.application_id || "").trim();
+      const identityDuplicate = identityKey && (
+        identityKeys.has(identityKey) || importedIdentityKeys.has(identityKey)
+      );
+      const idDuplicate = providedId && existingIds.has(providedId.toLowerCase());
+
+      if (identityDuplicate || idDuplicate) {
+        result.skippedDuplicates += 1;
+        continue;
+      }
+
+      const generatedSuffix = require("crypto").randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase();
+      const applicationId = providedId || "LEGACY-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + generatedSuffix;
+      const createdAt = safeDateTime(source.registration_date);
+      const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased"
+        ? "Deceased" : "Active";
+
+      // Import only fields that belong to the existing applications record.
+      // Unknown source columns are kept out of the database.
+      const applicationRecord = {
+        application_id: applicationId,
+        first_name: firstName,
+        middle_name: middleName || null,
+        surname,
+        date_of_birth: dateOfBirth || null,
+        sex: source.sex || null,
+        age: source.age === "" || source.age === null || source.age === undefined
+          ? null : (Number.isFinite(Number(source.age)) ? Number(source.age) : null),
+        house_street: source.house_street || null,
+        barangay_district: barangay || null,
+        contact_number: source.contact_number || null,
+        membership_status: membershipStatus,
+        created_at: createdAt,
+      };
+
+      try {
+        const { data: inserted, error: insertError } = await supabase
+          .from("applications")
+          .insert(applicationRecord)
+          .select("application_id")
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Historical profiles must appear in the registered Applicants directory.
+        const { error: statusError } = await supabase
+          .from("application_status_history")
+          .insert({
+            application_id: inserted.application_id,
+            status: "Completed",
+            updated_at: createdAt,
+          });
+
+        if (statusError) {
+          // Avoid leaving an application that cannot appear as registered.
+          const { error: rollbackError } = await supabase
+            .from("applications")
+            .delete()
+            .eq("application_id", inserted.application_id);
+          if (rollbackError) console.error("[Applicant Import] Rollback failed:", rollbackError);
+          throw statusError;
+        }
+
+        existingIds.add(applicationId.toLowerCase());
+        if (identityKey) {
+          identityKeys.add(identityKey);
+          importedIdentityKeys.add(identityKey);
+        }
+        result.imported += 1;
+      } catch (error) {
+        result.failed += 1;
+        result.errors.push({
+          row: index + 1,
+          reason: String(error?.message || "Database insert failed.").slice(0, 240),
+        });
+      }
+    }
+
+    if (result.imported > 0) {
+      await createAuditLogFromRequest(req, {
+        action: "LEGACY_APPLICANTS_IMPORTED",
+        entityType: "APPLICATION",
+        entityId: null,
+        details: `Imported ${result.imported} historical applicant record(s); skipped ${result.skippedDuplicates} duplicate(s), ${result.skippedInvalid} invalid row(s), and ${result.failed} failed row(s).`,
+      });
+    }
+
+    result.warnings = [
+      "Imported records are marked Completed and appear in the Registered Seniors directory.",
+      "No existing applicant record is overwritten.",
+      "Records without a date of birth are imported but cannot be checked for name-and-birth-date duplicates automatically.",
+      "Imported records do not include document files or family/background sub-records; staff may complete those details later when available.",
+    ];
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("[Applicant Import] Failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: "The applicant import could not be completed.",
+      error: String(error?.message || "Unexpected server error.").slice(0, 240),
+    });
+  }
+};
+
 // EXPORT
 module.exports = {
   getApplications,
+  importApplicantRecords,
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,
