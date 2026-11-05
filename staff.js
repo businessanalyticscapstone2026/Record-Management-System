@@ -5467,3 +5467,510 @@ async function submitReplacementDecision() {
 window.viewReplacementRequest = viewReplacementRequest;
 window.closeReplacementRequest = closeReplacementRequest;
 window.submitReplacementDecision = submitReplacementDecision;
+
+/* ============================================================
+   HISTORICAL APPLICANT RECORD IMPORT
+   CSV + searchable PDF, flexible source-column mapping, preview,
+   duplicate screening, and protected 100-row API batches.
+   ============================================================ */
+const APPLICANT_IMPORT_FIELDS = [
+  { key: "", label: "Do not import this column", aliases: [] },
+  { key: "application_id", label: "Existing Application / OSCA ID", aliases: ["application id", "application no", "application number", "osca id", "osca id number", "senior citizen id", "senior id", "id number", "id no", "registry number", "registry no", "control number"] },
+  { key: "first_name", label: "First name", aliases: ["first name", "firstname", "given name", "given names", "first", "pangalan"] },
+  { key: "middle_name", label: "Middle name", aliases: ["middle name", "middlename", "middle initial", "middle", "second name"] },
+  { key: "surname", label: "Surname / Last name", aliases: ["surname", "last name", "lastname", "family name", "family", "apelyido"] },
+  { key: "full_name", label: "Full name (split automatically)", aliases: ["full name", "complete name", "name of applicant", "applicant name", "senior citizen name", "name"] },
+  { key: "date_of_birth", label: "Date of birth", aliases: ["date of birth", "date birth", "birth date", "dob", "birthday", "birthdate"] },
+  { key: "sex", label: "Sex / Gender", aliases: ["sex", "gender"] },
+  { key: "age", label: "Age", aliases: ["age", "edad"] },
+  { key: "civil_status", label: "Civil status", aliases: ["civil status", "marital status"] },
+  { key: "house_street", label: "House / Street / Address", aliases: ["house street", "house number", "street", "street address", "address", "complete address", "residential address"] },
+  { key: "barangay_district", label: "Barangay / District", aliases: ["barangay", "barangay district", "district", "baranggay", "brgy", "brgy district"] },
+  { key: "contact_number", label: "Contact number", aliases: ["contact number", "contact no", "mobile number", "phone number", "telephone", "cellphone", "mobile", "phone"] },
+  { key: "membership_status", label: "Membership status (Active / Deceased)", aliases: ["membership status", "member status", "senior status"] },
+  { key: "registration_date", label: "Original registration date", aliases: ["registration date", "date registered", "date of registration", "date issued", "registered date", "date entered"] }
+];
+
+let APPLICANT_IMPORT_STATE = {
+  fileName: "",
+  headers: [],
+  rows: [],
+  mapping: {},
+  imported: false,
+  busy: false
+};
+
+function normalizeApplicantImportHeader(value) {
+  return String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\\s+/g, " ");
+}
+
+function parseApplicantCsv(text) {
+  const source = String(text || "").replace(/^\\uFEFF/, "");
+  const firstLine = source.split(/\\r?\\n/, 1)[0] || "";
+  const delimiters = [",", ";", "\\t"];
+  let delimiter = ",";
+  let delimiterCount = -1;
+  delimiters.forEach(candidate => {
+    const count = firstLine.split(candidate).length - 1;
+    if (count > delimiterCount) {
+      delimiter = candidate;
+      delimiterCount = count;
+    }
+  });
+
+  const matrix = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === '"') {
+      if (quoted && source[i + 1] === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (ch === delimiter && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((ch === "\\n" || ch === "\\r") && !quoted) {
+      if (ch === "\\r" && source[i + 1] === "\\n") i += 1;
+      row.push(cell.trim());
+      if (row.some(value => value !== "")) matrix.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some(value => value !== "")) matrix.push(row);
+  if (matrix.length < 2) {
+    throw new Error("The CSV file must contain a header row and at least one applicant record.");
+  }
+  const headers = matrix[0].map((value, index) => value || ("Column " + (index + 1)));
+  const rows = matrix.slice(1).map(values => headers.map((_, index) => values[index] || ""));
+  return { headers, rows };
+}
+
+async function parseApplicantPdf(file) {
+  if (!window.pdfjsLib) {
+    throw new Error("The PDF reader did not load. Refresh the page and try again, or save the PDF as CSV.");
+  }
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const buffer = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+  if (pdf.numPages > 100) {
+    throw new Error("This PDF has more than 100 pages. Split it into smaller PDF files before importing.");
+  }
+
+  const matrix = [];
+  let extractedItemCount = 0;
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    const items = (content.items || []).filter(item => String(item.str || "").trim());
+    extractedItemCount += items.length;
+    const lines = [];
+
+    items.forEach(item => {
+      const x = Number(item.transform && item.transform[4] || 0);
+      const y = Number(item.transform && item.transform[5] || 0);
+      const fontSize = Math.max(6, Math.abs(Number(item.transform && item.transform[3] || 10)));
+      let line = lines.find(candidate => Math.abs(candidate.y - y) <= Math.max(2, fontSize * 0.28));
+      if (!line) {
+        line = { y, items: [] };
+        lines.push(line);
+      }
+      line.items.push({ x, width: Number(item.width || 0), fontSize, text: String(item.str || "").trim() });
+    });
+
+    lines.sort((a, b) => b.y - a.y);
+    lines.forEach(line => {
+      line.items.sort((a, b) => a.x - b.x);
+      const cells = [];
+      let current = null;
+      line.items.forEach(item => {
+        if (!current) {
+          current = { end: item.x + item.width, text: item.text, fontSize: item.fontSize };
+          cells.push(current);
+          return;
+        }
+        const gap = item.x - current.end;
+        const threshold = Math.max(16, Math.min(38, current.fontSize * 1.8));
+        if (gap > threshold) {
+          current = { end: item.x + item.width, text: item.text, fontSize: item.fontSize };
+          cells.push(current);
+        } else {
+          current.text += (gap > 2 ? " " : "") + item.text;
+          current.end = Math.max(current.end, item.x + item.width);
+        }
+      });
+      const values = cells.map(cell => cell.text.trim());
+      if (values.some(Boolean)) matrix.push(values);
+    });
+  }
+
+  if (!extractedItemCount || matrix.length < 2) {
+    throw new Error("No selectable text was found in this PDF. It appears to be scanned/image-only. Please use a searchable PDF or convert it to CSV first.");
+  }
+  const widest = Math.max.apply(null, matrix.map(row => row.length));
+  const normalized = matrix.map(row => Array.from({ length: widest }, (_, index) => row[index] || ""));
+  const scoreHeader = row => {
+    const joined = normalizeApplicantImportHeader(row.join(" "));
+    return APPLICANT_IMPORT_FIELDS.reduce((score, field) => {
+      if (!field.key) return score;
+      return score + field.aliases.filter(alias => joined.includes(normalizeApplicantImportHeader(alias))).length;
+    }, 0);
+  };
+  let headerIndex = 0;
+  let bestScore = 0;
+  for (let i = 0; i < Math.min(20, normalized.length); i += 1) {
+    const score = scoreHeader(normalized[i]);
+    if (score > bestScore) {
+      bestScore = score;
+      headerIndex = i;
+    }
+  }
+  if (normalized.length - headerIndex < 2) {
+    throw new Error("The PDF text could not be arranged into a table. Please export this record list as CSV.");
+  }
+  const headers = normalized[headerIndex].map((value, index) => value || ("Column " + (index + 1)));
+  const rows = normalized.slice(headerIndex + 1).filter(row => row.some(value => String(value).trim()));
+  return { headers, rows };
+}
+
+function guessApplicantImportTarget(header) {
+  const normalized = normalizeApplicantImportHeader(header);
+  let best = "";
+  let bestScore = 0;
+  APPLICANT_IMPORT_FIELDS.forEach(field => {
+    if (!field.key) return;
+    field.aliases.forEach(alias => {
+      const value = normalizeApplicantImportHeader(alias);
+      let score = 0;
+      if (normalized === value) score = 100;
+      else if (normalized.includes(value) || value.includes(normalized)) score = Math.min(85, value.length * 2);
+      if (score > bestScore) {
+        bestScore = score;
+        best = field.key;
+      }
+    });
+  });
+  return bestScore >= 8 ? best : "";
+}
+
+function escapeApplicantImportHtml(value) {
+  return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
+
+function hasValidApplicantImportMapping() {
+  const fields = Object.values(APPLICANT_IMPORT_STATE.mapping);
+  const hasFullName = fields.includes("full_name");
+  return (fields.includes("first_name") && fields.includes("surname")) || hasFullName;
+}
+
+function normalizeApplicantImportDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+  if (/^\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}$/.test(raw)) {
+    const parts = raw.split(/[/.-]/).map(Number);
+    let year, month, day;
+    if (parts[0] > 31) {
+      [year, month, day] = parts;
+    } else {
+      [day, month, year] = parts;
+      if (year < 100) year += year >= 50 ? 1900 : 2000;
+      if (month > 12 && day <= 12) [day, month] = [month, day];
+    }
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (!Number.isNaN(date.getTime()) && date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 && date.getUTCDate() === day) {
+      return date.toISOString().slice(0, 10);
+    }
+  }
+  if (/^\\d+(\\.\\d+)?$/.test(raw) && Number(raw) > 15000 && Number(raw) < 90000) {
+    return new Date(Date.UTC(1899, 11, 30) + Math.round(Number(raw)) * 86400000).toISOString().slice(0, 10);
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+}
+
+function getApplicantImportMappedRow(row) {
+  const mapped = {};
+  Object.entries(APPLICANT_IMPORT_STATE.mapping).forEach(([column, field]) => {
+    if (!field) return;
+    const value = String(row[Number(column)] === undefined ? "" : row[Number(column)]).trim();
+    if (value) mapped[field] = value;
+  });
+  if (mapped.full_name && (!mapped.first_name || !mapped.surname)) {
+    const parts = mapped.full_name.replace(/\\s+/g, " ").trim().split(" ").filter(Boolean);
+    if (!mapped.first_name && parts.length) mapped.first_name = parts.shift();
+    if (!mapped.surname && parts.length) mapped.surname = parts.pop();
+    if (!mapped.middle_name && parts.length) mapped.middle_name = parts.join(" ");
+  }
+  if (mapped.date_of_birth) mapped.date_of_birth = normalizeApplicantImportDate(mapped.date_of_birth);
+  if (mapped.registration_date) mapped.registration_date = normalizeApplicantImportDate(mapped.registration_date);
+  if (mapped.age) mapped.age = mapped.age.replace(/[^0-9.]/g, "");
+  if (mapped.sex) {
+    const sex = normalizeApplicantImportHeader(mapped.sex);
+    if (["m", "male"].includes(sex)) mapped.sex = "Male";
+    else if (["f", "female"].includes(sex)) mapped.sex = "Female";
+  }
+  if (mapped.membership_status) {
+    const status = normalizeApplicantImportHeader(mapped.membership_status);
+    mapped.membership_status = status.includes("deceased") || status.includes("dead") ? "Deceased" : "Active";
+  }
+  return mapped;
+}
+
+function renderApplicantImportPreview() {
+  const preview = document.getElementById("applicant-import-preview");
+  const summary = document.getElementById("applicant-import-summary");
+  const submit = document.getElementById("applicant-import-submit");
+  if (!preview) return;
+  const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
+  const valid = mappedRows.filter(row => row.first_name && row.surname).length;
+  const invalid = mappedRows.length - valid;
+
+  preview.innerHTML = "<thead><tr>" + APPLICANT_IMPORT_STATE.headers.map(header =>
+    "<th>" + escapeApplicantImportHtml(header) + "</th>"
+  ).join("") + "</tr></thead><tbody>" +
+    APPLICANT_IMPORT_STATE.rows.slice(0, 8).map(row =>
+      "<tr>" + APPLICANT_IMPORT_STATE.headers.map((_, index) =>
+        "<td>" + escapeApplicantImportHtml(row[index] || "—") + "</td>"
+      ).join("") + "</tr>"
+    ).join("") + "</tbody>";
+
+  if (summary) {
+    summary.innerHTML =
+      '<span class="applicant-import-summary-good">' + valid.toLocaleString() + " rows ready</span>" +
+      '<span class="applicant-import-summary-muted">' + invalid.toLocaleString() +
+      " rows missing First name or Surname will be skipped</span>";
+  }
+  if (submit) submit.disabled = APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping() || valid === 0;
+}
+
+function renderApplicantImportMapping() {
+  const list = document.getElementById("applicant-import-map-list");
+  const rowCount = document.getElementById("applicant-import-row-count");
+  const submit = document.getElementById("applicant-import-submit");
+  if (!list) return;
+  const options = APPLICANT_IMPORT_FIELDS.map(field =>
+    '<option value="' + field.key + '">' + field.label + "</option>"
+  ).join("");
+  list.innerHTML = APPLICANT_IMPORT_STATE.headers.map((header, index) =>
+    '<label class="applicant-import-map-row"><span title="' + escapeApplicantImportHtml(header) +
+    '">' + escapeApplicantImportHtml(header) + '</span><select data-import-column="' + index + '">' +
+    options + "</select></label>"
+  ).join("");
+  list.querySelectorAll("select[data-import-column]").forEach(select => {
+    select.value = APPLICANT_IMPORT_STATE.mapping[select.dataset.importColumn] || "";
+    select.addEventListener("change", () => {
+      APPLICANT_IMPORT_STATE.mapping[select.dataset.importColumn] = select.value;
+      renderApplicantImportPreview();
+    });
+  });
+  if (rowCount) rowCount.textContent = APPLICANT_IMPORT_STATE.rows.length.toLocaleString() + " rows";
+  renderApplicantImportPreview();
+  if (submit) submit.disabled = APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping();
+}
+
+function setApplicantImportError(message) {
+  const element = document.getElementById("applicant-import-error");
+  if (!element) return;
+  element.textContent = message || "";
+  element.hidden = !message;
+}
+
+function resetApplicantImportModal() {
+  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, imported: false, busy: false };
+  const input = document.getElementById("applicant-import-file");
+  if (input) input.value = "";
+  ["applicant-import-file-meta", "applicant-import-mapping", "applicant-import-progress", "applicant-import-result"].forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.hidden = true;
+  });
+  const summary = document.getElementById("applicant-import-summary");
+  if (summary) summary.textContent = "";
+  const bar = document.getElementById("applicant-import-progress-bar");
+  if (bar) bar.style.width = "0%";
+  const submit = document.getElementById("applicant-import-submit");
+  if (submit) { submit.disabled = true; submit.textContent = "Import records"; }
+  setApplicantImportError("");
+}
+
+function openApplicantImportModal() {
+  const overlay = document.getElementById("applicant-import-overlay");
+  if (!overlay) return;
+  resetApplicantImportModal();
+  overlay.hidden = false;
+  document.body.classList.add("modal-open");
+}
+
+function closeApplicantImportModal() {
+  if (APPLICANT_IMPORT_STATE.busy) return;
+  const overlay = document.getElementById("applicant-import-overlay");
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+async function handleApplicantImportFile(file) {
+  resetApplicantImportModal();
+  if (!file) return;
+  if (file.size > 15 * 1024 * 1024) {
+    setApplicantImportError("The selected file is larger than 15 MB. Please split it into smaller files.");
+    return;
+  }
+  const meta = document.getElementById("applicant-import-file-meta");
+  try {
+    setApplicantImportError("");
+    if (meta) {
+      meta.hidden = false;
+      meta.textContent = "Reading " + file.name + "…";
+    }
+    let parsed;
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith(".csv") || file.type === "text/csv") {
+      parsed = parseApplicantCsv(await file.text());
+    } else if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
+      parsed = await parseApplicantPdf(file);
+    } else {
+      throw new Error("Please select a CSV or PDF file.");
+    }
+    if (!parsed.headers.length || !parsed.rows.length) throw new Error("No table rows were found in the selected file.");
+    if (parsed.headers.length > 40) throw new Error("The file contains more than 40 columns. Please simplify the source file before importing.");
+
+    APPLICANT_IMPORT_STATE.fileName = file.name;
+    APPLICANT_IMPORT_STATE.headers = parsed.headers;
+    APPLICANT_IMPORT_STATE.rows = parsed.rows;
+    APPLICANT_IMPORT_STATE.mapping = {};
+    parsed.headers.forEach((header, index) => {
+      APPLICANT_IMPORT_STATE.mapping[index] = guessApplicantImportTarget(header);
+    });
+    if (meta) meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " rows · " + parsed.headers.length + " columns";
+    const section = document.getElementById("applicant-import-mapping");
+    if (section) section.hidden = false;
+    renderApplicantImportMapping();
+  } catch (error) {
+    if (meta) meta.hidden = true;
+    setApplicantImportError(error.message || "Unable to read this file.");
+  }
+}
+
+async function submitApplicantImport() {
+  if (APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping()) return;
+  const submit = document.getElementById("applicant-import-submit");
+  const progress = document.getElementById("applicant-import-progress");
+  const progressBar = document.getElementById("applicant-import-progress-bar");
+  const progressLabel = document.getElementById("applicant-import-progress-label");
+  const resultPanel = document.getElementById("applicant-import-result");
+  const mappedRows = APPLICANT_IMPORT_STATE.rows
+    .map(row => getApplicantImportMappedRow(row))
+    .filter(row => row.first_name && row.surname);
+  if (!mappedRows.length) {
+    setApplicantImportError("No valid rows remain. Map First name and Surname, then review the preview.");
+    return;
+  }
+
+  APPLICANT_IMPORT_STATE.busy = true;
+  if (submit) { submit.disabled = true; submit.textContent = "Importing…"; }
+  if (progress) progress.hidden = false;
+  if (resultPanel) resultPanel.hidden = true;
+  setApplicantImportError("");
+
+  const totals = { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, failed: 0, errors: [] };
+  const batchSize = 100;
+  const totalBatches = Math.ceil(mappedRows.length / batchSize);
+  try {
+    for (let start = 0; start < mappedRows.length; start += batchSize) {
+      const batch = mappedRows.slice(start, start + batchSize);
+      const response = await fetch(
+        "https://management-backend-3cij.onrender.com/api/applications/import",
+        { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ rows: batch }) }
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.message || "The server rejected an import batch.");
+
+      totals.imported += Number(payload.imported || 0);
+      totals.skippedDuplicates += Number(payload.skippedDuplicates || 0);
+      totals.skippedInvalid += Number(payload.skippedInvalid || 0);
+      totals.failed += Number(payload.failed || 0);
+      (payload.errors || []).forEach(error => {
+        if (totals.errors.length < 30) totals.errors.push({ row: Number(error.row || 0) + start, reason: error.reason });
+      });
+
+      const completed = Math.min(start + batchSize, mappedRows.length);
+      const percent = Math.round((completed / mappedRows.length) * 100);
+      if (progressBar) progressBar.style.width = percent + "%";
+      if (progressLabel) {
+        const currentBatch = Math.min(Math.ceil(completed / batchSize), totalBatches);
+        progressLabel.textContent = "Imported batch " + currentBatch + " of " + totalBatches +
+          " · " + completed.toLocaleString() + " of " + mappedRows.length.toLocaleString() + " rows processed";
+      }
+    }
+
+    if (resultPanel) {
+      resultPanel.hidden = false;
+      resultPanel.innerHTML =
+        "<strong>Import finished</strong><div class='applicant-import-result-grid'>" +
+        "<span><b>" + totals.imported.toLocaleString() + "</b> Imported</span>" +
+        "<span><b>" + totals.skippedDuplicates.toLocaleString() + "</b> Duplicates skipped</span>" +
+        "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
+        "<p>Imported records are now stored as Completed profiles. Existing records were not changed.</p>" +
+        (totals.errors.length ? "<details><summary>View row issues (" + totals.errors.length + ")</summary><ul>" +
+          totals.errors.map(error => "<li>Source row " + (error.row + 1) + ": " + escapeApplicantImportHtml(error.reason) + "</li>").join("") +
+          "</ul></details>" : "");
+    }
+
+    APPLICANT_IMPORT_STATE.imported = true;
+    if (submit) { submit.textContent = "Import complete"; submit.disabled = true; }
+    if (typeof loadApplicationsFromDatabase === "function") await loadApplicationsFromDatabase();
+    if (typeof showToast === "function") showToast(totals.imported + " historical applicant record(s) imported.", totals.failed ? "warning" : "success");
+  } catch (error) {
+    setApplicantImportError(error.message || "The import failed.");
+    if (submit) { submit.textContent = "Retry import"; submit.disabled = false; }
+  } finally {
+    APPLICANT_IMPORT_STATE.busy = false;
+    if (submit && submit.textContent !== "Import complete") submit.disabled = !hasValidApplicantImportMapping();
+  }
+}
+
+function initializeApplicantImport() {
+  const input = document.getElementById("applicant-import-file");
+  const dropzone = document.getElementById("applicant-import-dropzone");
+  if (input && !input.dataset.importBound) {
+    input.dataset.importBound = "true";
+    input.addEventListener("change", event => handleApplicantImportFile(event.target.files && event.target.files[0]));
+  }
+  if (dropzone && !dropzone.dataset.importBound) {
+    dropzone.dataset.importBound = "true";
+    ["dragenter", "dragover"].forEach(name => dropzone.addEventListener(name, event => {
+      event.preventDefault();
+      dropzone.classList.add("is-dragover");
+    }));
+    ["dragleave", "drop"].forEach(name => dropzone.addEventListener(name, event => {
+      event.preventDefault();
+      dropzone.classList.remove("is-dragover");
+    }));
+    dropzone.addEventListener("drop", event => {
+      const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      if (!file) return;
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      handleApplicantImportFile(file);
+    });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", initializeApplicantImport);
+window.openApplicantImportModal = openApplicantImportModal;
+window.closeApplicantImportModal = closeApplicantImportModal;
+window.submitApplicantImport = submitApplicantImport;
