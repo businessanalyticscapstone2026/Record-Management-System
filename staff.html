@@ -2429,8 +2429,8 @@
           <ul>
             <li>Imported records are saved as existing registered seniors (Completed).</li>
             <li>Existing records are never overwritten. Duplicate rows are skipped and reported.</li>
-            <li>Column names do not need to match. Review and adjust the field mapping before importing.</li>
-            <li>PDFs must contain selectable text. Scanned image-only PDFs should be converted to searchable PDFs or CSV first.</li>
+            <li>Column names do not need to match. Review and adjust the field mapping before importing. A single Full Name column is split automatically as First / Middle / Surname for review.</li>
+            <li>Searchable PDFs are read directly. Scanned PDFs use in-browser OCR; carefully review the extracted values before importing.</li>
           </ul>
         </div>
         <label class="applicant-import-dropzone" id="applicant-import-dropzone" for="applicant-import-file">
