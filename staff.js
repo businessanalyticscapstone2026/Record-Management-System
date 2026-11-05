@@ -5483,7 +5483,6 @@ const APPLICANT_IMPORT_FIELDS = [
   { key: "date_of_birth", label: "Date of birth", aliases: ["date of birth", "date birth", "birth date", "dob", "birthday", "birthdate"] },
   { key: "sex", label: "Sex / Gender", aliases: ["sex", "gender"] },
   { key: "age", label: "Age", aliases: ["age", "edad"] },
-  { key: "civil_status", label: "Civil status", aliases: ["civil status", "marital status"] },
   { key: "house_street", label: "House / Street / Address", aliases: ["house street", "house number", "street", "street address", "address", "complete address", "residential address"] },
   { key: "barangay_district", label: "Barangay / District", aliases: ["barangay", "barangay district", "district", "baranggay", "brgy", "brgy district"] },
   { key: "contact_number", label: "Contact number", aliases: ["contact number", "contact no", "mobile number", "phone number", "telephone", "cellphone", "mobile", "phone"] },
@@ -5679,22 +5678,45 @@ function normalizeApplicantImportDate(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
   if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
-  if (/^\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}$/.test(raw)) {
-    const parts = raw.split(/[/.-]/).map(Number);
-    let year, month, day;
-    if (parts[0] > 31) {
-      [year, month, day] = parts;
+
+  const format = document.getElementById("applicant-import-date-format")?.value || "auto";
+  const numericDate = raw.match(/^(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{2,4})$/);
+  if (numericDate) {
+    let first = Number(numericDate[1]);
+    let second = Number(numericDate[2]);
+    let year = Number(numericDate[3]);
+    if (year < 100) year += year >= 50 ? 1900 : 2000;
+    let day, month;
+
+    if (format === "YMD") {
+      year = first;
+      month = second;
+      day = Number(numericDate[3]);
+    } else if (format === "MDY") {
+      month = first;
+      day = second;
+    } else if (format === "DMY") {
+      day = first;
+      month = second;
+    } else if (first > 12 && second <= 12) {
+      day = first;
+      month = second;
+    } else if (second > 12 && first <= 12) {
+      month = first;
+      day = second;
     } else {
-      [day, month, year] = parts;
-      if (year < 100) year += year >= 50 ? 1900 : 2000;
-      if (month > 12 && day <= 12) [day, month] = [month, day];
+      // Philippine records commonly use day/month/year when the date is ambiguous.
+      day = first;
+      month = second;
     }
+
     const date = new Date(Date.UTC(year, month - 1, day));
     if (!Number.isNaN(date.getTime()) && date.getUTCFullYear() === year &&
       date.getUTCMonth() === month - 1 && date.getUTCDate() === day) {
       return date.toISOString().slice(0, 10);
     }
   }
+
   if (/^\\d+(\\.\\d+)?$/.test(raw) && Number(raw) > 15000 && Number(raw) < 90000) {
     return new Date(Date.UTC(1899, 11, 30) + Math.round(Number(raw)) * 86400000).toISOString().slice(0, 10);
   }
