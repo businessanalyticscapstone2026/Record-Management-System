@@ -5490,6 +5490,140 @@ const APPLICANT_IMPORT_FIELDS = [
   { key: "registration_date", label: "Original registration date", aliases: ["registration date", "date registered", "date of registration", "date issued", "registered date", "date entered"] }
 ];
 
+
+// Additional columns available on the applications table.
+APPLICANT_IMPORT_FIELDS.push(
+  { key: "place_of_birth", label: "Place of birth", aliases: ["place of birth", "birthplace"] },
+  { key: "civil_status", label: "Civil status", aliases: ["civil status", "marital status"] },
+  { key: "educational_attainment", label: "Educational attainment", aliases: ["educational attainment", "education", "highest education"] },
+  { key: "religion", label: "Religion", aliases: ["religion", "religious affiliation"] },
+  { key: "religion_specify", label: "Religion (specify)", aliases: ["religion specify", "other religion"] },
+  { key: "occupation", label: "Occupation", aliases: ["occupation", "previous occupation", "work"] },
+  { key: "osca_id_number", label: "OSCA ID number", aliases: ["osca id number", "osca number"] },
+  { key: "sss_id_number", label: "SSS ID number", aliases: ["sss id", "sss number"] },
+  { key: "philhealth_id_number", label: "PhilHealth ID number", aliases: ["philhealth id", "philhealth number"] },
+  { key: "gsis_id_number", label: "GSIS ID number", aliases: ["gsis id", "gsis number"] },
+  { key: "tin_id_number", label: "TIN ID number", aliases: ["tin id", "tin number", "tax identification number"] },
+  { key: "application_type", label: "Application type", aliases: ["application type", "record type"] }
+);
+
+// Related-table fields use the real Supabase schema. They are optional and
+// are inserted only when the source file provides a value.
+APPLICANT_IMPORT_FIELDS.push(
+  { key: "family_composition.name", label: "Name", table: "family_composition", column: "name", aliases: ["name","name"] },
+  { key: "family_composition.relationship", label: "Relationship", table: "family_composition", column: "relationship", aliases: ["relationship","relationship"] },
+  { key: "family_composition.age", label: "Age", table: "family_composition", column: "age", aliases: ["age","age"] },
+  { key: "family_composition.civil_status", label: "Civil Status", table: "family_composition", column: "civil_status", aliases: ["civil status","civil_status"] },
+  { key: "family_composition.occupation", label: "Occupation", table: "family_composition", column: "occupation", aliases: ["occupation","occupation"] },
+  { key: "family_composition.income", label: "Income", table: "family_composition", column: "income", aliases: ["income","income"] },
+  { key: "memberships.association_name", label: "Association Name", table: "memberships", column: "association_name", aliases: ["association name","association_name"] },
+  { key: "memberships.association_address", label: "Association Address", table: "memberships", column: "association_address", aliases: ["association address","association_address"] },
+  { key: "memberships.association_date", label: "Association Date", table: "memberships", column: "association_date", aliases: ["association date","association_date"] },
+  { key: "memberships.position", label: "Position", table: "memberships", column: "position", aliases: ["position","position"] },
+  { key: "personal_background.income_own_earnings", label: "Income Own Earnings", table: "personal_background", column: "income_own_earnings", aliases: ["income own earnings","income_own_earnings"] },
+  { key: "personal_background.income_own_pension", label: "Income Own Pension", table: "personal_background", column: "income_own_pension", aliases: ["income own pension","income_own_pension"] },
+  { key: "personal_background.income_stocks_dividends", label: "Income Stocks Dividends", table: "personal_background", column: "income_stocks_dividends", aliases: ["income stocks dividends","income_stocks_dividends"] },
+  { key: "personal_background.income_dependent_children", label: "Income Dependent Children", table: "personal_background", column: "income_dependent_children", aliases: ["income dependent children","income_dependent_children"] },
+  { key: "personal_background.income_spouse_salary", label: "Income Spouse Salary", table: "personal_background", column: "income_spouse_salary", aliases: ["income spouse salary","income_spouse_salary"] },
+  { key: "personal_background.income_insurance", label: "Income Insurance", table: "personal_background", column: "income_insurance", aliases: ["income insurance","income_insurance"] },
+  { key: "personal_background.income_rentals_sharecrops", label: "Income Rentals Sharecrops", table: "personal_background", column: "income_rentals_sharecrops", aliases: ["income rentals sharecrops","income_rentals_sharecrops"] },
+  { key: "personal_background.income_savings", label: "Income Savings", table: "personal_background", column: "income_savings", aliases: ["income savings","income_savings"] },
+  { key: "personal_background.income_livestock_crop", label: "Income Livestock Crop", table: "personal_background", column: "income_livestock_crop", aliases: ["income livestock crop","income_livestock_crop"] },
+  { key: "personal_background.income_other", label: "Income Other", table: "personal_background", column: "income_other", aliases: ["income other","income_other"] },
+  { key: "personal_background.asset_house", label: "Asset House", table: "personal_background", column: "asset_house", aliases: ["asset house","asset_house"] },
+  { key: "personal_background.asset_lot", label: "Asset Lot", table: "personal_background", column: "asset_lot", aliases: ["asset lot","asset_lot"] },
+  { key: "personal_background.asset_farmland", label: "Asset Farmland", table: "personal_background", column: "asset_farmland", aliases: ["asset farmland","asset_farmland"] },
+  { key: "personal_background.asset_fishponds_resorts", label: "Asset Fishponds Resorts", table: "personal_background", column: "asset_fishponds_resorts", aliases: ["asset fishponds resorts","asset_fishponds_resorts"] },
+  { key: "personal_background.asset_commercial_building", label: "Asset Commercial Building", table: "personal_background", column: "asset_commercial_building", aliases: ["asset commercial building","asset_commercial_building"] },
+  { key: "personal_background.asset_other", label: "Asset Other", table: "personal_background", column: "asset_other", aliases: ["asset other","asset_other"] },
+  { key: "personal_background.living_alone", label: "Living Alone", table: "personal_background", column: "living_alone", aliases: ["living alone","living_alone"] },
+  { key: "personal_background.living_spouse", label: "Living Spouse", table: "personal_background", column: "living_spouse", aliases: ["living spouse","living_spouse"] },
+  { key: "personal_background.living_care_institution", label: "Living Care Institution", table: "personal_background", column: "living_care_institution", aliases: ["living care institution","living_care_institution"] },
+  { key: "personal_background.living_children", label: "Living Children", table: "personal_background", column: "living_children", aliases: ["living children","living_children"] },
+  { key: "personal_background.living_friends", label: "Living Friends", table: "personal_background", column: "living_friends", aliases: ["living friends","living_friends"] },
+  { key: "personal_background.living_common_law_spouse", label: "Living Common Law Spouse", table: "personal_background", column: "living_common_law_spouse", aliases: ["living common law spouse","living_common_law_spouse"] },
+  { key: "personal_background.living_grandchildren", label: "Living Grandchildren", table: "personal_background", column: "living_grandchildren", aliases: ["living grandchildren","living_grandchildren"] },
+  { key: "personal_background.living_households", label: "Living Households", table: "personal_background", column: "living_households", aliases: ["living households","living_households"] },
+  { key: "personal_background.living_relatives", label: "Living Relatives", table: "personal_background", column: "living_relatives", aliases: ["living relatives","living_relatives"] },
+  { key: "personal_background.living_in_laws", label: "Living In Laws", table: "personal_background", column: "living_in_laws", aliases: ["living in laws","living_in_laws"] },
+  { key: "personal_background.living_other", label: "Living Other", table: "personal_background", column: "living_other", aliases: ["living other","living_other"] },
+  { key: "personal_background.skill_medical", label: "Skill Medical", table: "personal_background", column: "skill_medical", aliases: ["skill medical","skill_medical"] },
+  { key: "personal_background.skill_dental", label: "Skill Dental", table: "personal_background", column: "skill_dental", aliases: ["skill dental","skill_dental"] },
+  { key: "personal_background.skill_farming", label: "Skill Farming", table: "personal_background", column: "skill_farming", aliases: ["skill farming","skill_farming"] },
+  { key: "personal_background.skill_arts", label: "Skill Arts", table: "personal_background", column: "skill_arts", aliases: ["skill arts","skill_arts"] },
+  { key: "personal_background.skill_teaching", label: "Skill Teaching", table: "personal_background", column: "skill_teaching", aliases: ["skill teaching","skill_teaching"] },
+  { key: "personal_background.skill_counseling", label: "Skill Counseling", table: "personal_background", column: "skill_counseling", aliases: ["skill counseling","skill_counseling"] },
+  { key: "personal_background.skill_fishing", label: "Skill Fishing", table: "personal_background", column: "skill_fishing", aliases: ["skill fishing","skill_fishing"] },
+  { key: "personal_background.skill_engineering", label: "Skill Engineering", table: "personal_background", column: "skill_engineering", aliases: ["skill engineering","skill_engineering"] },
+  { key: "personal_background.skill_legal_services", label: "Skill Legal Services", table: "personal_background", column: "skill_legal_services", aliases: ["skill legal services","skill_legal_services"] },
+  { key: "personal_background.skill_evangelization", label: "Skill Evangelization", table: "personal_background", column: "skill_evangelization", aliases: ["skill evangelization","skill_evangelization"] },
+  { key: "personal_background.skill_cooking", label: "Skill Cooking", table: "personal_background", column: "skill_cooking", aliases: ["skill cooking","skill_cooking"] },
+  { key: "personal_background.skill_vocational", label: "Skill Vocational", table: "personal_background", column: "skill_vocational", aliases: ["skill vocational","skill_vocational"] },
+  { key: "personal_background.skill_other", label: "Skill Other", table: "personal_background", column: "skill_other", aliases: ["skill other","skill_other"] },
+  { key: "personal_background.involvement_medical", label: "Involvement Medical", table: "personal_background", column: "involvement_medical", aliases: ["involvement medical","involvement_medical"] },
+  { key: "personal_background.involvement_dental", label: "Involvement Dental", table: "personal_background", column: "involvement_dental", aliases: ["involvement dental","involvement_dental"] },
+  { key: "personal_background.involvement_religious", label: "Involvement Religious", table: "personal_background", column: "involvement_religious", aliases: ["involvement religious","involvement_religious"] },
+  { key: "personal_background.involvement_sportsmanship", label: "Involvement Sportsmanship", table: "personal_background", column: "involvement_sportsmanship", aliases: ["involvement sportsmanship","involvement_sportsmanship"] },
+  { key: "personal_background.involvement_resource_volunteer", label: "Involvement Resource Volunteer", table: "personal_background", column: "involvement_resource_volunteer", aliases: ["involvement resource volunteer","involvement_resource_volunteer"] },
+  { key: "personal_background.involvement_friendly_visits", label: "Involvement Friendly Visits", table: "personal_background", column: "involvement_friendly_visits", aliases: ["involvement friendly visits","involvement_friendly_visits"] },
+  { key: "personal_background.involvement_counseling_referral", label: "Involvement Counseling Referral", table: "personal_background", column: "involvement_counseling_referral", aliases: ["involvement counseling referral","involvement_counseling_referral"] },
+  { key: "personal_background.involvement_legal_services", label: "Involvement Legal Services", table: "personal_background", column: "involvement_legal_services", aliases: ["involvement legal services","involvement_legal_services"] },
+  { key: "personal_background.involvement_community_leader", label: "Involvement Community Leader", table: "personal_background", column: "involvement_community_leader", aliases: ["involvement community leader","involvement_community_leader"] },
+  { key: "personal_background.involvement_other", label: "Involvement Other", table: "personal_background", column: "involvement_other", aliases: ["involvement other","involvement_other"] },
+  { key: "personal_background.income_other_specify", label: "Income Other Specify", table: "personal_background", column: "income_other_specify", aliases: ["income other specify","income_other_specify"] },
+  { key: "personal_background.asset_other_specify", label: "Asset Other Specify", table: "personal_background", column: "asset_other_specify", aliases: ["asset other specify","asset_other_specify"] },
+  { key: "personal_background.monthly_income", label: "Monthly Income", table: "personal_background", column: "monthly_income", aliases: ["monthly income","monthly_income"] },
+  { key: "personal_background.living_other_specify", label: "Living Other Specify", table: "personal_background", column: "living_other_specify", aliases: ["living other specify","living_other_specify"] },
+  { key: "personal_background.skill_other_specify", label: "Skill Other Specify", table: "personal_background", column: "skill_other_specify", aliases: ["skill other specify","skill_other_specify"] },
+  { key: "personal_background.involvement_other_specify", label: "Involvement Other Specify", table: "personal_background", column: "involvement_other_specify", aliases: ["involvement other specify","involvement_other_specify"] },
+  { key: "problems_needs.economic_lack_income", label: "Economic Lack Income", table: "problems_needs", column: "economic_lack_income", aliases: ["economic lack income","economic_lack_income"] },
+  { key: "problems_needs.economic_skills_training", label: "Economic Skills Training", table: "problems_needs", column: "economic_skills_training", aliases: ["economic skills training","economic_skills_training"] },
+  { key: "problems_needs.economic_livelihood", label: "Economic Livelihood", table: "problems_needs", column: "economic_livelihood", aliases: ["economic livelihood","economic_livelihood"] },
+  { key: "problems_needs.economic_other", label: "Economic Other", table: "problems_needs", column: "economic_other", aliases: ["economic other","economic_other"] },
+  { key: "problems_needs.social_neglect_rejection", label: "Social Neglect Rejection", table: "problems_needs", column: "social_neglect_rejection", aliases: ["social neglect rejection","social_neglect_rejection"] },
+  { key: "problems_needs.social_helplessness", label: "Social Helplessness", table: "problems_needs", column: "social_helplessness", aliases: ["social helplessness","social_helplessness"] },
+  { key: "problems_needs.social_loneliness", label: "Social Loneliness", table: "problems_needs", column: "social_loneliness", aliases: ["social loneliness","social_loneliness"] },
+  { key: "problems_needs.social_inadequate_recreation", label: "Social Inadequate Recreation", table: "problems_needs", column: "social_inadequate_recreation", aliases: ["social inadequate recreation","social_inadequate_recreation"] },
+  { key: "problems_needs.social_senior_friendly_environment", label: "Social Senior Friendly Environment", table: "problems_needs", column: "social_senior_friendly_environment", aliases: ["social senior friendly environment","social_senior_friendly_environment"] },
+  { key: "problems_needs.social_other", label: "Social Other", table: "problems_needs", column: "social_other", aliases: ["social other","social_other"] },
+  { key: "problems_needs.health_high_cost_medicine", label: "Health High Cost Medicine", table: "problems_needs", column: "health_high_cost_medicine", aliases: ["health high cost medicine","health_high_cost_medicine"] },
+  { key: "problems_needs.health_lack_medical_professionals", label: "Health Lack Medical Professionals", table: "problems_needs", column: "health_lack_medical_professionals", aliases: ["health lack medical professionals","health_lack_medical_professionals"] },
+  { key: "problems_needs.health_no_sanitation", label: "Health No Sanitation", table: "problems_needs", column: "health_no_sanitation", aliases: ["health no sanitation","health_no_sanitation"] },
+  { key: "problems_needs.health_no_insurance", label: "Health No Insurance", table: "problems_needs", column: "health_no_insurance", aliases: ["health no insurance","health_no_insurance"] },
+  { key: "problems_needs.health_lack_hospital", label: "Health Lack Hospital", table: "problems_needs", column: "health_lack_hospital", aliases: ["health lack hospital","health_lack_hospital"] },
+  { key: "problems_needs.health_problem", label: "Health Problem", table: "problems_needs", column: "health_problem", aliases: ["health problem","health_problem"] },
+  { key: "problems_needs.housing_overcrowding", label: "Housing Overcrowding", table: "problems_needs", column: "housing_overcrowding", aliases: ["housing overcrowding","housing_overcrowding"] },
+  { key: "problems_needs.housing_no_permanent_home", label: "Housing No Permanent Home", table: "problems_needs", column: "housing_no_permanent_home", aliases: ["housing no permanent home","housing_no_permanent_home"] },
+  { key: "problems_needs.housing_independent_living", label: "Housing Independent Living", table: "problems_needs", column: "housing_independent_living", aliases: ["housing independent living","housing_independent_living"] },
+  { key: "problems_needs.housing_lost_privacy", label: "Housing Lost Privacy", table: "problems_needs", column: "housing_lost_privacy", aliases: ["housing lost privacy","housing_lost_privacy"] },
+  { key: "problems_needs.housing_squatter_area", label: "Housing Squatter Area", table: "problems_needs", column: "housing_squatter_area", aliases: ["housing squatter area","housing_squatter_area"] },
+  { key: "problems_needs.housing_high_rental", label: "Housing High Rental", table: "problems_needs", column: "housing_high_rental", aliases: ["housing high rental","housing_high_rental"] },
+  { key: "problems_needs.housing_other", label: "Housing Other", table: "problems_needs", column: "housing_other", aliases: ["housing other","housing_other"] },
+  { key: "problems_needs.community_desire_participate", label: "Community Desire Participate", table: "problems_needs", column: "community_desire_participate", aliases: ["community desire participate","community_desire_participate"] },
+  { key: "problems_needs.community_skills_to_share", label: "Community Skills To Share", table: "problems_needs", column: "community_skills_to_share", aliases: ["community skills to share","community_skills_to_share"] },
+  { key: "problems_needs.community_other", label: "Community Other", table: "problems_needs", column: "community_other", aliases: ["community other","community_other"] },
+  { key: "problems_needs.economic_skills_training_specify", label: "Economic Skills Training Specify", table: "problems_needs", column: "economic_skills_training_specify", aliases: ["economic skills training specify","economic_skills_training_specify"] },
+  { key: "problems_needs.economic_livelihood_specify", label: "Economic Livelihood Specify", table: "problems_needs", column: "economic_livelihood_specify", aliases: ["economic livelihood specify","economic_livelihood_specify"] },
+  { key: "problems_needs.economic_other_specify", label: "Economic Other Specify", table: "problems_needs", column: "economic_other_specify", aliases: ["economic other specify","economic_other_specify"] },
+  { key: "problems_needs.social_other_specify", label: "Social Other Specify", table: "problems_needs", column: "social_other_specify", aliases: ["social other specify","social_other_specify"] },
+  { key: "problems_needs.health_problem_specify", label: "Health Problem Specify", table: "problems_needs", column: "health_problem_specify", aliases: ["health problem specify","health_problem_specify"] },
+  { key: "problems_needs.housing_other_specify", label: "Housing Other Specify", table: "problems_needs", column: "housing_other_specify", aliases: ["housing other specify","housing_other_specify"] },
+  { key: "problems_needs.community_other_specify", label: "Community Other Specify", table: "problems_needs", column: "community_other_specify", aliases: ["community other specify","community_other_specify"] },
+  { key: "problems_needs.other_specific_needs", label: "Other Specific Needs", table: "problems_needs", column: "other_specific_needs", aliases: ["other specific needs","other_specific_needs"] },
+  { key: "application_files.valid_id_url", label: "Valid Id Url", table: "application_files", column: "valid_id_url", aliases: ["valid id url","valid_id_url"] },
+  { key: "application_files.latest_photo_url", label: "Latest Photo Url", table: "application_files", column: "latest_photo_url", aliases: ["latest photo url","latest_photo_url"] },
+  { key: "application_files.birth_certificate_url", label: "Birth Certificate Url", table: "application_files", column: "birth_certificate_url", aliases: ["birth certificate url","birth_certificate_url"] },
+  { key: "application_files.community_tax_certificate_url", label: "Community Tax Certificate Url", table: "application_files", column: "community_tax_certificate_url", aliases: ["community tax certificate url","community_tax_certificate_url"] },
+  { key: "application_files.signature_url", label: "Signature Url", table: "application_files", column: "signature_url", aliases: ["signature url","signature_url"] },
+  { key: "application_files.application_date", label: "Application Date", table: "application_files", column: "application_date", aliases: ["application date","application_date"] },
+  { key: "application_files.valid_id_back_url", label: "Valid Id Back Url", table: "application_files", column: "valid_id_back_url", aliases: ["valid id back url","valid_id_back_url"] },
+  { key: "application_files.authentication_status", label: "Authentication Status", table: "application_files", column: "authentication_status", aliases: ["authentication status","authentication_status"] },
+  { key: "application_files.authentication_method", label: "Authentication Method", table: "application_files", column: "authentication_method", aliases: ["authentication method","authentication_method"] },
+  { key: "application_files.authentication_remarks", label: "Authentication Remarks", table: "application_files", column: "authentication_remarks", aliases: ["authentication remarks","authentication_remarks"] },
+  { key: "application_files.supporting_document_type", label: "Supporting Document Type", table: "application_files", column: "supporting_document_type", aliases: ["supporting document type","supporting_document_type"] },
+  { key: "application_status_history.updated_at", label: "Updated At", table: "application_status_history", column: "updated_at", aliases: ["updated at","updated_at"] }
+);
+
 let APPLICANT_IMPORT_STATE = {
   fileName: "",
   headers: [],
@@ -5743,7 +5877,8 @@ function guessApplicantImportTarget(header) {
   let bestScore = 0;
   APPLICANT_IMPORT_FIELDS.forEach(field => {
     if (!field.key) return;
-    field.aliases.forEach(alias => {
+    const candidateAliases = [...(field.aliases || []), field.column || "", field.label || ""];
+    candidateAliases.filter(Boolean).forEach(alias => {
       const value = normalizeApplicantImportHeader(alias);
       let score = 0;
       if (normalized === value) score = 100;
@@ -5824,7 +5959,15 @@ function getApplicantImportMappedRow(row) {
   Object.entries(APPLICANT_IMPORT_STATE.mapping).forEach(([column, field]) => {
     if (!field) return;
     const value = String(row[Number(column)] === undefined ? "" : row[Number(column)]).trim();
-    if (value) mapped[field] = value;
+    if (!value) return;
+    if (field.includes(".")) {
+      const [table, columnName] = field.split(".");
+      if (!mapped._related) mapped._related = {};
+      if (!mapped._related[table]) mapped._related[table] = {};
+      mapped._related[table][columnName] = value;
+    } else {
+      mapped[field] = value;
+    }
   });
   if (mapped.full_name && (!mapped.first_name || !mapped.surname)) {
     const parts = mapped.full_name.replace(/\\s+/g, " ").trim().split(" ").filter(Boolean);
@@ -5878,7 +6021,7 @@ function renderApplicantImportPreview() {
 
   const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
   const validRows = mappedRows.filter(row =>
-    row.first_name && row.surname &&
+    row.first_name && row.surname && row.date_of_birth &&
     !row._invalidDateOfBirth &&
     !row._invalidRegistrationDate &&
     !isApplicantImportRepeatedHeader(row)
@@ -5912,7 +6055,7 @@ function renderApplicantImportPreview() {
   ).join("") + "</tr></thead><tbody>" +
     validRows.slice(0, 8).map((row, index) =>
       "<tr><td>" + (index + 1) + "</td>" + previewFields.map(field =>
-        "<td>" + escapeApplicantImportHtml(row[field.key] || "—") + "</td>"
+        "<td>" + escapeApplicantImportHtml((field.key.includes(".") ? row._related?.[field.key.split(".")[0]]?.[field.key.split(".")[1]] : row[field.key]) || "—") + "</td>"
       ).join("") + "</tr>"
     ).join("") + "</tbody>";
 
@@ -5932,8 +6075,16 @@ function renderApplicantImportMapping() {
   const rowCount = document.getElementById("applicant-import-row-count");
   const submit = document.getElementById("applicant-import-submit");
   if (!list) return;
-  const options = APPLICANT_IMPORT_FIELDS.map(field =>
-    '<option value="' + field.key + '">' + field.label + "</option>"
+  const grouped = {};
+  APPLICANT_IMPORT_FIELDS.forEach(field => {
+    if (!field.key) return;
+    const group = field.table || "applications";
+    if (!grouped[group]) grouped[group] = [];
+    grouped[group].push(field);
+  });
+  const options = '<option value="">Do not import this column</option>' + Object.entries(grouped).map(([table, fields]) =>
+    '<optgroup label="' + escapeApplicantImportHtml(({applications:"Applications",family_composition:"Family Composition",personal_background:"Personal Background",problems_needs:"Problems and Needs",memberships:"Memberships",application_files:"Application Files",application_status_history:"Application Status History"})[table] || table) + '">' +
+    fields.map(field => '<option value="' + field.key + '">' + escapeApplicantImportHtml(field.label) + '</option>').join("") + '</optgroup>'
   ).join("");
   list.innerHTML = APPLICANT_IMPORT_STATE.headers.map((header, index) =>
     '<label class="applicant-import-map-row"><span title="' + escapeApplicantImportHtml(header) +
@@ -6075,13 +6226,13 @@ async function submitApplicantImport() {
       return mapped;
     })
     .filter(row =>
-      row.first_name && row.surname &&
+      row.first_name && row.surname && row.date_of_birth &&
       !row._invalidDateOfBirth &&
       !row._invalidRegistrationDate &&
       !isApplicantImportRepeatedHeader(row)
     );
   if (!mappedRows.length) {
-    setApplicantImportError("No valid rows remain. Map First name and Surname, then review the preview.");
+    setApplicantImportError("No valid rows remain. Map First name, Surname, and a valid Date of birth, then review the preview.");
     return;
   }
 
