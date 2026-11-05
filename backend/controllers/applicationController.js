@@ -2542,8 +2542,8 @@ const importApplicantRecords = async (req, res) => {
         continue;
       }
 
-      const sequenceId = String(index + 1).padStart(4, "0");
-      const applicationId = providedId || `LEGACY-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString(36).toUpperCase()}-${sequenceId}`;
+      const generatedSuffix = require("crypto").randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase();
+      const applicationId = providedId || "LEGACY-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + generatedSuffix;
       const createdAt = safeDateTime(source.registration_date);
       const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased"
         ? "Deceased" : "Active";
@@ -2559,7 +2559,6 @@ const importApplicantRecords = async (req, res) => {
         sex: source.sex || null,
         age: source.age === "" || source.age === null || source.age === undefined
           ? null : (Number.isFinite(Number(source.age)) ? Number(source.age) : null),
-        civil_status: source.civil_status || null,
         house_street: source.house_street || null,
         barangay_district: barangay || null,
         contact_number: source.contact_number || null,
