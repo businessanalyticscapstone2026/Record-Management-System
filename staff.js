@@ -5689,7 +5689,7 @@ async function parseApplicantPdf(file) {
       extractedItemCount += items.length;
 
       // If a page contains no selectable text, OCR it locally in the browser.
-      if (items.length < 4) {
+      if (items.length < 8) {
         if (pdf.numPages > 30) {
           throw new Error("This scanned PDF has more than 30 pages. Split it into smaller files before OCR import.");
         }
@@ -5832,8 +5832,16 @@ function getApplicantImportMappedRow(row) {
     if (!mapped.surname && parts.length) mapped.surname = parts.pop();
     if (!mapped.middle_name && parts.length) mapped.middle_name = parts.join(" ");
   }
-  if (mapped.date_of_birth) mapped.date_of_birth = normalizeApplicantImportDate(mapped.date_of_birth);
-  if (mapped.registration_date) mapped.registration_date = normalizeApplicantImportDate(mapped.registration_date);
+  if (mapped.date_of_birth) {
+    const originalDob = mapped.date_of_birth;
+    mapped.date_of_birth = normalizeApplicantImportDate(originalDob);
+    mapped._invalidDateOfBirth = !mapped.date_of_birth;
+  }
+  if (mapped.registration_date) {
+    const originalRegistrationDate = mapped.registration_date;
+    mapped.registration_date = normalizeApplicantImportDate(originalRegistrationDate);
+    mapped._invalidRegistrationDate = !mapped.registration_date;
+  }
   if (mapped.age) mapped.age = mapped.age.replace(/[^0-9.]/g, "");
   if (mapped.sex) {
     const sex = normalizeApplicantImportHeader(mapped.sex);
@@ -5870,7 +5878,10 @@ function renderApplicantImportPreview() {
 
   const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
   const validRows = mappedRows.filter(row =>
-    row.first_name && row.surname && !isApplicantImportRepeatedHeader(row)
+    row.first_name && row.surname &&
+    !row._invalidDateOfBirth &&
+    !row._invalidRegistrationDate &&
+    !isApplicantImportRepeatedHeader(row)
   );
   const invalid = mappedRows.length - validRows.length;
   const selectedFields = [];
@@ -6063,7 +6074,12 @@ async function submitApplicantImport() {
       }
       return mapped;
     })
-    .filter(row => row.first_name && row.surname && !isApplicantImportRepeatedHeader(row));
+    .filter(row =>
+      row.first_name && row.surname &&
+      !row._invalidDateOfBirth &&
+      !row._invalidRegistrationDate &&
+      !isApplicantImportRepeatedHeader(row)
+    );
   if (!mappedRows.length) {
     setApplicantImportError("No valid rows remain. Map First name and Surname, then review the preview.");
     return;
@@ -6083,6 +6099,8 @@ async function submitApplicantImport() {
       const batch = mappedRows.slice(start, start + batchSize).map(row => {
         const clean = { ...row };
         delete clean._sourceRow;
+        delete clean._invalidDateOfBirth;
+        delete clean._invalidRegistrationDate;
         return clean;
       });
       const response = await fetch(
