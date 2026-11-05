@@ -5554,12 +5554,30 @@ function parseApplicantCsv(text) {
   return { headers, rows };
 }
 
+function loadApplicantTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (window.__applicantTesseractPromise) return window.__applicantTesseractPromise;
+
+  window.__applicantTesseractPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.async = true;
+    script.onload = () => window.Tesseract
+      ? resolve(window.Tesseract)
+      : reject(new Error("The PDF OCR engine did not initialize."));
+    script.onerror = () => reject(new Error("Unable to load the local PDF OCR engine. Please use a searchable PDF or CSV."));
+    document.head.appendChild(script);
+  });
+  return window.__applicantTesseractPromise;
+}
+
 async function parseApplicantPdf(file) {
   if (!window.pdfjsLib) {
     throw new Error("The PDF reader did not load. Refresh the page and try again, or save the PDF as CSV.");
   }
   window.pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
   const buffer = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
   if (pdf.numPages > 100) {
@@ -5568,13 +5586,11 @@ async function parseApplicantPdf(file) {
 
   const matrix = [];
   let extractedItemCount = 0;
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
-    const page = await pdf.getPage(pageNo);
-    const content = await page.getTextContent();
-    const items = (content.items || []).filter(item => String(item.str || "").trim());
-    extractedItemCount += items.length;
-    const lines = [];
+  let ocrWorker = null;
+  const meta = document.getElementById("applicant-import-file-meta");
 
+  const appendTextPage = (items) => {
+    const lines = [];
     items.forEach(item => {
       const x = Number(item.transform && item.transform[4] || 0);
       const y = Number(item.transform && item.transform[5] || 0);
@@ -5611,11 +5627,89 @@ async function parseApplicantPdf(file) {
       const values = cells.map(cell => cell.text.trim());
       if (values.some(Boolean)) matrix.push(values);
     });
+  };
+
+  const appendOcrPage = async (page) => {
+    if (!ocrWorker) {
+      const Tesseract = await loadApplicantTesseract();
+      ocrWorker = await Tesseract.createWorker("eng");
+    }
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+
+    const recognized = await ocrWorker.recognize(canvas);
+    const lines = recognized.data.lines || [];
+    lines.sort((a, b) => Number(a.bbox?.y0 || 0) - Number(b.bbox?.y0 || 0));
+    lines.forEach(line => {
+      const words = (line.words || [])
+        .filter(word => String(word.text || "").trim())
+        .sort((a, b) => Number(a.bbox?.x0 || 0) - Number(b.bbox?.x0 || 0));
+      if (!words.length) {
+        const text = String(line.text || "").trim();
+        if (text) matrix.push([text]);
+        return;
+      }
+      const cells = [];
+      let current = null;
+      words.forEach(word => {
+        const x0 = Number(word.bbox?.x0 || 0);
+        const x1 = Number(word.bbox?.x1 || x0);
+        const wordText = String(word.text || "").trim();
+        if (!current) {
+          current = { x1, text: wordText };
+          cells.push(current);
+          return;
+        }
+        const gap = x0 - current.x1;
+        if (gap > 55) {
+          current = { x1, text: wordText };
+          cells.push(current);
+        } else {
+          current.text += " " + wordText;
+          current.x1 = Math.max(current.x1, x1);
+        }
+      });
+      const values = cells.map(cell => cell.text.trim());
+      if (values.some(Boolean)) matrix.push(values);
+    });
+    canvas.width = 1;
+    canvas.height = 1;
+  };
+
+  try {
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+      if (meta) meta.textContent = "Reading PDF page " + pageNo + " of " + pdf.numPages + "…";
+      const page = await pdf.getPage(pageNo);
+      const content = await page.getTextContent();
+      const items = (content.items || []).filter(item => String(item.str || "").trim());
+      extractedItemCount += items.length;
+
+      // If a page contains no selectable text, OCR it locally in the browser.
+      if (items.length < 4) {
+        if (pdf.numPages > 30) {
+          throw new Error("This scanned PDF has more than 30 pages. Split it into smaller files before OCR import.");
+        }
+        if (meta) meta.textContent = "Reading scanned page " + pageNo + " of " + pdf.numPages + " with local OCR…";
+        await appendOcrPage(page);
+      } else {
+        appendTextPage(items);
+      }
+    }
+  } finally {
+    if (ocrWorker) await ocrWorker.terminate();
   }
 
-  if (!extractedItemCount || matrix.length < 2) {
-    throw new Error("No selectable text was found in this PDF. It appears to be scanned/image-only. Please use a searchable PDF or convert it to CSV first.");
+  if (!extractedItemCount && matrix.length === 0) {
+    throw new Error("No text could be extracted from this PDF. Please check that the scan is readable.");
   }
+  if (matrix.length < 2) {
+    throw new Error("The PDF text could not be arranged into a table. Please export this record list as CSV.");
+  }
+
   const widest = Math.max.apply(null, matrix.map(row => row.length));
   const normalized = matrix.map(row => Array.from({ length: widest }, (_, index) => row[index] || ""));
   const scoreHeader = row => {
@@ -5625,6 +5719,7 @@ async function parseApplicantPdf(file) {
       return score + field.aliases.filter(alias => joined.includes(normalizeApplicantImportHeader(alias))).length;
     }, 0);
   };
+
   let headerIndex = 0;
   let bestScore = 0;
   for (let i = 0; i < Math.min(20, normalized.length); i += 1) {
@@ -5635,7 +5730,7 @@ async function parseApplicantPdf(file) {
     }
   }
   if (normalized.length - headerIndex < 2) {
-    throw new Error("The PDF text could not be arranged into a table. Please export this record list as CSV.");
+    throw new Error("No applicant table rows were detected in this PDF. Please export it as CSV.");
   }
   const headers = normalized[headerIndex].map((value, index) => value || ("Column " + (index + 1)));
   const rows = normalized.slice(headerIndex + 1).filter(row => row.some(value => String(value).trim()));
