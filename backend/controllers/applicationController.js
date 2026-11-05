@@ -2551,9 +2551,21 @@ const importApplicantRecords = async (req, res) => {
         const id = inserted.application_id;
 
         const historySource = source._related?.application_status_history || {};
+        const sourceStatus = String(historySource.status || "").trim();
+        const sourceStatusDate = safeDateTime(historySource.updated_at || source.registration_date);
+        // Preserve the status from the historical file, then mark the imported
+        // legacy profile Completed so it is treated as an existing registered senior.
+        if (sourceStatus && sourceStatus.toLowerCase() !== "completed") {
+          const { error: historicalStatusError } = await supabase.from("application_status_history").insert({
+            application_id: id, status: sourceStatus, updated_at: sourceStatusDate
+          });
+          if (historicalStatusError) throw historicalStatusError;
+          insertedTables.push("application_status_history");
+        }
         const { error: statusError } = await supabase.from("application_status_history").insert({
           application_id: id, status: "Completed",
-          updated_at: safeDateTime(historySource.updated_at || source.registration_date)
+          updated_at: sourceStatus && sourceStatus.toLowerCase() === "completed"
+            ? sourceStatusDate : new Date().toISOString()
         });
         if (statusError) throw statusError;
         insertedTables.push("application_status_history");
