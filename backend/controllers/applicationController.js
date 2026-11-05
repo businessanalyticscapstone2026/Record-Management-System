@@ -2608,12 +2608,14 @@ const importApplicantRecords = async (req, res) => {
         result.imported += 1;
       } catch (error) {
         // Best-effort rollback keeps the application and its linked records together.
-        for (const table of insertedTables.reverse()) {
-          const { error: rollbackError } = await supabase.from(table).delete().eq("application_id", applicationId);
-          if (rollbackError) console.error("[Applicant Import] Rollback failed for " + table + ":", rollbackError);
+        if (applicationIdForRollback) {
+          for (const table of insertedTables.reverse()) {
+            const { error: rollbackError } = await supabase.from(table).delete().eq("application_id", applicationIdForRollback);
+            if (rollbackError) console.error("[Applicant Import] Rollback failed for " + table + ":", rollbackError);
+          }
+          const { error: rollbackApplicationError } = await supabase.from("applications").delete().eq("application_id", applicationIdForRollback);
+          if (rollbackApplicationError) console.error("[Applicant Import] Application rollback failed:", rollbackApplicationError);
         }
-        const { error: rollbackApplicationError } = await supabase.from("applications").delete().eq("application_id", internalApplicationId || applicationIdForRollback);
-        if (rollbackApplicationError) console.error("[Applicant Import] Application rollback failed:", rollbackApplicationError);
         result.failed += 1;
         result.errors.push({ row: index + 1, reason: String(error?.message || "Database insert failed.").slice(0, 240) });
       }
