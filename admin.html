@@ -22,8 +22,8 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-solid-rounded/css/uicons-solid-rounded.css" />
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
-  <link rel="stylesheet" href="base.css?v=42" />
-  <link rel="stylesheet" href="admin.css?v=36" />
+  <link rel="stylesheet" href="base.css?v=44" />
+  <link rel="stylesheet" href="admin.css?v=46" />
   <script src="skeleton.js?v=3"></script>
 <style>
 /* User account form: one full-width field per row */
@@ -151,7 +151,12 @@
                 <circle cx="6.5" cy="6.5" r="4.5" />
                 <path d="M11 11l3 3" />
               </svg>
-              <input type="search" placeholder="Quick search…" />
+              <input type="search" id="admin-dashboard-search"
+                placeholder="Search users by name, email or username…"
+                aria-label="Search user accounts by name, email, username, role, or status"
+                autocomplete="off" oninput="updateAdminDashboardSearch(this.value)"
+                onsearch="updateAdminDashboardSearch(this.value)"
+                onkeydown="submitAdminDashboardSearch(event)" />
             </label>
             <div class="date-pill" id="dashboard-date-pill" onclick="toggleDateFilter(event)">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7">
@@ -215,8 +220,7 @@
                 <i class="fi fi-rr-users ic-blue"></i>
               </div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-up"></div>
-                <div class="stat-card__period"></div>
+                <div class="stat-card__trend trend-up">REGISTERED</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -233,8 +237,7 @@
                 <i class="fi fi-rr-shield-check ic-green"></i>
               </div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good"></div>
-                <div class="stat-card__period"></div>
+                <div class="stat-card__trend trend-good">ACTIVE ACCOUNTS</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -251,8 +254,7 @@
                 <i class="fi fi-rr-heart-rate ic-teal"></i>
               </div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good"></div>
-                <div class="stat-card__period"></div>
+                <div class="stat-card__trend trend-good">BACKEND STATUS</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -269,8 +271,7 @@
                 <i class="fi fi-rr-exclamation ic-red"></i>
               </div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-up"></div>
-                <div class="stat-card__period"></div>
+                <div class="stat-card__trend trend-up">LAST 30 DAYS</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -287,8 +288,7 @@
                 <i class="fi fi-rr-database ic-warn"></i>
               </div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good"></div>
-                <div class="stat-card__period"></div>
+                <div class="stat-card__trend trend-good">RECOVERY POINTS</div>
               </div>
             </div>
             <div class="stat-card__body">
@@ -338,7 +338,7 @@
               <div class="log-card__title">Audit Log Summary</div>
               <div class="log-card__sub" id="audit-summary-sub">Last 5 actions</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+            <div class="audit-summary__actions">
               <div class="audit-range-filter" id="audit-summary-filter">
                 <svg class="audit-range-filter__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -421,7 +421,7 @@
       <article class="stat-card">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-users ic-blue"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__period">Total</span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">TOTAL ACCOUNTS</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Total Personnel Accounts</span>
@@ -432,7 +432,7 @@
       <article class="stat-card stat-card--success">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-shield-check ic-green"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__trend trend-good">0</span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend trend-good">ACTIVE</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Active Accounts</span>
@@ -443,7 +443,7 @@
       <article class="stat-card stat-card--danger">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-red"><svg class="stat-card__icon ic-red" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></div>
-          <div class="stat-card__meta"><span class="stat-card__period">Inactive</span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">INACTIVE</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Deactivated Accounts</span>
@@ -454,7 +454,7 @@
       <article class="stat-card stat-card--warn">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-id-card-clip-alt ic-warn"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__period">Roles</span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">ID MAKER ROLE</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">ID Maker Accounts</span>
@@ -492,12 +492,12 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th onclick="sortTable('user-mgmt-tbody',0,this)"><span class="th-center">User <span class="sort-icon">↕</span></span></th>
-            <th onclick="sortTable('user-mgmt-tbody',1,this)">Username <span class="sort-icon">↕</span></th>
-            <th onclick="sortTable('user-mgmt-tbody',2,this)"><span class="th-center">Role <span class="sort-icon">↕</span></span></th>
-            <th>Approval</th>
-            <th onclick="sortTable('user-mgmt-tbody',4,this)">Status <span class="sort-icon">↕</span></th>
-            <th onclick="sortTable('user-mgmt-tbody',5,this)">Last Active <span class="sort-icon">↕</span></th>
+            <th onclick="sortAdminUsers(0,this)"><span class="th-center">User <span class="sort-icon">↕</span></span></th>
+            <th onclick="sortAdminUsers(1,this)">Username <span class="sort-icon">↕</span></th>
+            <th onclick="sortAdminUsers(2,this)"><span class="th-center">Role <span class="sort-icon">↕</span></span></th>
+            <th onclick="sortAdminUsers(3,this)">Approval <span class="sort-icon">↕</span></th>
+            <th onclick="sortAdminUsers(4,this)">Status <span class="sort-icon">↕</span></th>
+            <th onclick="sortAdminUsers(5,this)">Last Active <span class="sort-icon">↕</span></th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -600,7 +600,7 @@
         </div>
         <span class="small-pill small-pill--danger">Immutable (append-only)</span>
       </div>
-      <table class="data-table">
+      <table class="data-table audit-trail-table">
         <thead>
           <tr>
             <th onclick="sortTable('audit-logs-tbody',0,this)">Timestamp <span class="sort-icon">↕</span></th>
@@ -697,7 +697,7 @@
       <article class="stat-card">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-shield-check ic-green"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__trend trend-good"></span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">SAVED ARCHIVES</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Saved Backups</span>
@@ -708,7 +708,7 @@
       <article class="stat-card stat-card--warn">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-database ic-warn"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__period"></span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">LATEST BACKUP</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Database Rows in Latest Backup</span>
@@ -719,7 +719,7 @@
       <article class="stat-card">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-calendar ic-blue"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__period"></span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">INCLUDED FILES</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Uploaded Files in Latest Backup</span>
@@ -730,7 +730,7 @@
       <article class="stat-card stat-card--danger">
         <div class="stat-card__top">
           <div class="stat-card__icon-wrap iwrap-red"><i class="fi fi-rr-life-ring ic-red"></i></div>
-          <div class="stat-card__meta"><span class="stat-card__period"></span></div>
+          <div class="stat-card__meta"><span class="stat-card__trend">RESTORE STATUS</span></div>
         </div>
         <div class="stat-card__body">
           <span class="stat-card__label">Latest Restore Point</span>
@@ -1084,8 +1084,8 @@
   <div class="toast-container" id="toast-container"></div>
 
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=48"></script>
-  <script src="admin.js?v=38"></script>
+  <script src="app.js?v=50"></script>
+  <script src="admin.js?v=41"></script>
 </body>
 
 </html>

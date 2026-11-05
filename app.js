@@ -159,15 +159,29 @@ function initStatus() {
   const ctx = mkCanvas('chart-status'); if (!ctx) return;
   const data = analyticsScope();
   const setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = compactNum(val); };
-  setStat('analytics-status-approved', data.approved);
-  setStat('analytics-status-pending', data.pending);
-  setStat('analytics-status-review', data.inReview);
-  setStat('analytics-status-rejected', data.rejected);
+  const statuses = [
+    { key: 'approved', value: Number(data.approved) || 0 },
+    { key: 'pending', value: Number(data.pending) || 0 },
+    { key: 'review', value: Number(data.inReview) || 0 },
+    { key: 'rejected', value: Number(data.rejected) || 0 }
+  ];
+  const statusSum = statuses.reduce((total, status) => total + status.value, 0);
+  const statusTotal = Number(data.statusDenominator) || statusSum;
+  const setStatusText = (id, text) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = text;
+  };
+  statuses.forEach(status => {
+    setStatusText(`analytics-status-${status.key}`, status.value.toLocaleString());
+    const percentage = statusTotal > 0 ? (status.value / statusTotal) * 100 : 0;
+    setStatusText(`analytics-status-${status.key}-percent`, `${percentage.toFixed(1)}%`);
+  });
+  setStatusText('queue-mix-total', statusTotal.toLocaleString());
+  setStatusText('queue-mix-sample', `n = ${statusTotal.toLocaleString()} applications`);
   setStat('analytics-kpi-pending', data.pendingReview || data.pending);
   setStat('analytics-kpi-review', data.inReview);
   setStat('analytics-kpi-ready', data.approved);
   setStat('analytics-kpi-rejected', data.rejected);
-  const statusTotal = data.statusDenominator || data.approved + data.pending + data.inReview + data.rejected || 1;
   const allZero = !data.approved && !data.pending && !data.inReview && !data.rejected;
   const emptyRing = document.getElementById('queue-mix-empty-ring');
   const chartCanvas = document.getElementById('chart-status');
@@ -175,8 +189,8 @@ function initStatus() {
   if (chartCanvas) chartCanvas.style.opacity = allZero ? '0' : '1';
   CHARTS['status'] = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels: ['Approved', 'Pending', 'In Review', 'Rejected'], datasets: [{ data: [data.approved, data.pending, data.inReview, data.rejected], backgroundColor: [C.green, C.amber, C.primary, C.red], hoverOffset: 8, borderWidth: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` ${c.label}: ${c.parsed.toLocaleString()} (${((c.parsed / statusTotal) * 100).toFixed(1)}%)` } } } }
+    data: { labels: ['Approved', 'Rejected', 'Pending', 'In Review'], datasets: [{ data: [statuses[0].value, statuses[3].value, statuses[1].value, statuses[2].value], backgroundColor: ['#059669', '#B91C1C', '#B45309', '#1D4ED8'], hoverOffset: 8, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => { const total = c.dataset.data.reduce((sum, value) => sum + Number(value || 0), 0); const percentage = total ? (c.parsed / total) * 100 : 0; return ` ${c.label}: ${c.parsed.toLocaleString()} (${percentage.toFixed(1)}%)`; } } } } }
   });
 }
 function initDashboardCardClick() {
@@ -267,7 +281,7 @@ window.getDashboardSelectedDate = function() {
 function selectCalendarDay(day, month, year) {
   selectedDate = { day, month, year };
   const date = new Date(year, month, day);
-  const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const label = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
   const dateLabel = document.getElementById('dashboard-date-label');
   if (dateLabel) dateLabel.textContent = label;
   renderCalendar(date);
@@ -1119,6 +1133,14 @@ function filterApplicantsByStatus(control) {
 }
 
 function filterRecentSubmissions() {
+  if (
+    Array.isArray(window.STAFF_RECENT_SUBMISSIONS) &&
+    typeof renderRecentSubmissions === 'function'
+  ) {
+    renderRecentSubmissions(window.STAFF_RECENT_SUBMISSIONS);
+    return;
+  }
+
   const q = (document.getElementById('recent-submission-search')?.value || '').trim().toLowerCase();
   const barangays = Array.from(document.getElementById('recent-barangay-filter')?.selectedOptions || [])
     .map(option => String(option.value || '').trim().toLowerCase()).filter(Boolean);
@@ -1334,12 +1356,11 @@ function applySessionContext() {
   }
   const today = new Date();
   if (welcome) {
-    const longDate = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-    welcome.textContent = `${longDate} · Welcome back, ${displayName}`;
+    welcome.textContent = `Welcome back, ${displayName}`;
   }
   const dateLabel = document.getElementById('dashboard-date-label');
   if (dateLabel) {
-    const shortDate = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const shortDate = today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
     dateLabel.textContent = shortDate;
   }
 }
@@ -2119,7 +2140,7 @@ async function handleLogin(event) {
   const passwordEl = document.getElementById('login-password');
   const recaptchaError = document.getElementById('err-recaptcha');
 
-  const username = usernameEl.value.trim().toLowerCase();
+  const username = usernameEl.value.trim();
   const password = passwordEl.value;
 
   // Clear previous errors
@@ -3492,13 +3513,39 @@ function syncRecentSubmissionsStatus(appId, newStatus) {
 
   if (recentRow) {
     recentRow.dataset.status = newStatus;
-    const label =
-      recentRow.querySelector('.status-select__label') ||
-      recentRow.children[3]?.querySelector('.cell-text') ||
-      recentRow.children[3];
-    if (label) {
-      label.textContent = newStatus;
+    const statusCell = recentRow.children[3];
+    if (statusCell) {
+      const normalizedStatus = String(newStatus || 'Pending')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-');
+      const statusClassAliases = {
+        unverified: 'pending',
+        'under-review': 'review',
+        'in-review': 'review',
+        'in-process': 'process',
+        'ready-for-release': 'ready',
+        verified: 'approved',
+        'id-issued': 'issued'
+      };
+      const statusClass = statusClassAliases[normalizedStatus] || normalizedStatus;
+      let pill = statusCell.querySelector('.recent-submission-status');
+
+      if (!pill) {
+        pill = document.createElement('span');
+        statusCell.replaceChildren(pill);
+      }
+
+      pill.className = `recent-submission-status recent-submission-status--${statusClass}`;
+      pill.textContent = newStatus;
     }
+  }
+
+  if (Array.isArray(window.STAFF_RECENT_SUBMISSIONS)) {
+    const recentApplication = window.STAFF_RECENT_SUBMISSIONS.find(item =>
+      String(item.application_id || item.id) === String(appId)
+    );
+    if (recentApplication) recentApplication.status = newStatus;
   }
 
   // 2. Keep LIVE_APPLICATIONS in-memory data synchronized
@@ -3515,6 +3562,10 @@ function syncRecentSubmissionsStatus(appId, newStatus) {
   // 3. Keep APP_DB synchronized
   if (typeof APP_DB !== 'undefined' && APP_DB[appId]) {
     APP_DB[appId].status = newStatus;
+  }
+
+  if (typeof filterRecentSubmissions === 'function') {
+    filterRecentSubmissions();
   }
 }
 window.syncRecentSubmissionsStatus = syncRecentSubmissionsStatus;
@@ -5694,6 +5745,8 @@ async function setDocStatus(doc, state, options = {}) {
   // Preserve the last saved state so a failed API request does not
   // leave the interface showing an approval that was never saved.
   const previousState = DOC_STATUS[doc] || 'pending';
+  const previousApplicationStatus =
+    String(APP_DB[CURRENT_APP_ID]?.status || 'Pending').trim();
 
   // Optimistically update the UI
   DOC_STATUS[doc] = state;
@@ -5815,6 +5868,44 @@ async function setDocStatus(doc, state, options = {}) {
       }
     }
 
+    const savedApplicationStatus = result.application_status;
+    const statusPromoted =
+      databaseStatus === 'approved' &&
+      previousApplicationStatus.toLowerCase() === 'pending' &&
+      savedApplicationStatus === 'Under Review';
+
+    if (savedApplicationStatus) {
+      const application = APP_DB[CURRENT_APP_ID];
+      if (application) application.status = savedApplicationStatus;
+
+      syncApplicationsTableBadge(CURRENT_APP_ID, savedApplicationStatus);
+      syncRecentSubmissionsStatus(CURRENT_APP_ID, savedApplicationStatus);
+
+      if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
+        const liveApplication = LIVE_APPLICATIONS.find(item =>
+          String(item.application_id || item.id) === String(CURRENT_APP_ID)
+        );
+        if (liveApplication) liveApplication.status = savedApplicationStatus;
+        if (typeof updateApplicantSummaryCards === 'function') updateApplicantSummaryCards(LIVE_APPLICATIONS);
+        if (typeof updateApplicationSummaryCards === 'function') updateApplicationSummaryCards(LIVE_APPLICATIONS);
+        if (typeof renderLiveApplicants === 'function') renderLiveApplicants(LIVE_APPLICATIONS);
+        if (typeof renderLiveApplications === 'function') renderLiveApplications(LIVE_APPLICATIONS);
+      }
+
+      const fullApplication = FULL_APPLICANTS.find(item => String(item.id) === String(CURRENT_APP_ID));
+      if (fullApplication) fullApplication.status = savedApplicationStatus;
+
+      if (CURRENT_APP_ID && application) {
+        renderWorkflow(savedApplicationStatus);
+        const modalSub = document.getElementById('modal-sub');
+        if (modalSub) {
+          modalSub.textContent =
+            `${application.id} · Barangay: ${application.barangay || '—'} · Status: ${savedApplicationStatus}`;
+        }
+      }
+      updateStatusTabCounts();
+    }
+
     appendAudit(
       CURRENT_USER?.displayName ||
       'Staff',
@@ -5824,11 +5915,22 @@ async function setDocStatus(doc, state, options = {}) {
     );
 
     if (!options.silent) {
-      showToast(
-        `${DOC_LABELS[doc] || doc} saved as ${labels[state] || state
-        }.`,
-        'success'
-      );
+      if (statusPromoted) {
+        showToast(
+          `${DOC_LABELS[doc] || doc} approved. Application status changed to Under Review.`,
+          'success'
+        );
+      } else if (databaseStatus === 'approved' && !savedApplicationStatus) {
+        showToast(
+          `${DOC_LABELS[doc] || doc} was approved, but the application status could not be updated. ${result.application_status_error || 'Refresh and verify the status.'}`,
+          'error'
+        );
+      } else {
+        showToast(
+          `${DOC_LABELS[doc] || doc} saved as ${labels[state] || state}.`,
+          'success'
+        );
+      }
     }
 
     return true;
@@ -6600,6 +6702,7 @@ function buildAnalyticsExportReport() {
   const barangayCounts = new Map();
   const weeklyCounts = new Map();
   const processingDays = [];
+  let overdueCount = 0;
   const monthly = Array.from({ length: 12 }, () => ({ submitted: 0, approved: 0, rejected: 0, issued: 0, processingTotal: 0, processingCount: 0 }));
   const ageCounts = [0, 0, 0, 0, 0, 0];
   const currentYear = now.getFullYear();
@@ -6623,6 +6726,15 @@ function buildAnalyticsExportReport() {
 
     const submittedValue = application.created_at || application.submitted_at || application.application_date;
     const submitted = submittedValue ? new Date(submittedValue) : null;
+    if (['pending', 'review'].includes(status)) {
+      const storedPendingDays = Number(application.days_pending);
+      const openDays = application.days_pending !== null && application.days_pending !== undefined && application.days_pending !== '' && Number.isFinite(storedPendingDays)
+        ? Math.max(0, storedPendingDays)
+        : submitted && !Number.isNaN(submitted.getTime())
+          ? Math.max(0, Math.floor((now.getTime() - submitted.getTime()) / 86400000))
+          : null;
+      if (openDays !== null && openDays > 5) overdueCount++;
+    }
     if (submitted && !Number.isNaN(submitted.getTime())) {
       const weekStart = new Date(submitted);
       weekStart.setHours(0, 0, 0, 0);
@@ -6637,9 +6749,8 @@ function buildAnalyticsExportReport() {
         processingDays.push((statusDate - submitted) / 86400000);
       }
 
-      const currentStatusDateValue = application.status_updated_at || application.updated_at || submittedValue;
-      const currentStatusDate = currentStatusDateValue ? new Date(currentStatusDateValue) : submitted;
-      if (currentStatusDate && !Number.isNaN(currentStatusDate.getTime()) && currentStatusDate.getFullYear() === currentYear) {
+      const currentStatusDate = statusDate;
+      if (currentStatusDate && !Number.isNaN(currentStatusDate.getTime()) && currentStatusDate >= submitted && currentStatusDate.getFullYear() === currentYear) {
         const month = monthly[currentStatusDate.getMonth()];
         if (['approved', 'ready', 'issued', 'completed'].includes(status)) month.approved++;
         if (status === 'rejected') month.rejected++;
@@ -6701,6 +6812,11 @@ function buildAnalyticsExportReport() {
   const total = applications.length;
   const pendingReview = statusCounts.Pending + statusCounts['Under Review'];
   const averageDays = processingDays.length ? Number((processingDays.reduce((sum, days) => sum + days, 0) / processingDays.length).toFixed(1)) : null;
+  const managementAttention = overdueCount
+    ? `${overdueCount} open application${overdueCount === 1 ? '' : 's'} exceed the 5-day review threshold; prioritize follow-up.`
+    : pendingReview
+      ? `${pendingReview} application${pendingReview === 1 ? '' : 's'} await review; none exceed the 5-day threshold.`
+      : 'No applications are awaiting review or overdue in this reporting cohort.';
 
   return {
     reportId, reportTitle, scopeLabel, rangeLabel, generatedAt: now, generated: now.toLocaleString('en-PH', {
@@ -6709,12 +6825,19 @@ function buildAnalyticsExportReport() {
     summary: [
       ['Applications received', total],
       ['Pending review', pendingReview],
-      ['Under review', statusCounts['Under Review']],
-      ['Approved applications', statusCounts.Approved],
-      ['Ready for ID handoff', statusCounts['Ready for Release']],
+      ['Overdue pending review (>5 days)', overdueCount],
       ['IDs issued or completed', statusCounts['ID Issued / Completed']],
-      ['Rejected', statusCounts.Rejected],
-      ['Average processing time (days)', averageDays ?? 'Insufficient timestamp data']
+      ['Average days to recorded status update', averageDays ?? 'Insufficient timestamp data'],
+      ['Records in processing-time average', processingDays.length],
+      ['Management attention', managementAttention]
+    ],
+    managementAttention,
+    statusChartRows: [
+      ['Pending review', pendingReview],
+      ['In Process', statusCounts['In Process']],
+      ['Approved / ID-ready', statusCounts.Approved + statusCounts['Ready for Release']],
+      ['IDs issued / completed', statusCounts['ID Issued / Completed']],
+      ['Rejected', statusCounts.Rejected]
     ],
     statusRows,
     barangayRows,
@@ -6734,10 +6857,12 @@ function buildAnalyticsExportReport() {
     issuanceRows,
     turnaroundRows,
     notes: [
-      'Application totals and application-based sections use the selected reporting period.',
+      'Reporting period applies to applications by submission date (created_at, submitted_at, or application_date). Last 7/30 days are inclusive through the report date; quarter is quarter-to-date; year is year-to-date; All time includes all loaded application records.',
+      'Pending review combines Pending and Under Review. Overdue counts include currently open Pending or Under Review applications more than 5 days old as of the report generation time.',
+      'Average days to recorded status update is the mean number of days from submission to the latest valid status update for Approved, Ready for Release, ID Issued / Completed, or Rejected records. It is not a completion-time measure for unresolved applications.',
       'Replacement requests are all currently loaded requests; the Analytics page does not apply the application date-range filter to this panel.',
-      'Weekly submissions exclude records without a valid submission date. Monthly charts show the current calendar year and use the same selected applications as the Analytics page.',
-      'Turnaround averages include records with valid submission and status dates; months with no qualifying records display 0, matching the chart.'
+      'Weekly submissions exclude records without a valid submission date. Monthly charts show the current calendar year and use the selected applications; monthly turnaround rows show the mean recorded days and the qualifying record count.',
+      'Source: currently loaded OSCA application and replacement-request records. This is an aggregate snapshot; applicant names and direct identifiers are excluded.'
     ],
     recordCount: total
   };
@@ -6745,6 +6870,7 @@ function buildAnalyticsExportReport() {
 
 function analyticsReportSheets(report) {
   return [
+    { name: 'Executive Summary', header: ['Measure', 'Value'], rows: report.summary, widths: [42, 54], pdfWidths: [250, 282], formats: { 1: 'integer' }, rowFormats: [{ 1: 'integer' }, { 1: 'integer' }, { 1: 'integer' }, { 1: 'integer' }, { 1: 'decimal' }, { 1: 'integer' }, {}] },
     { name: 'Report Details', header: ['Report information', 'Value'], rows: [
       ['Office', 'Office of the Senior Citizen Affairs (OSCA)'],
       ['Report title', report.reportTitle],
@@ -6753,9 +6879,9 @@ function analyticsReportSheets(report) {
       ['Analytics scope', report.scopeLabel],
       ['Generated', report.generatedAt],
       ['Generated by role', report.generatedBy],
-      ['Applications included', report.recordCount]
+      ['Applications included', report.recordCount],
+      ['Data source and privacy', report.notes[5]]
     ], widths: [25, 42], pdfWidths: [190, 342], formats: { 1: 'integer' }, rowFormats: [{}, {}, {}, {}, {}, { 1: 'datetime' }] },
-    { name: 'Executive Summary', header: ['Measure', 'Value'], rows: report.summary, widths: [38, 34], pdfWidths: [370, 162], formats: { 1: 'integer' }, rowFormats: [{}, {}, {}, {}, {}, {}, {}, { 1: 'decimal' }] },
     { name: 'Status Breakdown', header: ['Application status', 'Applications'], rows: report.statusRows, widths: [32, 18], pdfWidths: [370, 162], formats: { 1: 'integer' } },
     { name: 'Barangay Workload', header: ['Barangay', 'Applications', 'Approved / ID-ready', 'Pending review'], rows: report.barangayRows, widths: [34, 17, 22, 18], pdfWidths: [205, 100, 125, 102], formats: { 1: 'integer', 2: 'integer', 3: 'integer' }, wrapColumns: [0] },
     { name: 'Weekly Submissions', header: ['Week starting', 'Applications'], rows: report.weeklyRows, widths: [20, 18], pdfWidths: [370, 162], formats: { 0: 'date', 1: 'integer' } },
@@ -6765,13 +6891,15 @@ function analyticsReportSheets(report) {
     { name: 'Ready for Handoff', header: ['Measure', 'Value'], rows: report.handoffRows, widths: [36, 20], pdfWidths: [370, 162], formats: { 1: 'integer' }, rowFormats: [{}, { 1: 'percent' }] },
     { name: 'Age Distribution', header: ['Age group (years)', 'Seniors', 'Share of known ages'], rows: report.ageRows, widths: [24, 16, 22], pdfWidths: [235, 115, 182], formats: { 1: 'integer', 2: 'percent' } },
     { name: 'ID Issuance', header: ['Month', 'IDs issued this month', 'Cumulative IDs issued'], rows: report.issuanceRows, widths: [20, 23, 24], pdfWidths: [205, 165, 162], formats: { 0: 'month', 1: 'integer', 2: 'integer' } },
-    { name: 'Turnaround Time', header: ['Month', 'Average processing days', 'Completed records'], rows: report.turnaroundRows, widths: [20, 26, 19], pdfWidths: [205, 205, 122], formats: { 0: 'month', 1: 'decimal', 2: 'integer' } },
+    { name: 'Turnaround Time', header: ['Month', 'Average days to status update', 'Qualifying records'], rows: report.turnaroundRows, widths: [20, 29, 20], pdfWidths: [190, 210, 132], formats: { 0: 'month', 1: 'decimal', 2: 'integer' } },
     { name: 'Report Notes', header: ['Topic', 'Explanation'], rows: [
-      ['Selected date range', report.notes[0]],
-      ['Replacement-request scope', report.notes[1]],
-      ['Submission and monthly chart scope', report.notes[2]],
-      ['Turnaround calculations', report.notes[3]]
-    ], widths: [28, 80], pdfWidths: [170, 362], wrapColumns: [0, 1] }
+      ['Reporting period', report.notes[0]],
+      ['Pending and overdue definitions', report.notes[1]],
+      ['Processing-time definition', report.notes[2]],
+      ['Replacement-request scope', report.notes[3]],
+      ['Submission and monthly chart scope', report.notes[4]],
+      ['Source and privacy', report.notes[5]]
+    ], widths: [32, 90], pdfWidths: [170, 362], wrapColumns: [0, 1] }
   ];
 }
 
@@ -6792,6 +6920,7 @@ function analyticsReportCsv(report) {
   add('Report details', 'Generated', '', report.generated);
   add('Report details', 'Generated by role', '', report.generatedBy);
   add('Report details', 'Applications included', '', report.recordCount);
+  add('Report details', 'Data source and privacy', '', report.notes[5]);
   report.summary.forEach(([metric, value]) => add('Executive summary', metric, '', value ?? 'Not available'));
   report.statusRows.forEach(([status, count]) => add('Status breakdown', 'Applications', status, count));
   report.barangayRows.forEach(([barangay, total, approved, pending]) => add(
@@ -6817,8 +6946,8 @@ function analyticsReportCsv(report) {
     add('ID issuance', 'Cumulative IDs issued', label, cumulative);
   });
   report.turnaroundRows.forEach(([month, average, count]) => add(
-    'Turnaround time', 'Average processing days', month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }),
-    average.toFixed(1), `${count} completed records`
+    'Turnaround time', 'Average days to status update', month.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }),
+    average.toFixed(1), `${count} qualifying records`
   ));
   report.notes.forEach(note => add('Notes', 'Data interpretation', '', '', note));
   return new Blob(['\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
@@ -6936,7 +7065,7 @@ function analyticsReportPdf(report) {
   const pages = [[]];
   let pageIndex = 0;
   let cursorY = 690;
-  const sheets = analyticsReportSheets(report).slice(1);
+  const sheets = analyticsReportSheets(report).filter(sheet => sheet.name !== 'Report Details');
   const wrapText = (value, maxCharacters) => {
     const words = staffPdfText(value).split(/\s+/).filter(Boolean);
     const lines = [];
@@ -6982,7 +7111,7 @@ function analyticsReportPdf(report) {
   const addSectionHeading = title => {
     pages[pageIndex].push(
       'q', '0.91 0.94 0.98 rg', `40 ${cursorY - 16} ${contentWidth} 18 re f`, 'Q',
-      'BT', '/F2 10 Tf', '0.10 0.18 0.33 rg', '48', String(cursorY - 12), 'Td',
+      'BT', '/F2 11 Tf', '0.10 0.18 0.33 rg', '48', String(cursorY - 12), 'Td',
       `(${staffPdfText(title)}) Tj`, 'ET'
     );
     cursorY -= 23;
@@ -6993,7 +7122,7 @@ function analyticsReportPdf(report) {
       const width = sheet.pdfWidths[columnIndex];
       pages[pageIndex].push(
         'q', '0.10 0.18 0.33 rg', `${x} ${cursorY - 18} ${width} 19 re f`, 'Q',
-        'BT', '/F2 8 Tf', '1 1 1 rg', `${x + 6}`, String(cursorY - 12), 'Td',
+        'BT', '/F2 9 Tf', '1 1 1 rg', `${x + 6}`, String(cursorY - 12), 'Td',
         `(${staffPdfText(value)}) Tj`, 'ET'
       );
       x += width;
@@ -7006,6 +7135,10 @@ function analyticsReportPdf(report) {
   };
 
   sheets.forEach(sheet => {
+    if (sheet.name === 'Status Breakdown') {
+      startNewPage();
+      addSectionHeading('SUPPORTING APPENDIX');
+    }
     if (cursorY - 45 < bottomLimit) startNewPage();
     startSection(sheet);
     const rows = sheet.rows.length ? sheet.rows : [['No records for this period', ...Array(Math.max(0, sheet.header.length - 1)).fill('')]];
@@ -7013,21 +7146,23 @@ function analyticsReportPdf(report) {
       const cellLines = row.map((value, columnIndex) => {
         const format = sheet.rowFormats?.[rowIndex]?.[columnIndex] || sheet.formats?.[columnIndex];
         const text = displayValue(value, format);
-        return wrapText(text, Math.max(8, Math.floor((sheet.pdfWidths[columnIndex] - 12) / 4.2)));
+        return wrapText(text, Math.max(8, Math.floor((sheet.pdfWidths[columnIndex] - 12) / 4.6)));
       });
-      const rowHeight = Math.max(18, Math.max(...cellLines.map(lines => lines.length)) * 10 + 7);
+      const rowHeight = Math.max(20, Math.max(...cellLines.map(lines => lines.length)) * 11 + 8);
       if (cursorY - rowHeight < bottomLimit) {
         startNewPage();
         startSection(sheet);
       }
       const top = cursorY;
-      pages[pageIndex].push('q', rowIndex % 2 ? '0.96 0.97 0.98 rg' : '1 1 1 rg', `${contentLeft} ${top - rowHeight} ${contentWidth} ${rowHeight} re f`, 'Q');
+      const isAttentionRow = sheet.name === 'Executive Summary' && row[0] === 'Management attention';
+      const rowFill = isAttentionRow ? '1 0.97 0.87 rg' : rowIndex % 2 ? '0.96 0.97 0.98 rg' : '1 1 1 rg';
+      pages[pageIndex].push('q', rowFill, `${contentLeft} ${top - rowHeight} ${contentWidth} ${rowHeight} re f`, 'Q');
       let x = contentLeft;
       cellLines.forEach((lines, columnIndex) => {
         const width = sheet.pdfWidths[columnIndex];
         lines.forEach((line, lineIndex) => {
           pages[pageIndex].push(
-            'BT', '/F1 8 Tf', '0.12 0.16 0.22 rg', `${x + 6}`, String(top - 12 - lineIndex * 10), 'Td',
+            'BT', `${isAttentionRow ? '/F2' : '/F1'} 9 Tf`, isAttentionRow ? '0.35 0.25 0.05 rg' : '0.12 0.16 0.22 rg', `${x + 6}`, String(top - 13 - lineIndex * 11), 'Td',
             `(${line}) Tj`, 'ET'
           );
         });
@@ -7038,6 +7173,34 @@ function analyticsReportPdf(report) {
       cursorY -= rowHeight;
     });
     cursorY -= 12;
+
+    if (sheet.name === 'Executive Summary') {
+      addSectionHeading('APPLICATION STATUS SNAPSHOT');
+      const maxCount = Math.max(1, ...report.statusChartRows.map(([, count]) => count));
+      const colorByLabel = {
+        'Pending review': '0.96 0.62 0.10',
+        'In Process': '0.23 0.51 0.96',
+        'Approved / ID-ready': '0.06 0.62 0.43',
+        'IDs issued / completed': '0.05 0.48 0.34',
+        Rejected: '0.88 0.25 0.25'
+      };
+      report.statusChartRows.forEach(([label, count]) => {
+        const y = cursorY - 10;
+        const barWidth = count ? Math.max(2, 245 * count / maxCount) : 0;
+        pages[pageIndex].push(
+          'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '48', String(y), 'Td',
+          `(${staffPdfText(label)}) Tj`, 'ET',
+          'q', '0.91 0.94 0.97 rg', `185 ${y - 2} 250 10 re f`, 'Q'
+        );
+        if (barWidth) pages[pageIndex].push('q', `${colorByLabel[label] || '0.23 0.51 0.96'} rg`, `185 ${y - 2} ${barWidth} 10 re f`, 'Q');
+        pages[pageIndex].push(
+          'BT', '/F2 9 Tf', '0.12 0.16 0.22 rg', '448', String(y), 'Td',
+          `(${count.toLocaleString('en-PH')}) Tj`, 'ET'
+        );
+        cursorY -= 19;
+      });
+      cursorY -= 5;
+    }
   });
 
   const objects = [];
@@ -8493,12 +8656,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Start session inactivity timer
   runOptionalInit('Session timer init', resetInactivityTimer);
-
-  // Applicants barangay + status filter wiring
-  const applicantsBarangaySel = document.querySelector('#mod-applicants .filter-select');
-  const applicantsStatusSel = document.querySelectorAll('#mod-applicants .filter-select')[1];
-  if (applicantsBarangaySel) applicantsBarangaySel.addEventListener('change', function () { filterApplicantsByBarangay(this.value); });
-  if (applicantsStatusSel) applicantsStatusSel.addEventListener('change', function () { filterApplicantsByStatus(this.value); });
 
   if (typeof Skeleton !== 'undefined') Skeleton.pageReady();
 

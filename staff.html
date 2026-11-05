@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-solid-rounded/css/uicons-solid-rounded.css" />
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
-  <link rel="stylesheet" href="base.css?v=42" />
-  <link rel="stylesheet" href="staff.css?v=37" />
+  <link rel="stylesheet" href="base.css?v=45" />
+  <link rel="stylesheet" href="staff.css?v=66" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -136,41 +136,12 @@
             <p class="page-header__sub" id="dashboard-welcome"></p>
           </div>
           <div class="page-header__controls">
-            <label class="search-field">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-                <circle cx="6.5" cy="6.5" r="4.5" />
-                <path d="M11 11l3 3" />
-              </svg>
-              <input type="search" id="dashboard-quick-search" placeholder="Quick search…"
-                oninput="handleDashboardQuickSearch(this.value)" autocomplete="off" />
-            </label>
-            <div class="date-pill" id="dashboard-date-pill" onclick="toggleDateFilter(event)">
+            <div class="date-pill date-pill--static staff-dashboard-date-pill" id="dashboard-date-pill">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7">
                 <rect x="1" y="2" width="14" height="13" rx="2" />
                 <path d="M5 1v2M11 1v2M1 6h14" />
               </svg>
               <span id="dashboard-date-label"></span>
-            </div>
-            <div class="date-filter-menu" id="dashboard-date-menu" onclick="event.stopPropagation()">
-              <div class="calendar">
-                <div class="calendar-header">
-                  <button type="button" class="calendar-nav" onclick="changeCalendarMonth(-1)">‹</button>
-                  <span id="calendar-month-year">April 2026</span>
-                  <button type="button" class="calendar-nav" onclick="changeCalendarMonth(1)">›</button>
-                </div>
-                <div class="calendar-days">
-                  <div class="calendar-day-header">Sun</div>
-                  <div class="calendar-day-header">Mon</div>
-                  <div class="calendar-day-header">Tue</div>
-                  <div class="calendar-day-header">Wed</div>
-                  <div class="calendar-day-header">Thu</div>
-                  <div class="calendar-day-header">Fri</div>
-                  <div class="calendar-day-header">Sat</div>
-                </div>
-                <div class="calendar-grid" id="calendar-grid">
-                  <!-- Days will be populated by JS -->
-                </div>
-              </div>
             </div>
             <button class="theme-toggle theme-toggle--header" type="button" data-theme-toggle
               aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false">
@@ -193,13 +164,13 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-apps ic-blue"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-up">0</div>
+                <div class="stat-card__trend trend-neutral" id="staff-total-trend"></div>
               </div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Total applications</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">System Volume</div>
+              <div class="stat-card__sub">All recorded applications</div>
             </div>
           </div>
           <!-- Card 2 -->
@@ -207,13 +178,13 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-clock ic-warn"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-up">0</div>
+                <div class="stat-card__trend trend-up" id="staff-pending-trend"></div>
               </div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Pending Review</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Awaiting action</div>
+              <div class="stat-card__sub">Pending or in review</div>
             </div>
           </div>
           <!-- Card 3 -->
@@ -221,13 +192,13 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check-double ic-green"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">0</div>
+                <div class="stat-card__trend trend-neutral" id="staff-approved-today-trend"></div>
               </div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Approved Today</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Completed this shift</div>
+              <div class="stat-card__sub">Approved, ready, or issued today</div>
             </div>
           </div>
           <!-- Card 4 -->
@@ -235,13 +206,13 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-teal"><i class="fi fi-rr-chart-line-up ic-teal"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">0</div>
+                <div class="stat-card__trend trend-neutral" id="staff-processed-trend"></div>
               </div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Applications processed</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">This month</div>
+              <div class="stat-card__sub">Applications advanced this month</div>
             </div>
           </div>
           <!-- Card 5 -->
@@ -249,13 +220,13 @@
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-red"><i class="fi fi-rr-x ic-red"></i></div>
               <div class="stat-card__meta">
-                <div class="stat-card__trend trend-down">0</div>
+                <div class="stat-card__trend trend-neutral" id="staff-rejected-trend"></div>
               </div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Rejected Applications</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">This month</div>
+              <div class="stat-card__sub">Rejected this month</div>
             </div>
           </div>
         </div>
@@ -518,7 +489,7 @@
                   <path
                     d="M9 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM17 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 0 0-1.5-4.33A5 5 0 0 1 19 16v1h-6.07zM6 11a5 5 0 0 1 5 5v1H1v-1a5 5 0 0 1 5-5z" />
                 </svg></div>
-              <div class="stat-card__meta"><span class="stat-card__trend trend-good">0</span></div>
+              <div class="stat-card__meta"><span class="stat-card__trend trend-neutral" id="applicants-total-trend">Loading…</span></div>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Total Registered Seniors</span>
               <span class="stat-card__value" id="applicants-total-count">0</span><span class="stat-card__sub">Unique
@@ -533,7 +504,7 @@
                     d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z"
                     clip-rule="evenodd" />
                 </svg></div>
-              <div class="stat-card__meta"><span class="stat-card__trend trend-good">0</span></div>
+              <div class="stat-card__meta"><span class="stat-card__trend trend-neutral" id="applicants-active-trend">Loading…</span></div>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Active Applicants</span>
               <span class="stat-card__value" id="applicants-verified-count">0</span><span class="stat-card__sub">Unique
@@ -548,7 +519,7 @@
                     d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-12a1 1 0 1 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6z"
                     clip-rule="evenodd" />
                 </svg></div>
-              <div class="stat-card__meta"><span class="stat-card__period">This month</span></div>
+              <div class="stat-card__meta"><span class="stat-card__trend trend-neutral" id="applicants-registrations-trend">Loading…</span></div>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">New Registrations</span>
               <span class="stat-card__value" id="applicants-unverified-count">0</span><span
@@ -562,7 +533,7 @@
                   <path
                     d="M2 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2zm10.5 4a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h9z" />
                 </svg></div>
-              <div class="stat-card__meta"><span class="stat-card__trend trend-neutral">0</span></div>
+              <div class="stat-card__meta"><span class="stat-card__trend trend-neutral" id="applicants-duplicates-trend">Loading…</span></div>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Duplicate Profiles</span>
               <span class="stat-card__value" id="applicants-issued-count">0</span><span class="stat-card__sub">Flagged
@@ -588,7 +559,7 @@
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <select class="filter-select" multiple size="4" title="Select multiple values. Hold Ctrl while clicking to select more than one." onchange="filterApplicantsByBarangay(this)"
+                <select class="filter-select" id="applicants-barangay-filter" onchange="filterRegisteredApplicantsByBarangay(this)"
                   aria-label="Filter applicants by barangay">
                   <option value="">Barangay: All</option>
                   <option value="Alagao">Alagao</option>
@@ -633,27 +604,35 @@
                   <option value="Sinala">Sinala</option>
                 </select>
               </div>
-              <select class="filter-select" multiple size="4" title="Select multiple values. Hold Ctrl while clicking to select more than one." onchange="filterApplicantsByStatus(this)"
-                aria-label="Filter applicants by status">
-                <option value="">All Statuses</option>
-                <option value="Completed">Completed</option>
-                <option value="Pending">Pending</option>
-                <option value="Under Review">Under Review</option>
-                <option value="In Process">In Process</option>
-                <option value="Ready for Release">Ready for Release</option>
-                <option value="ID Issued">ID Issued</option>
-              </select>
+              <div class="barangay-select-wrap applicant-sort-wrap">
+                <svg class="barangay-select-wrap__pin" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M5 2v12M2.5 4.5 5 2l2.5 2.5M11 14V2m-2.5 9.5L11 14l2.5-2.5" />
+                </svg>
+                <select class="filter-select" id="applicants-sort-select" onchange="changeApplicantsSort(this.value)"
+                  aria-label="Sort residents">
+                  <option value="latest" selected>Sort: Latest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="name-az">Name A-Z</option>
+                  <option value="name-za">Name Z-A</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="resetRegisteredApplicantFilters()"
+                aria-label="Reset applicant filters" title="Clear search and barangay filter">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
+                <span>Reset</span>
+              </button>
             </div>
           </div>
 
           <table class="data-table">
             <thead>
               <tr>
-                <th onclick="sortTable('applicants-tbody',0,this)">Name <span class="sort-icon">↕</span></th>
+                <th onclick="sortApplicantsByColumn('name',this)" aria-sort="none">Name <span class="sort-icon">↕</span></th>
                 <th>Application ID</th>
-                <th onclick="sortTable('applicants-tbody',2,this)">Barangay <span class="sort-icon">↕</span></th>
+                <th onclick="sortApplicantsByColumn('barangay',this)" aria-sort="none">Barangay <span class="sort-icon">↕</span></th>
                 <th>Age</th>
-                <th onclick="sortTable('applicants-tbody',4,this)">Registration Date <span class="sort-icon">↕</span>
+                <th onclick="sortApplicantsByColumn('registration',this)" aria-sort="descending">Registration Date <span class="sort-icon">↓</span>
                 </th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -750,9 +729,7 @@
                   <path fill-rule="evenodd"
                     d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-12a1 1 0 1 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6z"
                     clip-rule="evenodd" />
-                </svg></div><span class="stat-card__trend trend-up"><svg viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M5 2l4 5H1z" />
-                </svg>0</span>
+                </svg></div><span class="stat-card__trend trend-neutral" id="summary-pending-badge">No new items today</span>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Awaiting Review</span><span
                 class="stat-card__value" id="summary-pending">0</span><span class="stat-card__sub">Pending staff
@@ -766,7 +743,7 @@
                   <path fill-rule="evenodd"
                     d="M4 5a2 2 0 0 1 2-2 3 3 0 0 0 3 3h2a3 3 0 0 0 3-3 2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm3 4a1 1 0 0 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 0 0 0 2h3a1 1 0 0 0 0-2h-3zm-3 4a1 1 0 1 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 1 0 0 2h3a1 1 0 0 0 0-2h-3z"
                     clip-rule="evenodd" />
-                </svg></div><span class="stat-card__trend trend-neutral">0</span>
+                </svg></div><span class="stat-card__trend trend-good" id="summary-incomplete-badge">All clear</span>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Incomplete Documents</span><span
                 class="stat-card__value" id="summary-incomplete">0</span><span class="stat-card__sub">Required files
@@ -779,7 +756,7 @@
                   <path fill-rule="evenodd"
                     d="M10 2a1 1 0 0 1 .894.553l7 14A1 1 0 0 1 17 18H3a1 1 0 0 1-.894-1.447l7-14A1 1 0 0 1 10 2zm0 4.236L4.618 16h10.764L10 6.236zM9 9h2v4H9V9zm0 5h2v2H9v-2z"
                     clip-rule="evenodd" />
-                </svg></div><span class="stat-card__trend trend-neutral">0</span>
+                </svg></div><span class="stat-card__trend trend-good" id="summary-overdue-badge">None</span>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Overdue Applications</span><span
                 class="stat-card__value" id="summary-overdue">0</span><span class="stat-card__sub">Open for more than 5
@@ -792,9 +769,7 @@
                   <path fill-rule="evenodd"
                     d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-1-8a1 1 0 0 0-1 1v3a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1z"
                     clip-rule="evenodd" />
-                </svg></div><span class="stat-card__trend trend-down"><svg viewBox="0 0 10 10" fill="currentColor">
-                  <path d="M5 8L1 3h8z" />
-                </svg>Needs action</span>
+                </svg></div><span class="stat-card__trend trend-down" id="summary-ready-badge">Needs action</span>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Ready for Release</span><span
                 class="stat-card__value" id="summary-ready">0</span><span class="stat-card__sub">Approved and awaiting
@@ -807,7 +782,7 @@
                   <path fill-rule="evenodd"
                     d="M3 3a2 2 0 0 1 2-2h7.586A2 2 0 0 1 14 1.586L17.414 5A2 2 0 0 1 18 6.414V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3zm9 0v3h3l-3-3zM6 10h8v1.5H6V10zm0 3h8v1.5H6V13z"
                     clip-rule="evenodd" />
-                </svg></div><span class="stat-card__trend trend-good">0</span>
+                </svg></div><span class="stat-card__trend trend-neutral" id="summary-completed-month-badge">This month</span>
             </div>
             <div class="stat-card__body"><span class="stat-card__label">Completed This Month</span><span
                 class="stat-card__value" id="summary-completed-month">0</span><span class="stat-card__sub">Requests
@@ -945,6 +920,11 @@
                   <path d="M4 6l4 4 4-4" />
                 </svg>
               </div>
+              <button type="button" class="applications-filter-reset" onclick="resetApplicationsFilters()"
+                aria-label="Reset application filters" title="Clear search, stage, and barangay filters">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
+                <span>Reset</span>
+              </button>
             </div>
           </div>
 
@@ -1003,13 +983,14 @@
           <div class="table-toolbar"
               style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:16px">
 
-            <input
-              type="search"
-              id="replacement-search"
-              placeholder="Search applicant or application ID..."
-              oninput="filterReplacementRequests()"
-              style="flex:1;min-width:220px;padding:11px 14px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px;background:var(--surface,#fff);color:var(--text-primary,#172033)"
-            />
+            <label class="replacement-search-wrap">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="4.5" />
+                <path d="M11 11l3 3" />
+              </svg>
+              <input type="search" id="replacement-search" placeholder="Search applicant or application ID..."
+                oninput="filterReplacementRequests()" />
+            </label>
 
             <select
               id="replacement-status-filter"
@@ -1117,7 +1098,7 @@
                     clip-rule="evenodd" />
                 </svg>
               </div>
-              <div class="stat-card__meta"><span class="stat-card__period">Now</span></div>
+              <div class="stat-card__meta"><span class="stat-card__period">Pending Handoff</span></div>
             </div>
             <div class="stat-card__body">
               <span class="stat-card__label">Ready to Process</span>
@@ -1135,7 +1116,7 @@
                     clip-rule="evenodd" />
                 </svg>
               </div>
-              <div class="stat-card__meta"><span class="stat-card__trend trend-up">0</span></div>
+              <div class="stat-card__meta"><span class="stat-card__period">Print Queue</span></div>
             </div>
             <div class="stat-card__body">
               <span class="stat-card__label">Queued for Print</span>
@@ -1153,7 +1134,7 @@
                     clip-rule="evenodd" />
                 </svg>
               </div>
-              <div class="stat-card__meta"><span class="stat-card__trend trend-good">0</span></div>
+              <div class="stat-card__meta"><span class="stat-card__period">Daily Handoff</span></div>
             </div>
             <div class="stat-card__body">
               <span class="stat-card__label">IDs Issued Today</span>
@@ -1171,7 +1152,7 @@
                     clip-rule="evenodd" />
                 </svg>
               </div>
-              <div class="stat-card__meta"><span class="stat-card__trend trend-down">0</span></div>
+              <div class="stat-card__meta"><span class="stat-card__period">Awaiting Pickup</span></div>
             </div>
             <div class="stat-card__body">
               <span class="stat-card__label">Not Yet Picked Up</span>
@@ -1286,10 +1267,10 @@
               <option value="all">All time</option>
             </select>
             <select class="filter-select" style="height:36px" aria-label="Export analytics data" onchange="exportData(this.value); this.value='';">
-              <option value="">Export As...</option>
-              <option value="pdf">PDF — Formal Report</option>
-              <option value="excel">Excel — Data Tables</option>
-              <option value="csv">CSV — Structured Report</option>
+              <option value="" selected disabled hidden>Export as...</option>
+              <option value="pdf">PDF - Management report</option>
+              <option value="excel">Excel - Supporting tables</option>
+              <option value="csv">CSV - Structured data</option>
             </select>
           </div>
         </header>
@@ -1302,25 +1283,65 @@
             <p>Real-time visibility into staff workload and ID processing status</p>
           </div>
           <div class="analytics-hero__stats" id="analytics-kpi-strip" data-kpi-module="analytics">
-            <article class="analytics-kpi">
-              <span class="analytics-kpi__label">Pending Review</span>
-              <strong id="analytics-kpi-pending">0</strong>
-              <span>Awaiting staff action</span>
+            <article class="stat-card analytics-kpi">
+              <div class="stat-card__top">
+                <div class="stat-card__icon-wrap iwrap-warn">
+                  <svg class="stat-card__icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-12a1 1 0 0 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="stat-card__meta"><span class="stat-card__period">Open</span></div>
+              </div>
+              <div class="stat-card__body">
+                <span class="stat-card__label analytics-kpi__label">Pending Review</span>
+                <strong class="stat-card__value" id="analytics-kpi-pending">0</strong>
+                <span class="stat-card__sub">Awaiting staff action</span>
+              </div>
             </article>
-            <article class="analytics-kpi">
-              <span class="analytics-kpi__label">In Review</span>
-              <strong id="analytics-kpi-review">0</strong>
-              <span>Currently processing</span>
+            <article class="stat-card analytics-kpi">
+              <div class="stat-card__top">
+                <div class="stat-card__icon-wrap iwrap-teal">
+                  <svg class="stat-card__icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M4 5a2 2 0 0 1 2-2 3 3 0 0 0 3 3h2a3 3 0 0 0 3-3 2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm3 4a1 1 0 0 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 0 0 0 2h3a1 1 0 0 0 0-2h-3zm-3 4a1 1 0 1 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 1 0 0 2h3a1 1 0 0 0 0-2h-3z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="stat-card__meta"><span class="stat-card__period">In progress</span></div>
+              </div>
+              <div class="stat-card__body">
+                <span class="stat-card__label analytics-kpi__label">In Review</span>
+                <strong class="stat-card__value" id="analytics-kpi-review">0</strong>
+                <span class="stat-card__sub">Currently processing</span>
+              </div>
             </article>
-            <article class="analytics-kpi">
-              <span class="analytics-kpi__label">Ready for ID</span>
-              <strong id="analytics-kpi-ready">0</strong>
-              <span>Approved for handoff</span>
+            <article class="stat-card analytics-kpi">
+              <div class="stat-card__top">
+                <div class="stat-card__icon-wrap iwrap-green">
+                  <svg class="stat-card__icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="stat-card__meta"><span class="stat-card__period">Approved</span></div>
+              </div>
+              <div class="stat-card__body">
+                <span class="stat-card__label analytics-kpi__label">Ready for ID</span>
+                <strong class="stat-card__value" id="analytics-kpi-ready">0</strong>
+                <span class="stat-card__sub">Approved for handoff</span>
+              </div>
             </article>
-            <article class="analytics-kpi">
-              <span class="analytics-kpi__label">Rejected</span>
-              <strong id="analytics-kpi-rejected">0</strong>
-              <span>This selected range</span>
+            <article class="stat-card analytics-kpi">
+              <div class="stat-card__top">
+                <div class="stat-card__icon-wrap iwrap-red">
+                  <svg class="stat-card__icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-1-8a1 1 0 0 0-1 1v3a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="stat-card__meta"><span class="stat-card__period">Selected range</span></div>
+              </div>
+              <div class="stat-card__body">
+                <span class="stat-card__label analytics-kpi__label">Rejected</span>
+                <strong class="stat-card__value" id="analytics-kpi-rejected">0</strong>
+                <span class="stat-card__sub">This selected range</span>
+              </div>
             </article>
           </div>
         </section>
@@ -1349,34 +1370,36 @@
             </div>
           </div>
 
-          <div class="an-card">
+          <div class="an-card queue-mix-card">
             <div class="an-card__header">
               <div>
                 <div class="an-card__title">Queue Mix</div>
                 <div class="an-card__sub">Current status distribution</div>
               </div>
+              <span class="queue-mix__sample" id="queue-mix-sample">n = 0 applications</span>
             </div>
-            <div class="an-card__body" style="flex-direction:column;align-items:center;gap:16px;padding:20px 18px">
-              <div style="position:relative;height:160px;width:160px;flex-shrink:0">
-                <div class="chart-wrap" style="height:160px;width:160px">
+            <div class="an-card__body queue-mix__body">
+              <div class="queue-mix__chart">
+                <div class="chart-wrap">
                   <canvas id="chart-status"></canvas>
                 </div>
-                <div id="queue-mix-empty-ring"
-                  style="display:none;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
-                  <div
-                    style="width:120px;height:120px;border-radius:50%;border:18px solid var(--border-subtle);opacity:0.55">
-                  </div>
+                <div id="queue-mix-empty-ring" class="queue-mix__empty-ring">
+                  <div class="queue-mix__empty-ring-hole"></div>
+                </div>
+                <div class="queue-mix__center" aria-live="polite">
+                  <strong id="queue-mix-total">0</strong>
+                  <span>TOTAL APPLICATIONS</span>
                 </div>
               </div>
               <div class="analytics-status-list">
-                <div class="analytics-status-item"><span style="background:#059669"></span><strong>Approved</strong><em
-                    id="analytics-status-approved">0</em></div>
-                <div class="analytics-status-item"><span style="background:#D97706"></span><strong>Pending</strong><em
-                    id="analytics-status-pending">0</em></div>
-                <div class="analytics-status-item"><span style="background:#2563EB"></span><strong>In Review</strong><em
-                    id="analytics-status-review">0</em></div>
-                <div class="analytics-status-item"><span style="background:#E11D48"></span><strong>Rejected</strong><em
-                    id="analytics-status-rejected">0</em></div>
+                <div class="analytics-status-item queue-mix__approved"><span></span><strong>Approved</strong><em
+                    id="analytics-status-approved">0</em><small id="analytics-status-approved-percent">0.0%</small></div>
+                <div class="analytics-status-item queue-mix__pending"><span></span><strong>Pending</strong><em
+                    id="analytics-status-pending">0</em><small id="analytics-status-pending-percent">0.0%</small></div>
+                <div class="analytics-status-item queue-mix__review"><span></span><strong>In Review</strong><em
+                    id="analytics-status-review">0</em><small id="analytics-status-review-percent">0.0%</small></div>
+                <div class="analytics-status-item queue-mix__rejected"><span></span><strong>Rejected</strong><em
+                    id="analytics-status-rejected">0</em><small id="analytics-status-rejected-percent">0.0%</small></div>
               </div>
             </div>
           </div>
@@ -1394,53 +1417,24 @@
 
             <div class="an-card__body analytics-action-list">
               <div class="analytics-action-item">
-                <span class="analytics-action-icon">
-                  <i class="fi fi-rr-refresh"></i>
-                </span>
-                <div>
-                  <strong>Total Requests</strong>
-                  <small id="replacement-analytics-total">Loading...</small>
-                </div>
+                <span class="analytics-action-icon"><i class="fi fi-rr-refresh"></i></span>
+                <div><strong>Total Requests</strong><small id="replacement-analytics-total">Loading...</small></div>
               </div>
-
               <div class="analytics-action-item">
-                <span class="analytics-action-icon">
-                  <i class="fi fi-rr-clock"></i>
-                </span>
-                <div>
-                  <strong>Pending</strong>
-                  <small id="replacement-analytics-pending">Loading...</small>
-                </div>
+                <span class="analytics-action-icon"><i class="fi fi-rr-clock"></i></span>
+                <div><strong>Pending</strong><small id="replacement-analytics-pending">Loading...</small></div>
               </div>
-
               <div class="analytics-action-item">
-                <span class="analytics-action-icon">
-                  <i class="fi fi-rr-settings"></i>
-                </span>
-                <div>
-                  <strong>In Process</strong>
-                  <small id="replacement-analytics-process">Loading...</small>
-                </div>
+                <span class="analytics-action-icon"><i class="fi fi-rr-settings"></i></span>
+                <div><strong>In Process</strong><small id="replacement-analytics-process">Loading...</small></div>
               </div>
-
               <div class="analytics-action-item">
-                <span class="analytics-action-icon">
-                  <i class="fi fi-rr-check-circle"></i>
-                </span>
-                <div>
-                  <strong>Completed</strong>
-                  <small id="replacement-analytics-completed">Loading...</small>
-                </div>
+                <span class="analytics-action-icon"><i class="fi fi-rr-check-circle"></i></span>
+                <div><strong>Completed</strong><small id="replacement-analytics-completed">Loading...</small></div>
               </div>
-
               <div class="analytics-action-item">
-                <span class="analytics-action-icon">
-                  <i class="fi fi-rr-cross-circle"></i>
-                </span>
-                <div>
-                  <strong>Rejected</strong>
-                  <small id="replacement-analytics-rejected">Loading...</small>
-                </div>
+                <span class="analytics-action-icon"><i class="fi fi-rr-cross-circle"></i></span>
+                <div><strong>Rejected</strong><small id="replacement-analytics-rejected">Loading...</small></div>
               </div>
             </div>
           </div>
@@ -2420,8 +2414,8 @@
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=48"></script>
-  <script src="staff.js?v=multi-provider-ai-6"></script>
+  <script src="app.js?v=52"></script>
+  <script src="staff.js?v=multi-provider-ai-15"></script>
 </body>
 
 </html>

@@ -598,45 +598,53 @@ table {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg);
-  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-primary);
   cursor: pointer;
-  transition: background var(--tf), color var(--tf), border-color var(--tf)
+  transition: all var(--tf);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .theme-toggle:hover {
-  background: var(--surface);
-  color: var(--primary);
-  border-color: var(--border-strong)
+  background: var(--bg-alt);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .theme-toggle:focus-visible {
   outline: 2px solid var(--primary-light);
-  outline-offset: 2px
+  outline-offset: 2px;
 }
 
 .theme-toggle svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 2;
   stroke-linecap: round;
-  stroke-linejoin: round
+  stroke-linejoin: round;
+  flex-shrink: 0;
 }
 
 .theme-toggle [hidden] {
-  display: none
+  display: none !important;
 }
 
 .theme-toggle--header {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 12px;
   align-self: auto;
-  box-shadow: var(--shadow-xs)
+}
+
+.theme-toggle--header svg {
+  width: 18px;
+  height: 18px;
 }
 
 .sidebar__user {
@@ -792,7 +800,7 @@ table {
 }
 
 .page-header__title {
-  font-family: var(--font-display);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 800;
   font-size: 26px;
   line-height: 1.1;
@@ -840,7 +848,7 @@ table {
 .page-header__controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
   position: relative
 }
@@ -958,7 +966,8 @@ table {
 }
 
 /* Controls */
-.search-field {
+.search-field,
+.table-search {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -971,20 +980,23 @@ table {
   min-width: 200px
 }
 
-.search-field:focus-within {
+.search-field:focus-within,
+.table-search:focus-within {
   background: var(--surface);
   border-color: var(--primary-light);
   box-shadow: var(--shadow-glow)
 }
 
-.search-field svg {
+.search-field svg,
+.table-search svg {
   width: 14px;
   height: 14px;
   color: var(--text-muted);
   flex-shrink: 0
 }
 
-.search-field input {
+.search-field input,
+.table-search input {
   border: none;
   background: transparent;
   outline: none;
@@ -994,37 +1006,71 @@ table {
   width: 100%
 }
 
-.search-field input::placeholder {
+.search-field input::placeholder,
+.table-search input::placeholder {
   color: var(--text-placeholder)
 }
 
 .date-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 40px;
-  padding: 0 14px;
+  gap: 11px;
+  height: 44px;
+  padding: 0 22px 0 18px;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: var(--r-pill);
-  font-family: var(--font-data);
-  font-size: 12.5px;
+  font-family: var(--font-display), var(--font-body), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
   cursor: pointer;
-  transition: border-color var(--tf), box-shadow var(--tf);
-  white-space: nowrap
+  transition: border-color var(--tf), box-shadow var(--tf), background-color var(--tf);
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  user-select: none;
+}
+
+.page-header__controls .date-pill {
+  height: 38px;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid #DCE4EC;
+  background: #F1F4F7;
+  font-size: 14px;
+  font-weight: 700;
+  color: #52677F;
+  box-shadow: none;
+}
+
+.page-header__controls .date-pill svg {
+  width: 16px;
+  height: 16px;
+  color: #087A55;
+}
+
+.date-pill--static {
+  cursor: default;
+}
+
+.date-pill--static:hover {
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .date-pill:hover {
-  border-color: var(--primary-light);
-  box-shadow: var(--shadow-glow)
+  border-color: var(--border-strong);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .date-pill svg {
-  width: 14px;
-  height: 14px;
-  color: var(--text-muted)
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-width: 2;
+  color: var(--text-primary);
+  flex-shrink: 0;
 }
 
 .icon-btn {
@@ -1821,46 +1867,6 @@ table {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap
-}
-
-.table-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 12px;
-  background: var(--bg);
-  border: 1.5px solid transparent;
-  border-radius: var(--r-md);
-  transition: all var(--tf);
-  min-width: 200px
-}
-
-.table-search:focus-within {
-  background: var(--surface);
-  border-color: var(--primary-light);
-  box-shadow: var(--shadow-glow)
-}
-
-.table-search svg {
-  width: 13px;
-  height: 13px;
-  color: var(--text-muted);
-  flex-shrink: 0
-}
-
-.table-search input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--text-primary);
-  width: 100%
-}
-
-.table-search input::placeholder {
-  color: var(--text-placeholder)
 }
 
 .data-table {
@@ -3774,7 +3780,7 @@ select.filter-select:hover {
 
   border-radius: 10px;
 
-  background: var(--bg-alt, #f8fafc);
+  background: #F1F5F9;
   border: 1px solid var(--border);
 
   min-height: 62px;
@@ -7676,4 +7682,37 @@ body.portal-mode #toast-container {
 
 :root[data-theme="dark"] .data-table tbody tr:focus-within > td {
   background-color: #263449;
+}
+
+/* Keep KPI spacing consistent across every portal and module. */
+.stat-card,
+.kpi-card {
+  padding: 16px 18px !important;
+}
+
+.stat-card {
+  gap: 12px !important;
+}
+
+.stat-card__top,
+.kpi-card__top {
+  gap: 8px;
+}
+
+.stat-card__body {
+  gap: 10px !important;
+}
+
+.stat-card:not(.is-loading) .stat-card__label,
+.stat-card:not(.is-loading) .stat-card__value,
+.stat-card:not(.is-loading) .stat-card__sub,
+.kpi-card__label,
+.kpi-card__value,
+.kpi-card__sub {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.kpi-card {
+  gap: 14px !important;
 }
