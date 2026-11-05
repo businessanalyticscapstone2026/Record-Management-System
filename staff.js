@@ -5680,32 +5680,32 @@ function normalizeApplicantImportDate(value) {
   if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
 
   const format = document.getElementById("applicant-import-date-format")?.value || "auto";
+  const ymd = raw.match(/^(\\d{4})[/.-](\\d{1,2})[/.-](\\d{1,2})$/);
+  if (ymd) {
+    const date = new Date(Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])));
+    return !Number.isNaN(date.getTime()) &&
+      date.getUTCFullYear() === Number(ymd[1]) &&
+      date.getUTCMonth() === Number(ymd[2]) - 1 &&
+      date.getUTCDate() === Number(ymd[3])
+      ? date.toISOString().slice(0, 10) : "";
+  }
+
   const numericDate = raw.match(/^(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{2,4})$/);
   if (numericDate) {
-    let first = Number(numericDate[1]);
-    let second = Number(numericDate[2]);
+    const first = Number(numericDate[1]);
+    const second = Number(numericDate[2]);
     let year = Number(numericDate[3]);
     if (year < 100) year += year >= 50 ? 1900 : 2000;
     let day, month;
 
-    if (format === "YMD") {
-      year = first;
-      month = second;
-      day = Number(numericDate[3]);
-    } else if (format === "MDY") {
+    if (format === "MDY" || (format === "auto" && second > 12 && first <= 12)) {
       month = first;
       day = second;
-    } else if (format === "DMY") {
+    } else if (format === "DMY" || (format === "auto" && first > 12 && second <= 12)) {
       day = first;
       month = second;
-    } else if (first > 12 && second <= 12) {
-      day = first;
-      month = second;
-    } else if (second > 12 && first <= 12) {
-      month = first;
-      day = second;
     } else {
-      // Philippine records commonly use day/month/year when the date is ambiguous.
+      // Philippine records commonly use day/month/year when ambiguous.
       day = first;
       month = second;
     }
@@ -5752,31 +5752,73 @@ function getApplicantImportMappedRow(row) {
   return mapped;
 }
 
+function getApplicantImportDuplicateKey(row) {
+  const first = normalizeApplicantImportHeader(row.first_name);
+  const last = normalizeApplicantImportHeader(row.surname);
+  const dob = String(row.date_of_birth || "").trim();
+  const barangay = normalizeApplicantImportHeader(row.barangay_district);
+  return first && last && dob ? [first, last, dob, barangay].join("|") : "";
+}
+
+function isApplicantImportRepeatedHeader(row) {
+  const first = normalizeApplicantImportHeader(row.first_name);
+  const last = normalizeApplicantImportHeader(row.surname);
+  return ["first name", "firstname", "given name", "first"].includes(first) &&
+    ["surname", "last name", "lastname", "family name"].includes(last);
+}
+
 function renderApplicantImportPreview() {
   const preview = document.getElementById("applicant-import-preview");
   const summary = document.getElementById("applicant-import-summary");
   const submit = document.getElementById("applicant-import-submit");
   if (!preview) return;
-  const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
-  const valid = mappedRows.filter(row => row.first_name && row.surname).length;
-  const invalid = mappedRows.length - valid;
 
-  preview.innerHTML = "<thead><tr>" + APPLICANT_IMPORT_STATE.headers.map(header =>
-    "<th>" + escapeApplicantImportHtml(header) + "</th>"
+  const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
+  const validRows = mappedRows.filter(row =>
+    row.first_name && row.surname && !isApplicantImportRepeatedHeader(row)
+  );
+  const invalid = mappedRows.length - validRows.length;
+  const selectedFields = [];
+  APPLICANT_IMPORT_FIELDS.forEach(field => {
+    if (field.key && Object.values(APPLICANT_IMPORT_STATE.mapping).includes(field.key)) selectedFields.push(field);
+  });
+
+  const existingIds = new Set((LIVE_APPLICATIONS || [])
+    .map(app => String(app.application_id || "").trim().toLowerCase()).filter(Boolean));
+  const existingKeys = new Set((LIVE_APPLICATIONS || [])
+    .map(app => getApplicantImportDuplicateKey(app)).filter(Boolean));
+  const seenInFile = new Set();
+  let possibleDuplicates = 0;
+  validRows.forEach(row => {
+    const id = String(row.application_id || "").trim().toLowerCase();
+    const key = getApplicantImportDuplicateKey(row);
+    if ((id && existingIds.has(id)) || (key && (existingKeys.has(key) || seenInFile.has(key)))) {
+      possibleDuplicates += 1;
+    }
+    if (key) seenInFile.add(key);
+  });
+
+  const previewFields = selectedFields.length ? selectedFields : APPLICANT_IMPORT_FIELDS.filter(field =>
+    ["first_name", "middle_name", "surname", "date_of_birth"].includes(field.key)
+  );
+  preview.innerHTML = "<thead><tr><th>Row</th>" + previewFields.map(field =>
+    "<th>" + escapeApplicantImportHtml(field.label) + "</th>"
   ).join("") + "</tr></thead><tbody>" +
-    APPLICANT_IMPORT_STATE.rows.slice(0, 8).map(row =>
-      "<tr>" + APPLICANT_IMPORT_STATE.headers.map((_, index) =>
-        "<td>" + escapeApplicantImportHtml(row[index] || "—") + "</td>"
+    validRows.slice(0, 8).map((row, index) =>
+      "<tr><td>" + (index + 1) + "</td>" + previewFields.map(field =>
+        "<td>" + escapeApplicantImportHtml(row[field.key] || "—") + "</td>"
       ).join("") + "</tr>"
     ).join("") + "</tbody>";
 
   if (summary) {
     summary.innerHTML =
-      '<span class="applicant-import-summary-good">' + valid.toLocaleString() + " rows ready</span>" +
-      '<span class="applicant-import-summary-muted">' + invalid.toLocaleString() +
-      " rows missing First name or Surname will be skipped</span>";
+      '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " rows ready</span>" +
+      '<span class="applicant-import-summary-muted">' + invalid.toLocaleString() + " incomplete/repeated header rows excluded</span>" +
+      (possibleDuplicates
+        ? '<span class="applicant-import-summary-duplicate">' + possibleDuplicates.toLocaleString() + " possible duplicate(s) will be checked again before saving</span>"
+        : "");
   }
-  if (submit) submit.disabled = APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping() || valid === 0;
+  if (submit) submit.disabled = APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping() || validRows.length === 0;
 }
 
 function renderApplicantImportMapping() {
@@ -5795,7 +5837,16 @@ function renderApplicantImportMapping() {
   list.querySelectorAll("select[data-import-column]").forEach(select => {
     select.value = APPLICANT_IMPORT_STATE.mapping[select.dataset.importColumn] || "";
     select.addEventListener("change", () => {
-      APPLICANT_IMPORT_STATE.mapping[select.dataset.importColumn] = select.value;
+      const selectedValue = select.value;
+      if (selectedValue) {
+        list.querySelectorAll("select[data-import-column]").forEach(other => {
+          if (other !== select && other.value === selectedValue) {
+            other.value = "";
+            APPLICANT_IMPORT_STATE.mapping[other.dataset.importColumn] = "";
+          }
+        });
+      }
+      APPLICANT_IMPORT_STATE.mapping[select.dataset.importColumn] = selectedValue;
       renderApplicantImportPreview();
     });
   });
@@ -5873,8 +5924,11 @@ async function handleApplicantImportFile(file) {
     APPLICANT_IMPORT_STATE.headers = parsed.headers;
     APPLICANT_IMPORT_STATE.rows = parsed.rows;
     APPLICANT_IMPORT_STATE.mapping = {};
+    const guessedFields = new Set();
     parsed.headers.forEach((header, index) => {
-      APPLICANT_IMPORT_STATE.mapping[index] = guessApplicantImportTarget(header);
+      const guessed = guessApplicantImportTarget(header);
+      APPLICANT_IMPORT_STATE.mapping[index] = guessed && !guessedFields.has(guessed) ? guessed : "";
+      if (APPLICANT_IMPORT_STATE.mapping[index]) guessedFields.add(guessed);
     });
     if (meta) meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " rows · " + parsed.headers.length + " columns";
     const section = document.getElementById("applicant-import-mapping");
@@ -5893,9 +5947,26 @@ async function submitApplicantImport() {
   const progressBar = document.getElementById("applicant-import-progress-bar");
   const progressLabel = document.getElementById("applicant-import-progress-label");
   const resultPanel = document.getElementById("applicant-import-result");
+  const fileKey = APPLICANT_IMPORT_STATE.fileName || "legacy-import";
+  const stableHash = value => {
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36).toUpperCase();
+  };
   const mappedRows = APPLICANT_IMPORT_STATE.rows
-    .map(row => getApplicantImportMappedRow(row))
-    .filter(row => row.first_name && row.surname);
+    .map((row, index) => {
+      const mapped = getApplicantImportMappedRow(row);
+      mapped._sourceRow = index + 1;
+      if (!mapped.application_id && mapped.first_name && mapped.surname) {
+        const identityText = [fileKey, index + 1, mapped.first_name, mapped.middle_name || "", mapped.surname, mapped.date_of_birth || "", mapped.barangay_district || ""].join("|");
+        mapped.application_id = "LEGACY-" + stableHash(fileKey) + "-" + stableHash(identityText);
+      }
+      return mapped;
+    })
+    .filter(row => row.first_name && row.surname && !isApplicantImportRepeatedHeader(row));
   if (!mappedRows.length) {
     setApplicantImportError("No valid rows remain. Map First name and Surname, then review the preview.");
     return;
@@ -5912,7 +5983,11 @@ async function submitApplicantImport() {
   const totalBatches = Math.ceil(mappedRows.length / batchSize);
   try {
     for (let start = 0; start < mappedRows.length; start += batchSize) {
-      const batch = mappedRows.slice(start, start + batchSize);
+      const batch = mappedRows.slice(start, start + batchSize).map(row => {
+        const clean = { ...row };
+        delete clean._sourceRow;
+        return clean;
+      });
       const response = await fetch(
         "https://management-backend-3cij.onrender.com/api/applications/import",
         { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ rows: batch }) }
@@ -5970,6 +6045,11 @@ function initializeApplicantImport() {
   if (input && !input.dataset.importBound) {
     input.dataset.importBound = "true";
     input.addEventListener("change", event => handleApplicantImportFile(event.target.files && event.target.files[0]));
+  }
+  const dateFormat = document.getElementById("applicant-import-date-format");
+  if (dateFormat && !dateFormat.dataset.importBound) {
+    dateFormat.dataset.importBound = "true";
+    dateFormat.addEventListener("change", renderApplicantImportPreview);
   }
   if (dropzone && !dropzone.dataset.importBound) {
     dropzone.dataset.importBound = "true";
