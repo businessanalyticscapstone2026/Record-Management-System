@@ -6361,11 +6361,9 @@ function initializeApplicantImport() {
         setApplicantImportError("No file was detected. Try choosing the file using the upload area instead.");
         return;
       }
-      if (isOverlay && dropzone && !dropzone.contains(event.target)) {
-        // The overlay accepts drops too, but guide users toward the visible target.
-        setApplicantImportError("Drop the file inside the dashed upload area, or click Choose a CSV or PDF file.");
-        return;
-      }
+      // Accept the drop anywhere within the visible import modal. Browser
+      // drag events can retarget nested label/text elements outside the
+      // dropzone's DOM subtree even when the pointer is visually over it.
       handleApplicantImportFile(files[0]);
     });
   };
