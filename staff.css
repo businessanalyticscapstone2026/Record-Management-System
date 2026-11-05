@@ -3913,3 +3913,36 @@ body>.status-select__menu {
   .applicant-import-map-row { grid-template-columns: 1fr; gap: 6px; }
   .applicant-import-result-grid { grid-template-columns: 1fr; }
 }
+
+
+.applicant-import-date-format {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e1e8f0);
+  border-radius: 10px;
+  background: var(--surface-soft, #f8faff);
+}
+.applicant-import-date-format span {
+  color: var(--text, #33465f);
+  font-size: .8rem;
+  font-weight: 700;
+}
+.applicant-import-date-format select {
+  width: min(360px, 55%);
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid var(--border, #d7e0eb);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--text, #23364e);
+  font-size: .78rem;
+}
+.applicant-import-summary-duplicate {
+  color: #a65b08;
+  font-size: .78rem;
+  font-weight: 700;
+}
