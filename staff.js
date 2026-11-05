@@ -6220,10 +6220,6 @@ async function submitApplicantImport() {
     .map((row, index) => {
       const mapped = getApplicantImportMappedRow(row);
       mapped._sourceRow = index + 1;
-      if (!mapped.application_id && mapped.first_name && mapped.surname) {
-        const identityText = [fileKey, index + 1, mapped.first_name, mapped.middle_name || "", mapped.surname, mapped.date_of_birth || "", mapped.barangay_district || ""].join("|");
-        mapped.application_id = "LEGACY-" + stableHash(fileKey) + "-" + stableHash(identityText);
-      }
       return mapped;
     })
     .filter(row =>
@@ -6283,18 +6279,18 @@ async function submitApplicantImport() {
     if (resultPanel) {
       resultPanel.hidden = false;
       resultPanel.innerHTML =
-        "<strong>Import finished</strong><div class='applicant-import-result-grid'>" +
+        "<strong>" + (totals.imported === 0 && (totals.failed + totals.skippedInvalid) > 0 ? "Import failed" : (totals.failed + totals.skippedInvalid) > 0 ? "Import partially completed" : "Import successful") + "</strong><div class='applicant-import-result-grid'>" +
         "<span><b>" + totals.imported.toLocaleString() + "</b> Imported</span>" +
         "<span><b>" + totals.skippedDuplicates.toLocaleString() + "</b> Duplicates skipped</span>" +
         "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
-        "<p>Imported records are now stored as Completed profiles. Existing records were not changed.</p>" +
+        "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") + "</p>" +
         (totals.errors.length ? "<details><summary>View row issues (" + totals.errors.length + ")</summary><ul>" +
           totals.errors.map(error => "<li>Source row " + (error.row + 1) + ": " + escapeApplicantImportHtml(error.reason) + "</li>").join("") +
           "</ul></details>" : "");
     }
 
     APPLICANT_IMPORT_STATE.imported = true;
-    if (submit) { submit.textContent = "Import complete"; submit.disabled = true; }
+    if (submit) { submit.textContent = totals.imported === 0 && (totals.failed + totals.skippedInvalid) > 0 ? "Import failed" : (totals.failed + totals.skippedInvalid) > 0 ? "Import partially complete" : "Import complete"; submit.disabled = true; }
     if (typeof loadApplicationsFromDatabase === "function") {
       try {
         await loadApplicationsFromDatabase();
@@ -6311,7 +6307,7 @@ async function submitApplicantImport() {
     if (submit) { submit.textContent = "Retry import"; submit.disabled = false; }
   } finally {
     APPLICANT_IMPORT_STATE.busy = false;
-    if (submit && submit.textContent !== "Import complete") submit.disabled = !hasValidApplicantImportMapping();
+    if (submit && !APPLICANT_IMPORT_STATE.imported) submit.disabled = !hasValidApplicantImportMapping();
   }
 }
 

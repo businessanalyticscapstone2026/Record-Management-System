@@ -2526,29 +2526,35 @@ const importApplicantRecords = async (req, res) => {
         continue;
       }
 
-      const suffix = require("crypto").randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase();
-      const applicationId = providedId || "LEGACY-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + suffix;
+      // application_id and every related-table FK are varchar(10). Preserve
+      // longer legacy OSCA identifiers in osca_id_number and let the database
+      // generate its canonical 10-character internal application ID.
+      const externalOsCaId = String(source.osca_id_number || (providedId.length > 10 ? providedId : "")).trim();
+      const internalApplicationId = providedId.length > 0 && providedId.length <= 10 ? providedId : null;
       const createdAt = safeDateTime(source.registration_date);
       const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
       const applicationRecord = {
-        application_id: applicationId, first_name: firstName, middle_name: middleName || null, surname,
+        ...(internalApplicationId ? { application_id: internalApplicationId } : {}),
+        first_name: firstName, middle_name: middleName || null, surname,
         date_of_birth: dateOfBirth, age: source.age === "" || source.age == null ? null : (Number.isFinite(Number(source.age)) ? Number(source.age) : null),
         sex: source.sex || null, place_of_birth: source.place_of_birth || null, civil_status: source.civil_status || null,
         house_street: source.house_street || null, barangay_district: barangay || null,
         educational_attainment: source.educational_attainment || null, religion: source.religion || null,
         religion_specify: source.religion_specify || null, occupation: source.occupation || null,
-        osca_id_number: source.osca_id_number || null, sss_id_number: source.sss_id_number || null,
+        osca_id_number: externalOsCaId || null, sss_id_number: source.sss_id_number || null,
         philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
         tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
         membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
       };
 
       const insertedTables = [];
+      let applicationIdForRollback = internalApplicationId;
       try {
         const { data: inserted, error: insertError } = await supabase.from("applications")
           .insert(applicationRecord).select("application_id").single();
         if (insertError) throw insertError;
         const id = inserted.application_id;
+        applicationIdForRollback = id;
 
         const historySource = source._related?.application_status_history || {};
         const sourceStatus = String(historySource.status || "").trim();
@@ -2596,18 +2602,20 @@ const importApplicantRecords = async (req, res) => {
           insertedTables.push(table);
         }
 
-        existingIds.add(applicationId.toLowerCase());
+        existingIds.add(String(id).toLowerCase());
         identityKeys.add(identityKey);
         importedIdentityKeys.add(identityKey);
         result.imported += 1;
       } catch (error) {
         // Best-effort rollback keeps the application and its linked records together.
-        for (const table of insertedTables.reverse()) {
-          const { error: rollbackError } = await supabase.from(table).delete().eq("application_id", applicationId);
-          if (rollbackError) console.error("[Applicant Import] Rollback failed for " + table + ":", rollbackError);
+        if (applicationIdForRollback) {
+          for (const table of insertedTables.reverse()) {
+            const { error: rollbackError } = await supabase.from(table).delete().eq("application_id", applicationIdForRollback);
+            if (rollbackError) console.error("[Applicant Import] Rollback failed for " + table + ":", rollbackError);
+          }
+          const { error: rollbackApplicationError } = await supabase.from("applications").delete().eq("application_id", applicationIdForRollback);
+          if (rollbackApplicationError) console.error("[Applicant Import] Application rollback failed:", rollbackApplicationError);
         }
-        const { error: rollbackApplicationError } = await supabase.from("applications").delete().eq("application_id", applicationId);
-        if (rollbackApplicationError) console.error("[Applicant Import] Application rollback failed:", rollbackApplicationError);
         result.failed += 1;
         result.errors.push({ row: index + 1, reason: String(error?.message || "Database insert failed.").slice(0, 240) });
       }
