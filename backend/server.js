@@ -30,7 +30,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
 app.use("/api/applications", applicationRoutes);
 app.use("/api/id-maker-queue", idMakerQueueRoutes);
