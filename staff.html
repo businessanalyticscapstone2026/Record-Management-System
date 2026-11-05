@@ -2393,9 +2393,9 @@
           <div class="staff-export__fields" id="staff-export-fields"></div>
           <p class="staff-export__help">For barangay summaries, choose the count columns to include. The overall total row is always included.</p>
         </div>
-        <div>
-          <label for="staff-export-format" style="display:block;font-weight:600;margin-bottom:6px">Export format</label>
-          <select id="staff-export-format" onchange="updateStaffExportFormatLabel()" style="width:100%;padding:10px;border:1px solid var(--border-color,#dbe3ef);border-radius:10px">
+        <div class="staff-export__control">
+          <label class="staff-export__label" for="staff-export-format">Export format</label>
+          <select class="staff-export__select" id="staff-export-format" onchange="updateStaffExportFormatLabel()">
             <option value="csv">CSV</option>
             <option value="pdf">PDF</option>
           </select>
@@ -2404,7 +2404,10 @@
       </div>
       <div class="confirm-actions staff-export__actions">
         <button type="button" class="btn btn--ghost" onclick="closeStaffExport()">Cancel</button>
-        <button type="button" class="btn btn--primary" id="staff-export-submit" onclick="downloadStaffExport()">Export CSV</button>
+        <button type="button" class="btn btn--primary" id="staff-export-download" onclick="downloadStaffExport()">
+          <i class="fi fi-rr-download" aria-hidden="true"></i>
+          <span>Export CSV</span>
+        </button>
       </div>
     </div>
   </div>

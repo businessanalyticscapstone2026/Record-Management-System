@@ -6553,7 +6553,7 @@ function downloadReportFile(format, title, headers, rows, filenameBase) {
   document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function exportPDF() { return exportData('pdf'); }
-function exportExcel() { showToast('Only PDF and CSV exports are available.', 'info'); }
+function exportExcel() { return exportData('excel'); }
 const STAFF_EXPORT_FIELDS = {
   barangay: [
     { key: 'barangay', label: 'Barangay', checked: true, locked: true },
@@ -6626,8 +6626,8 @@ function openStaffExport() {
 
 function updateStaffExportFormatLabel() {
   const format = document.getElementById('staff-export-format')?.value || 'csv';
-  const button = document.getElementById('staff-export-submit');
-  if (button) button.textContent = 'Export ' + format.toUpperCase();
+  const label = document.querySelector('#staff-export-download span');
+  if (label) label.textContent = 'Export ' + format.toUpperCase();
 }
 function closeStaffExport() {
   document.getElementById('staff-export-modal')?.classList.remove('show');
@@ -7380,7 +7380,14 @@ async function downloadStaffExport() {
   }
 
   const reportTitle = type === 'barangay' ? 'OSCA Barangay Summary' : 'OSCA Applicant Records';
-  downloadReportFile(format, reportTitle, header, rows, type === 'barangay' ? 'osca-barangay-summary' : 'osca-applicant-records');
+  const reportSlug = type === 'barangay' ? 'barangay-summary' : 'applicant-records';
+  const dateSlug = new Date().toISOString().slice(0, 10);
+  if (format === 'pdf') {
+    downloadReportFile(format, reportTitle, header, rows, `osca-${reportSlug}`);
+  } else {
+    const csv = '\uFEFF' + [header, ...rows].map(row => row.map(staffExportCsvCell).join(',')).join('\r\n');
+    saveStaffExport(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `osca-${reportSlug}-${dateSlug}.csv`);
+  }
   appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported ${type === 'barangay' ? 'barangay summary' : 'applicant records'} (${format.toUpperCase()})`, 'System');
   closeStaffExport();
   showToast(`${format.toUpperCase()} exported: ${filtered.length} application records included in the selected report.`, 'success');
@@ -8002,10 +8009,7 @@ async function sendFromIssuanceToIdMaker() {
     // Also update the linked ID request in the database.
     const requestsResponse = await fetchWithTimeout(
       `${apiBase}/replacements`,
-      {
-        headers: getAuthHeaders(),
-        cache: 'no-store'
-      }
+      { cache: 'no-store' }
     );
 
     const requestsResult = await requestsResponse.json();
