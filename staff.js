@@ -6220,10 +6220,6 @@ async function submitApplicantImport() {
     .map((row, index) => {
       const mapped = getApplicantImportMappedRow(row);
       mapped._sourceRow = index + 1;
-      if (!mapped.application_id && mapped.first_name && mapped.surname) {
-        const identityText = [fileKey, index + 1, mapped.first_name, mapped.middle_name || "", mapped.surname, mapped.date_of_birth || "", mapped.barangay_district || ""].join("|");
-        mapped.application_id = "LEGACY-" + stableHash(fileKey) + "-" + stableHash(identityText);
-      }
       return mapped;
     })
     .filter(row =>
