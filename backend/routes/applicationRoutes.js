@@ -5,6 +5,7 @@ const { authenticateToken, requireRoles } = require("../middleware/authMiddlewar
 
 const {
   getApplications,
+  importApplicantRecords,
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,
@@ -16,6 +17,7 @@ const {
 } = require("../controllers/applicationController");
 
 router.get("/", authenticateToken, requireRoles("admin", "staff"), getApplications);
+router.post("/import", authenticateToken, requireRoles("admin", "staff"), importApplicantRecords);
 
 router.get("/:applicationId/issuance-details", authenticateToken, requireRoles("admin", "staff", "idmaker"), getIssuanceDetails);
 
