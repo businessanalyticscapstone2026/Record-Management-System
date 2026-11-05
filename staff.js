@@ -5534,8 +5534,8 @@ function parseApplicantCsv(text) {
     } else if (ch === delimiter && !quoted) {
       row.push(cell.trim());
       cell = "";
-    } else if ((ch === "\\n" || ch === "\\r") && !quoted) {
-      if (ch === "\\r" && source[i + 1] === "\\n") i += 1;
+    } else if ((ch === "\n" || ch === "\r") && !quoted) {
+      if (ch === "\r" && source[i + 1] === "\n") i += 1;
       row.push(cell.trim());
       if (row.some(value => value !== "")) matrix.push(row);
       row = [];
