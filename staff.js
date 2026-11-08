@@ -6516,4 +6516,5 @@ function initializeApplicantImport() {
 document.addEventListener("DOMContentLoaded", initializeApplicantImport);
 window.openApplicantImportModal = openApplicantImportModal;
 window.closeApplicantImportModal = closeApplicantImportModal;
-window.submitApplicantImport = submitApplicantImport;\nwindow.uploadApplicantDocumentsZip = uploadApplicantDocumentsZip;
+window.submitApplicantImport = submitApplicantImport;
+window.uploadApplicantDocumentsZip = uploadApplicantDocumentsZip;
