@@ -2520,8 +2520,9 @@ const importApplicantRecords = async (req, res) => {
     }).filter(Boolean));
 
     const importedIdentityKeys = new Set();
+    const importedOfficialIds = new Set();
     const result = { success: true, received: rows.length, imported: 0, skippedDuplicates: 0,
-      skippedInvalid: 0, failed: 0, errors: [], warnings: [] };
+      skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [], warnings: [] };
 
     for (let index = 0; index < rows.length; index += 1) {
       const source = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
@@ -2633,8 +2634,15 @@ const importApplicantRecords = async (req, res) => {
         }
 
         existingIds.add(String(id).toLowerCase());
+        if (externalOsCaId) importedOfficialIds.add(externalOsCaId.toLowerCase());
         identityKeys.add(identityKey);
         importedIdentityKeys.add(identityKey);
+        result.importedApplicants.push({
+          sourceRow: index + 1,
+          application_id: id,
+          osca_id_number: externalOsCaId || null,
+          legacy_reference: legacyReference
+        });
         result.imported += 1;
       } catch (error) {
         // Best-effort rollback keeps the application and its linked records together.
