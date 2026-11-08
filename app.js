@@ -3690,9 +3690,7 @@ async function updateTableStatus(
 
     const response =
       await fetch(
-        `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(
-          appId
-        )}/status`,
+        `/api/applications/${encodeURIComponent(appId)}/status`,
         {
           method: 'PUT',
 
