@@ -1703,7 +1703,7 @@ async function saveProfile(event) {
   }
 
   if (!username) {
-    showToast('Username is required.', 'error');
+    showToast('Username or email is required.', 'error');
     usernameInput?.focus();
     return;
   }
@@ -2211,7 +2211,7 @@ async function handleLogin(event) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          username,
+          identifier: username,
           password
         })
       }
@@ -2233,7 +2233,7 @@ async function handleLogin(event) {
       showFieldError(
         'login-password',
         result.message ||
-        'Incorrect username or password. Please try again.'
+        'Incorrect username/email or password. Please try again.'
       );
 
       if (passwordEl) {

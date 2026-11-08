@@ -49,21 +49,29 @@ function isStrongPassword(password) {
 
 router.post("/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
+    // Accept either the account username or registered email address.
+    // Keep the legacy "username" request field supported for existing clients.
+    const loginIdentifier = String(
+      req.body.identifier ?? req.body.username ?? ""
+    ).trim();
+    const password = String(req.body.password || "");
 
-    if (!username || !password) {
+    if (!loginIdentifier || !password) {
       return res.status(400).json({
         success: false,
-        message: "Username and password are required.",
+        message: "Username or email and password are required.",
       });
     }
+
+    const isEmailLogin = loginIdentifier.includes("@");
+    const lookupColumn = isEmailLogin ? "email" : "username";
 
     let { data: user, error } = await supabase
       .from("user_accounts")
       .select(
         "id, username, full_name, password_hash, role, email, account_status, approval_status"
       )
-      .eq("username", username.trim())
+      [isEmailLogin ? "ilike" : "ilike"](lookupColumn, loginIdentifier)
       .maybeSingle();
 
     // Compatibility fallback while the approval migration has not yet
@@ -80,7 +88,7 @@ router.post("/login", async (req, res) => {
       const fallback = await supabase
         .from("user_accounts")
         .select("id, username, full_name, password_hash, role, email, account_status")
-        .eq("username", username.trim())
+        .ilike(lookupColumn, loginIdentifier)
         .maybeSingle();
       user = fallback.data;
       error = fallback.error;
@@ -96,17 +104,17 @@ router.post("/login", async (req, res) => {
 
     if (!user) {
       await createAuditLog({
-        username: username.trim(),
+        username: user?.username || loginIdentifier,
         action: "LOGIN_FAILED",
         entityType: "USER",
-        details: "Failed login attempt for unknown username.",
+        details: "Failed login attempt for unknown username or email.",
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
       });
 
       return res.status(401).json({
         success: false,
-        message: "Invalid username or password.",
+        message: "Invalid username/email or password.",
       });
     }
 
