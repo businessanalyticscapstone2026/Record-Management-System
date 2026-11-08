@@ -6134,7 +6134,9 @@ function resetApplicantImportModal() {
   APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, imported: false, busy: false };
   const input = document.getElementById("applicant-import-file");
   if (input) input.value = "";
-  ["applicant-import-file-meta", "applicant-import-mapping", "applicant-import-progress", "applicant-import-result"].forEach(id => {
+  const documentZip = document.getElementById("applicant-document-zip");
+  if (documentZip) documentZip.value = "";
+  ["applicant-import-file-meta", "applicant-import-mapping", "applicant-import-progress", "applicant-import-result", "applicant-document-import", "applicant-document-result"].forEach(id => {
     const element = document.getElementById(id);
     if (element) element.hidden = true;
   });
