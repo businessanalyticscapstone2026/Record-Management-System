@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("https://management-backend-3cij.onrender.com/health", {
+fetch("https://record-management-backend.vercel.app/health", {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -11,19 +11,19 @@ fetch("https://management-backend-3cij.onrender.com/health", {
 // Admin portal logic
 
 const ADMIN_APPLICATIONS_API =
-  'https://management-backend-3cij.onrender.com/api/applications';
+  'https://record-management-backend.vercel.app/api/applications';
 
 const ADMIN_USERS_API =
-  'https://management-backend-3cij.onrender.com/api/auth/users';
+  'https://record-management-backend.vercel.app/api/auth/users';
 
 const ADMIN_AUDIT_API =
-  'https://management-backend-3cij.onrender.com/api/audit-logs';
+  'https://record-management-backend.vercel.app/api/audit-logs';
 
 const ADMIN_HEALTH_API =
-  'https://management-backend-3cij.onrender.com/api/test';
+  'https://record-management-backend.vercel.app/api/test';
 
 const ADMIN_SYSTEM_SETTINGS_API =
-  'https://management-backend-3cij.onrender.com/api/system-settings';
+  'https://record-management-backend.vercel.app/api/system-settings';
 
 let ADMIN_APPLICATIONS = [];
 
@@ -4920,7 +4920,7 @@ function exportAuditReport() {
    MODULE D — LIVE BACKUP & NON-DESTRUCTIVE RECOVERY
    ========================================================= */
 
-const ADMIN_BACKUPS_API = "https://management-backend-3cij.onrender.com/api/backups";
+const ADMIN_BACKUPS_API = "https://record-management-backend.vercel.app/api/backups";
 let backupIsRunning = false;
 let BACKUP_HISTORY = [];
 let backupProgressPoller = null;
