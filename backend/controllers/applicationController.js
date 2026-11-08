@@ -2503,8 +2503,16 @@ const importApplicantRecords = async (req, res) => {
     if (rows.length > 100) return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
 
     const existingRows = await fetchAllRows("applications",
-      "application_id, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
+      "application_id, osca_id_number, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
     const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
+    const currentYear = new Date().getFullYear();
+    const legacyReferencePattern = new RegExp("^LEGACY-" + currentYear + "-(\\d+)$", "i");
+    let nextLegacySequence = (existingRows || []).reduce((max, row) => {
+      const match = String(row.legacy_reference || "").match(legacyReferencePattern);
+      return match ? Math.max(max, Number(match[1]) || 0) : max;
+    }, 0) + 1;
+    const existingLegacyReferences = new Set((existingRows || [])
+      .map(row => String(row.legacy_reference || "").trim().toUpperCase()).filter(Boolean));
     const identityKeys = new Set((existingRows || []).map(row => {
       const first = normalizeText(row.first_name), last = normalizeText(row.surname);
       const dob = normalizeDate(row.date_of_birth), barangay = normalizeText(row.barangay_district);
@@ -2512,8 +2520,9 @@ const importApplicantRecords = async (req, res) => {
     }).filter(Boolean));
 
     const importedIdentityKeys = new Set();
+    const importedOfficialIds = new Set();
     const result = { success: true, received: rows.length, imported: 0, skippedDuplicates: 0,
-      skippedInvalid: 0, failed: 0, errors: [], warnings: [] };
+      skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [], warnings: [] };
 
     for (let index = 0; index < rows.length; index += 1) {
       const source = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
@@ -2530,17 +2539,26 @@ const importApplicantRecords = async (req, res) => {
       }
       const identityKey = [normalizeText(firstName), normalizeText(surname), dateOfBirth, normalizeText(barangay)].join("|");
       const providedId = String(source.application_id || "").trim();
+      const suppliedOsCaId = String(source.osca_id_number || "").trim();
       if ((providedId && existingIds.has(providedId.toLowerCase())) ||
+          (suppliedOsCaId && (existingRows || []).some(row =>
+            String(row.osca_id_number || "").trim().toLowerCase() === suppliedOsCaId.toLowerCase())) ||
           identityKeys.has(identityKey) || importedIdentityKeys.has(identityKey)) {
         result.skippedDuplicates += 1;
         continue;
       }
 
-      // application_id and every related-table FK are varchar(10). Preserve
-      // longer legacy OSCA identifiers in osca_id_number and let the database
-      // generate its canonical 10-character internal application ID.
-      const externalOsCaId = String(source.osca_id_number || (providedId.length > 10 ? providedId : "")).trim();
+      // application_id is the system's internal key. Only the dedicated
+      // osca_id_number source field represents an officially issued OSCA ID.
+      const externalOsCaId = suppliedOsCaId;
       const internalApplicationId = providedId.length > 0 && providedId.length <= 10 ? providedId : null;
+      let legacyReference = null;
+      if (!externalOsCaId) {
+        do {
+          legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
+        } while (existingLegacyReferences.has(legacyReference));
+        existingLegacyReferences.add(legacyReference);
+      }
       const createdAt = safeDateTime(source.registration_date);
       const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
       const applicationRecord = {
@@ -2551,7 +2569,7 @@ const importApplicantRecords = async (req, res) => {
         house_street: source.house_street || null, barangay_district: barangay || null,
         educational_attainment: source.educational_attainment || null, religion: source.religion || null,
         religion_specify: source.religion_specify || null, occupation: source.occupation || null,
-        osca_id_number: externalOsCaId || null, sss_id_number: source.sss_id_number || null,
+        osca_id_number: externalOsCaId || null, legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
         philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
         tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
         membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
@@ -2616,8 +2634,15 @@ const importApplicantRecords = async (req, res) => {
         }
 
         existingIds.add(String(id).toLowerCase());
+        if (externalOsCaId) importedOfficialIds.add(externalOsCaId.toLowerCase());
         identityKeys.add(identityKey);
         importedIdentityKeys.add(identityKey);
+        result.importedApplicants.push({
+          sourceRow: index + 1,
+          application_id: id,
+          osca_id_number: externalOsCaId || null,
+          legacy_reference: legacyReference
+        });
         result.imported += 1;
       } catch (error) {
         // Best-effort rollback keeps the application and its linked records together.
@@ -2656,10 +2681,191 @@ const importApplicantRecords = async (req, res) => {
   }
 };
 
+
+/* ============================================================
+   IMPORT HISTORICAL APPLICANT DOCUMENTS FROM A ZIP ARCHIVE
+   ZIP folder names must be official OSCA IDs or LEGACY references.
+   Files are stored under the internal application_id to preserve
+   the existing private Storage path and cleanup conventions.
+   ============================================================ */
+const importApplicantDocuments = async (req, res) => {
+  const MAX_ARCHIVE_BYTES = 80 * 1024 * 1024;
+  const MAX_EXPANDED_BYTES = 200 * 1024 * 1024;
+  const MAX_ENTRY_BYTES = 15 * 1024 * 1024;
+  const MAX_ENTRIES = 1200;
+  const documentTypes = {
+    valid_id_front: { column: "valid_id_url", label: "Valid ID (front)" },
+    valid_id_back: { column: "valid_id_back_url", label: "Valid ID (back)" },
+    formal_photo: { column: "latest_photo_url", label: "Formal photo" },
+    cedula: { column: "community_tax_certificate_url", label: "Cedula" },
+    birth_certificate: { column: "birth_certificate_url", label: "Birth certificate" },
+    signature: { column: "signature_url", label: "Signature" }
+  };
+  const allowedExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp"]);
+  const mimeTypes = {
+    ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp"
+  };
+  const result = {
+    success: true, foldersFound: 0, matchedApplicants: 0, unmatchedFolders: [],
+    uploaded: 0, alreadyPresent: 0, missingDocuments: [], invalidFiles: [], failed: []
+  };
+
+  try {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(400).json({ success: false, message: "Upload a ZIP archive containing applicant document folders." });
+    }
+    if (req.body.length > MAX_ARCHIVE_BYTES) {
+      return res.status(413).json({ success: false, message: "The ZIP archive exceeds the 80 MB upload limit." });
+    }
+
+    const AdmZip = require("adm-zip");
+    const archive = new AdmZip(req.body);
+    const entries = archive.getEntries();
+    if (!entries.length || entries.length > MAX_ENTRIES) {
+      return res.status(400).json({ success: false, message: "The ZIP archive is empty or contains too many entries." });
+    }
+
+    const applicantFolders = new Map();
+    let expandedBytes = 0;
+    for (const entry of entries) {
+      const rawName = String(entry.entryName || "").replace(/\\/g, "/");
+      const segments = rawName.split("/").filter(Boolean);
+      if (!segments.length || rawName.startsWith("/") ||
+          segments.some(segment => segment === "." || segment === ".." || segment.includes("\\0"))) {
+        result.invalidFiles.push({ file: rawName.slice(0, 160), reason: "Unsafe archive path." });
+        continue;
+      }
+      if (entry.isDirectory) continue;
+      const size = Number(entry.header?.size || 0);
+      expandedBytes += size;
+      if (size > MAX_ENTRY_BYTES || expandedBytes > MAX_EXPANDED_BYTES) {
+        return res.status(413).json({ success: false, message: "The ZIP contains a file or expanded content that exceeds the import limits." });
+      }
+      if (segments.length !== 2) {
+        result.invalidFiles.push({ file: rawName.slice(0, 160), reason: "Place each document directly inside one applicant-reference folder." });
+        continue;
+      }
+      const folder = segments[0].trim();
+      const filename = segments[1];
+      const dot = filename.lastIndexOf(".");
+      const baseName = dot > 0 ? filename.slice(0, dot).toLowerCase() : filename.toLowerCase();
+      const extension = dot > 0 ? filename.slice(dot).toLowerCase() : "";
+      if (!folder || !documentTypes[baseName] || !allowedExtensions.has(extension)) {
+        result.invalidFiles.push({ file: rawName.slice(0, 160), reason: "Use one of the six required document names and a PDF, JPG, PNG, or WEBP file." });
+        continue;
+      }
+      if (!applicantFolders.has(folder)) applicantFolders.set(folder, []);
+      applicantFolders.get(folder).push({ entry, baseName, extension, size, folder });
+    }
+
+    result.foldersFound = applicantFolders.size;
+    if (!applicantFolders.size) {
+      return res.status(400).json({ success: false, message: "No valid applicant document folders were found.", ...result });
+    }
+
+    const { data: applicants, error: applicantError } = await supabase.from("applications")
+      .select("application_id, osca_id_number, legacy_reference");
+    if (applicantError) throw applicantError;
+
+    const referenceMap = new Map();
+    (applicants || []).forEach(applicant => {
+      [applicant.osca_id_number, applicant.legacy_reference].forEach(value => {
+        const key = String(value || "").trim().toLowerCase();
+        if (!key) return;
+        if (!referenceMap.has(key)) referenceMap.set(key, []);
+        referenceMap.get(key).push(applicant);
+      });
+    });
+
+    for (const [folderName, files] of applicantFolders.entries()) {
+      const matches = referenceMap.get(folderName.toLowerCase()) || [];
+      if (matches.length !== 1) {
+        result.unmatchedFolders.push({ folder: folderName, reason: matches.length ? "Reference matches more than one applicant; no files were assigned." : "No applicant has this OSCA ID or legacy reference." });
+        continue;
+      }
+
+      const applicant = matches[0];
+      result.matchedApplicants += 1;
+      const { data: existingFileRows, error: existingFileError } = await supabase.from("application_files")
+        .select("application_id, valid_id_url, valid_id_back_url, latest_photo_url, birth_certificate_url, community_tax_certificate_url, signature_url")
+        .eq("application_id", applicant.application_id).limit(1);
+      if (existingFileError) {
+        result.failed.push({ folder: folderName, reason: existingFileError.message });
+        continue;
+      }
+
+      const currentFiles = existingFileRows?.[0] || { application_id: applicant.application_id };
+      const updates = {};
+      const uploadedPaths = [];
+      const seenTypes = new Set();
+
+      for (const file of files) {
+        if (seenTypes.has(file.baseName)) {
+          result.invalidFiles.push({ file: folderName + "/" + file.entry.entryName.split("/").pop(), reason: "Duplicate document type in the same applicant folder." });
+          continue;
+        }
+        seenTypes.add(file.baseName);
+        const definition = documentTypes[file.baseName];
+        if (currentFiles[definition.column]) {
+          result.alreadyPresent += 1;
+          continue;
+        }
+
+        const objectPath = String(applicant.application_id) + "/" + file.baseName + file.extension;
+        const buffer = file.entry.getData();
+        if (!buffer || buffer.length !== file.size) {
+          result.failed.push({ folder: folderName, document: definition.label, reason: "The ZIP entry could not be read completely." });
+          continue;
+        }
+        const { error: uploadError } = await supabase.storage.from("documents").upload(objectPath, buffer, {
+          contentType: mimeTypes[file.extension], upsert: false
+        });
+        if (uploadError) {
+          result.failed.push({ folder: folderName, document: definition.label, reason: uploadError.message });
+          continue;
+        }
+        uploadedPaths.push(objectPath);
+        updates[definition.column] = objectPath;
+        result.uploaded += 1;
+      }
+
+      const missing = Object.entries(documentTypes)
+        .filter(([key, definition]) => !currentFiles[definition.column] && !updates[definition.column] && !seenTypes.has(key))
+        .map(([, definition]) => definition.label);
+      if (missing.length) result.missingDocuments.push({ folder: folderName, missing });
+
+      if (Object.keys(updates).length) {
+        const saveResult = existingFileRows?.length
+          ? await supabase.from("application_files").update(updates).eq("application_id", applicant.application_id)
+          : await supabase.from("application_files").insert({ application_id: applicant.application_id, ...updates });
+        if (saveResult.error) {
+          await supabase.storage.from("documents").remove(uploadedPaths);
+          result.uploaded -= uploadedPaths.length;
+          result.failed.push({ folder: folderName, reason: "Document metadata could not be saved: " + saveResult.error.message });
+        }
+      }
+    }
+
+    if (result.uploaded > 0) {
+      await createAuditLogFromRequest(req, {
+        action: "LEGACY_APPLICANT_DOCUMENTS_IMPORTED", entityType: "APPLICATION", entityId: null,
+        details: "Uploaded " + result.uploaded + " historical applicant document(s) for " + result.matchedApplicants + " matched folder(s)."
+      });
+    }
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("[Applicant Document Import] Failed:", error);
+    return res.status(500).json({ success: false, message: "The applicant documents could not be imported.",
+      error: String(error?.message || "Unexpected server error.").slice(0, 240) });
+  }
+};
+
 // EXPORT
 module.exports = {
   getApplications,
   importApplicantRecords,
+  importApplicantDocuments,
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,
