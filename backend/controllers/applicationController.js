@@ -2503,8 +2503,16 @@ const importApplicantRecords = async (req, res) => {
     if (rows.length > 100) return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
 
     const existingRows = await fetchAllRows("applications",
-      "application_id, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
+      "application_id, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
     const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
+    const currentYear = new Date().getFullYear();
+    const legacyReferencePattern = new RegExp("^LEGACY-" + currentYear + "-(\\d+)$", "i");
+    let nextLegacySequence = (existingRows || []).reduce((max, row) => {
+      const match = String(row.legacy_reference || "").match(legacyReferencePattern);
+      return match ? Math.max(max, Number(match[1]) || 0) : max;
+    }, 0) + 1;
+    const existingLegacyReferences = new Set((existingRows || [])
+      .map(row => String(row.legacy_reference || "").trim().toUpperCase()).filter(Boolean));
     const identityKeys = new Set((existingRows || []).map(row => {
       const first = normalizeText(row.first_name), last = normalizeText(row.surname);
       const dob = normalizeDate(row.date_of_birth), barangay = normalizeText(row.barangay_district);
@@ -2530,17 +2538,26 @@ const importApplicantRecords = async (req, res) => {
       }
       const identityKey = [normalizeText(firstName), normalizeText(surname), dateOfBirth, normalizeText(barangay)].join("|");
       const providedId = String(source.application_id || "").trim();
+      const suppliedOsCaId = String(source.osca_id_number || "").trim();
       if ((providedId && existingIds.has(providedId.toLowerCase())) ||
+          (suppliedOsCaId && (existingRows || []).some(row =>
+            String(row.osca_id_number || "").trim().toLowerCase() === suppliedOsCaId.toLowerCase())) ||
           identityKeys.has(identityKey) || importedIdentityKeys.has(identityKey)) {
         result.skippedDuplicates += 1;
         continue;
       }
 
-      // application_id and every related-table FK are varchar(10). Preserve
-      // longer legacy OSCA identifiers in osca_id_number and let the database
-      // generate its canonical 10-character internal application ID.
-      const externalOsCaId = String(source.osca_id_number || (providedId.length > 10 ? providedId : "")).trim();
+      // application_id is the system's internal key. Only the dedicated
+      // osca_id_number source field represents an officially issued OSCA ID.
+      const externalOsCaId = suppliedOsCaId;
       const internalApplicationId = providedId.length > 0 && providedId.length <= 10 ? providedId : null;
+      let legacyReference = null;
+      if (!externalOsCaId) {
+        do {
+          legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
+        } while (existingLegacyReferences.has(legacyReference));
+        existingLegacyReferences.add(legacyReference);
+      }
       const createdAt = safeDateTime(source.registration_date);
       const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
       const applicationRecord = {
@@ -2551,7 +2568,7 @@ const importApplicantRecords = async (req, res) => {
         house_street: source.house_street || null, barangay_district: barangay || null,
         educational_attainment: source.educational_attainment || null, religion: source.religion || null,
         religion_specify: source.religion_specify || null, occupation: source.occupation || null,
-        osca_id_number: externalOsCaId || null, sss_id_number: source.sss_id_number || null,
+        osca_id_number: externalOsCaId || null, legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
         philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
         tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
         membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
