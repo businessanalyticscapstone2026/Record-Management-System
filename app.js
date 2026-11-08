@@ -3690,7 +3690,7 @@ async function updateTableStatus(
 
     const response =
       await fetch(
-        `/api/applications/${encodeURIComponent(appId)}/status`,
+        `https://record-management-backend.vercel.app/api/applications/${encodeURIComponent(appId)}/status`,
         {
           method: 'PUT',
 
@@ -7670,7 +7670,7 @@ async function refreshIdMakerQueueApplicationIds() {
 
   ID_MAKER_QUEUE_APPLICATION_IDS_PROMISE = (async () => {
     const response = await fetch(
-      '/api/id-maker-queue/application-ids',
+      'https://record-management-backend.vercel.app/api/id-maker-queue/application-ids',
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
     const result = await response.json().catch(() => ({}));
