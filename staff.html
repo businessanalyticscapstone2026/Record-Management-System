@@ -2466,6 +2466,20 @@
           <div class="applicant-import-progress-label" id="applicant-import-progress-label">Preparing import…</div>
         </div>
         <div class="applicant-import-result" id="applicant-import-result" hidden></div>
+        <section class="applicant-import-document-panel" id="applicant-document-import" hidden>
+          <div class="applicant-import-section-heading">
+            <div><h3>Import applicant documents</h3><p>Choose a ZIP archive with one folder per applicant. Name each folder using the applicant's official OSCA ID or generated LEGACY reference.</p></div>
+          </div>
+          <p class="applicant-import-document-help">Inside each folder, use: valid_id_front, valid_id_back, formal_photo, cedula, birth_certificate, and signature. Add the appropriate file extension (.pdf, .jpg, .jpeg, .png, or .webp). Missing documents can be uploaded later.</p>
+          <label class="applicant-import-dropzone" for="applicant-document-zip">
+            <span class="applicant-import-file-icon">↑</span>
+            <strong>Choose applicant documents ZIP</strong>
+            <span>Maximum 80 MB</span>
+            <input id="applicant-document-zip" type="file" accept=".zip,application/zip,application/x-zip-compressed" />
+          </label>
+          <button class="btn btn--primary" type="button" id="applicant-document-upload" onclick="uploadApplicantDocumentsZip()">Upload documents</button>
+          <div class="applicant-import-result" id="applicant-document-result" hidden></div>
+        </section>
       </div>
       <footer class="applicant-import-footer">
         <button class="btn btn--ghost" type="button" onclick="closeApplicantImportModal()">Close</button>
