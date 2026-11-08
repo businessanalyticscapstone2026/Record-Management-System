@@ -88,7 +88,7 @@ router.post("/login", async (req, res) => {
       const fallback = await supabase
         .from("user_accounts")
         .select("id, username, full_name, password_hash, role, email, account_status")
-        .eq("username", username.trim())
+        .ilike(lookupColumn, loginIdentifier)
         .maybeSingle();
       user = fallback.data;
       error = fallback.error;
@@ -114,7 +114,7 @@ router.post("/login", async (req, res) => {
 
       return res.status(401).json({
         success: false,
-        message: "Invalid username or password.",
+        message: "Invalid username/email or password.",
       });
     }
 
