@@ -6210,6 +6210,72 @@ async function handleApplicantImportFile(file) {
   }
 }
 
+
+async function uploadApplicantDocumentsZip() {
+  const input = document.getElementById("applicant-document-zip");
+  const button = document.getElementById("applicant-document-upload");
+  const result = document.getElementById("applicant-document-result");
+  const file = input?.files?.[0];
+  if (!file) {
+    if (result) { result.hidden = false; result.textContent = "Choose a ZIP file first."; }
+    return;
+  }
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    if (result) { result.hidden = false; result.textContent = "Please choose a ZIP archive."; }
+    return;
+  }
+  if (file.size > 80 * 1024 * 1024) {
+    if (result) { result.hidden = false; result.textContent = "The ZIP archive exceeds the 80 MB limit. Split it into smaller archives."; }
+    return;
+  }
+  if (button) { button.disabled = true; button.textContent = "Uploading…"; }
+  if (result) { result.hidden = false; result.textContent = "Uploading and matching document folders…"; }
+  try {
+    const headers = { ...getAuthHeaders(), "Content-Type": "application/zip" };
+    const response = await fetch(
+      "https://management-backend-3cij.onrender.com/api/applications/import/documents",
+      { method: "POST", headers, body: file }
+    );
+    const payload = await response.json();
+    if (!response.ok || !payload.success) throw new Error(payload.message || "The document import was rejected.");
+    const lines = [
+      "<strong>Document import finished</strong>",
+      "<div class='applicant-import-result-grid'>" +
+        "<span><b>" + Number(payload.uploaded || 0) + "</b> Uploaded</span>" +
+        "<span><b>" + Number(payload.alreadyPresent || 0) + "</b> Already on file</span>" +
+        "<span><b>" + Number(payload.matchedApplicants || 0) + "</b> Matched folders</span>" +
+        "<span><b>" + Number((payload.unmatchedFolders || []).length) + "</b> Unmatched folders</span></div>"
+    ];
+    if ((payload.missingDocuments || []).length) {
+      lines.push("<details open><summary>Missing documents (" + payload.missingDocuments.length + " folders)</summary><ul>" +
+        payload.missingDocuments.map(item => "<li><strong>" + escapeApplicantImportHtml(item.folder) + "</strong>: " +
+          item.missing.map(escapeApplicantImportHtml).join(", ") + "</li>").join("") + "</ul></details>");
+    }
+    if ((payload.unmatchedFolders || []).length) {
+      lines.push("<details open><summary>Unmatched folders</summary><ul>" +
+        payload.unmatchedFolders.map(item => "<li><strong>" + escapeApplicantImportHtml(item.folder) + "</strong>: " +
+          escapeApplicantImportHtml(item.reason) + "</li>").join("") + "</ul></details>");
+    }
+    if ((payload.invalidFiles || []).length) {
+      lines.push("<details><summary>Invalid files (" + payload.invalidFiles.length + ")</summary><ul>" +
+        payload.invalidFiles.map(item => "<li>" + escapeApplicantImportHtml(item.file) + ": " +
+          escapeApplicantImportHtml(item.reason) + "</li>").join("") + "</ul></details>");
+    }
+    if ((payload.failed || []).length) {
+      lines.push("<details open><summary>Upload errors (" + payload.failed.length + ")</summary><ul>" +
+        payload.failed.map(item => "<li>" + escapeApplicantImportHtml(item.folder) + " / " +
+          escapeApplicantImportHtml(item.document || "") + ": " + escapeApplicantImportHtml(item.reason) + "</li>").join("") + "</ul></details>");
+    }
+    result.innerHTML = lines.join("");
+    if (typeof loadApplicationsFromDatabase === "function") await loadApplicationsFromDatabase();
+    if (typeof showToast === "function") showToast("Applicant document import completed.", "success");
+  } catch (error) {
+    if (result) result.textContent = error.message || "Unable to upload applicant documents.";
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Upload documents"; }
+  }
+}
+
 async function submitApplicantImport() {
   if (APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping()) return;
   const submit = document.getElementById("applicant-import-submit");
@@ -6249,7 +6315,7 @@ async function submitApplicantImport() {
   if (resultPanel) resultPanel.hidden = true;
   setApplicantImportError("");
 
-  const totals = { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, failed: 0, errors: [] };
+  const totals = { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [] };
   const batchSize = 100;
   const totalBatches = Math.ceil(mappedRows.length / batchSize);
   try {
@@ -6272,6 +6338,7 @@ async function submitApplicantImport() {
       totals.skippedDuplicates += Number(payload.skippedDuplicates || 0);
       totals.skippedInvalid += Number(payload.skippedInvalid || 0);
       totals.failed += Number(payload.failed || 0);
+      totals.importedApplicants.push(...(Array.isArray(payload.importedApplicants) ? payload.importedApplicants : []));
       (payload.errors || []).forEach(error => {
         if (totals.errors.length < 30) totals.errors.push({ row: Number(error.row || 0) + start, reason: error.reason });
       });
@@ -6294,12 +6361,17 @@ async function submitApplicantImport() {
         "<span><b>" + totals.skippedDuplicates.toLocaleString() + "</b> Duplicates skipped</span>" +
         "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
         "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") + "</p>" +
+        (totals.importedApplicants.length ? "<details class='applicant-import-reference-list'><summary>View generated applicant references (" + totals.importedApplicants.length + ")</summary><ul>" +
+          totals.importedApplicants.map(item => "<li>Source row " + Number(item.sourceRow || 0) + ": <strong>" + escapeApplicantImportHtml(item.osca_id_number || item.legacy_reference || item.application_id) + "</strong></li>").join("") +
+          "</ul></details>" : "") +
         (totals.errors.length ? "<details><summary>View row issues (" + totals.errors.length + ")</summary><ul>" +
           totals.errors.map(error => "<li>Source row " + (error.row + 1) + ": " + escapeApplicantImportHtml(error.reason) + "</li>").join("") +
           "</ul></details>" : "");
     }
 
     APPLICANT_IMPORT_STATE.imported = true;
+    const documentImportPanel = document.getElementById("applicant-document-import");
+    if (documentImportPanel && totals.imported > 0) documentImportPanel.hidden = false;
     if (submit) { submit.textContent = totals.imported === 0 && (totals.failed + totals.skippedInvalid) > 0 ? "Import failed" : (totals.failed + totals.skippedInvalid) > 0 ? "Import partially complete" : "Import complete"; submit.disabled = true; }
     if (typeof loadApplicationsFromDatabase === "function") {
       try {
