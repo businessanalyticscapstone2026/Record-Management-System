@@ -2204,7 +2204,7 @@ async function handleLogin(event) {
   try {
     // Send login request to backend
     const response = await fetch(
-      'https://management-backend-3cij.onrender.com/api/auth/login',
+      '/api/auth/login',
       {
         method: 'POST',
         headers: {
