@@ -7670,7 +7670,7 @@ async function refreshIdMakerQueueApplicationIds() {
 
   ID_MAKER_QUEUE_APPLICATION_IDS_PROMISE = (async () => {
     const response = await fetch(
-      'https://management-backend-3cij.onrender.com/api/id-maker-queue/application-ids',
+      '/api/id-maker-queue/application-ids',
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
     const result = await response.json().catch(() => ({}));
