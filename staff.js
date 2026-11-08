@@ -6448,7 +6448,35 @@ function initializeApplicantImport() {
       // Accept the drop anywhere within the visible import modal. Browser
       // drag events can retarget nested label/text elements outside the
       // dropzone's DOM subtree even when the pointer is visually over it.
-      handleApplicantImportFile(files[0]);
+      const droppedFile = files[0];
+      const isZip = /\.zip$/i.test(droppedFile.name || "");
+      if (isZip) {
+        const documentPanel = document.getElementById("applicant-document-import");
+        const zipInput = document.getElementById("applicant-document-zip");
+        if (!documentPanel || documentPanel.hidden || !APPLICANT_IMPORT_STATE.imported) {
+          setApplicantImportError("Import the applicant records first. The ZIP upload section will appear after the records are imported.");
+          return;
+        }
+        if (zipInput) {
+          try {
+            const transfer = new DataTransfer();
+            transfer.items.add(droppedFile);
+            zipInput.files = transfer.files;
+            const result = document.getElementById("applicant-document-result");
+            if (result) { result.hidden = false; result.textContent = "ZIP selected: " + droppedFile.name; }
+            uploadApplicantDocumentsZip();
+          } catch (error) {
+            setApplicantImportError("The ZIP was detected, but the browser could not attach it to the document uploader. Use the Choose applicant documents ZIP area instead.");
+          }
+        }
+        return;
+      }
+      if (target.id === "applicant-document-import") {
+        setApplicantImportError("This section accepts ZIP files only. Use the first upload area for CSV or PDF applicant records.");
+        return;
+      }
+      // CSV and PDF files belong to the applicant-record import step.
+      handleApplicantImportFile(droppedFile);
     });
   };
 
