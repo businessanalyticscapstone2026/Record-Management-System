@@ -2503,7 +2503,7 @@ const importApplicantRecords = async (req, res) => {
     if (rows.length > 100) return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
 
     const existingRows = await fetchAllRows("applications",
-      "application_id, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
+      "application_id, osca_id_number, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
     const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
     const currentYear = new Date().getFullYear();
     const legacyReferencePattern = new RegExp("^LEGACY-" + currentYear + "-(\\d+)$", "i");
