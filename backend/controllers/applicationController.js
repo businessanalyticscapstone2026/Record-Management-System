@@ -1,20 +1,6 @@
 const supabase = require("../config/supabase");
 const { createAuditLogFromRequest } = require("./auditLogController");
 
-const {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  ImageRun,
-  Table,
-  TableRow,
-  TableCell,
-  WidthType,
-  AlignmentType,
-  BorderStyle,
-} = require("docx");
-
 const normalizeStorageObjectPath = (value) => {
   let path = String(value || "").trim();
   if (!path) return null;
@@ -115,6 +101,13 @@ const createSignedFileUrl = async (filePath) => {
 
 const downloadIssuanceDocument = async (req, res) => {
   try {
+    // DOCX generation is used only for issuance downloads. Load the
+    // relatively heavy document library on demand, not during API startup.
+    const {
+      Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow,
+      TableCell, WidthType, AlignmentType, BorderStyle,
+    } = require("docx");
+
     const applicationId = req.params.applicationId;
 
     if (!applicationId) {
