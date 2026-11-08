@@ -6449,7 +6449,7 @@ function initializeApplicantImport() {
       // drag events can retarget nested label/text elements outside the
       // dropzone's DOM subtree even when the pointer is visually over it.
       const droppedFile = files[0];
-      const isZip = /\\.zip$/i.test(droppedFile.name || "");
+      const isZip = /\.zip$/i.test(droppedFile.name || "");
       if (isZip) {
         const documentPanel = document.getElementById("applicant-document-import");
         const zipInput = document.getElementById("applicant-document-zip");
