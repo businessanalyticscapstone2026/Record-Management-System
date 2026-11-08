@@ -5485,7 +5485,7 @@ window.submitReplacementDecision = submitReplacementDecision;
    ============================================================ */
 const APPLICANT_IMPORT_FIELDS = [
   { key: "", label: "Do not import this column", aliases: [] },
-  { key: "application_id", label: "Existing Application / OSCA ID", aliases: ["application id", "application no", "application number", "osca id", "osca id number", "senior citizen id", "senior id", "id number", "id no", "registry number", "registry no", "control number"] },
+  { key: "application_id", label: "Internal Application ID (only if already assigned)", aliases: ["internal application id", "system application id", "record application id"] },
   { key: "first_name", label: "First name", aliases: ["first name", "firstname", "given name", "given names", "first", "pangalan"] },
   { key: "middle_name", label: "Middle name", aliases: ["middle name", "middlename", "middle initial", "middle", "second name"] },
   { key: "surname", label: "Surname / Last name", aliases: ["surname", "last name", "lastname", "family name", "family", "apelyido"] },
@@ -5509,7 +5509,7 @@ APPLICANT_IMPORT_FIELDS.push(
   { key: "religion", label: "Religion", aliases: ["religion", "religious affiliation"] },
   { key: "religion_specify", label: "Religion (specify)", aliases: ["religion specify", "other religion"] },
   { key: "occupation", label: "Occupation", aliases: ["occupation", "previous occupation", "work"] },
-  { key: "osca_id_number", label: "OSCA ID number", aliases: ["osca id number", "osca number"] },
+  { key: "osca_id_number", label: "Official OSCA ID number", aliases: ["osca id", "osca id number", "osca number", "senior citizen id", "senior id", "id number", "id no", "registry number", "registry no", "control number"] },
   { key: "sss_id_number", label: "SSS ID number", aliases: ["sss id", "sss number"] },
   { key: "philhealth_id_number", label: "PhilHealth ID number", aliases: ["philhealth id", "philhealth number"] },
   { key: "gsis_id_number", label: "GSIS ID number", aliases: ["gsis id", "gsis number"] },
