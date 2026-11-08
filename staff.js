@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("https://management-backend-3cij.onrender.com/health", {
+fetch("/health", {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -3199,7 +3199,7 @@ async function loadApplicationsFromDatabase() {
 
     const response =
       await fetch(
-        "https://management-backend-3cij.onrender.com/api/applications",
+        "/api/applications",
         {
           method: "GET",
 
@@ -3424,7 +3424,7 @@ async function loadApplicationsFromDatabase() {
 
     console.error(
       "Make sure the backend is running at:",
-      "https://management-backend-3cij.onrender.com"
+      ""
     );
 
 
@@ -3476,7 +3476,7 @@ async function loadApplicationDetails(
 
     const response =
       await fetch(
-        `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(
+        `/api/applications/${encodeURIComponent(
           applicationId
         )}`,
         { headers: getAuthHeaders() }
@@ -4119,7 +4119,7 @@ async function updateMembershipStatus(applicationId, newStatus, selectEl) {
 
   try {
     const response = await fetch(
-      `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(applicationId)}/membership-status`,
+      `/api/applications/${encodeURIComponent(applicationId)}/membership-status`,
       {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -4422,7 +4422,7 @@ async function approveSelectedApplications() {
 
   const results = await Promise.allSettled(selected.map(async app => {
     const id = app.application_id || app.id;
-    const response = await fetch(`https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(id)}/status`, {
+    const response = await fetch(`/api/applications/${encodeURIComponent(id)}/status`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ status: 'Ready for Release' })
@@ -4775,7 +4775,7 @@ function updateApplicationSummaryCards(applications) {
 
 
 const REPLACEMENTS_API =
-  'https://management-backend-3cij.onrender.com/api/replacements';
+  '/api/replacements';
 
 let replacementRequests = [];
 
@@ -4804,7 +4804,7 @@ function formatReplacementDate(value) {
 
 
 // MULTI-PROVIDER STAFF ANALYTICS INSIGHTS - BEGIN
-const STAFF_ANALYTICS_INSIGHTS_API = "https://management-backend-3cij.onrender.com/api/analytics-insights";
+const STAFF_ANALYTICS_INSIGHTS_API = "/api/analytics-insights";
 let staffAnalyticsInsightRequest = 0;
 let staffInsightsApplicationsReady = false;
 let staffInsightsReplacementsReady = false;
@@ -6235,7 +6235,7 @@ async function uploadApplicantDocumentsZip() {
   try {
     const headers = { ...getAuthHeaders(), "Content-Type": "application/zip" };
     const response = await fetch(
-      "https://management-backend-3cij.onrender.com/api/applications/import/documents",
+      "/api/applications/import/documents",
       { method: "POST", headers, body: file }
     );
     const payload = await response.json();
@@ -6330,7 +6330,7 @@ async function submitApplicantImport() {
         return clean;
       });
       const response = await fetch(
-        "https://management-backend-3cij.onrender.com/api/applications/import",
+        "/api/applications/import",
         { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ rows: batch }) }
       );
       const payload = await response.json();
