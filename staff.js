@@ -6408,6 +6408,26 @@ function initializeApplicantImport() {
     });
   }
 
+  const documentZipInput = document.getElementById("applicant-document-zip");
+  if (documentZipInput && !documentZipInput.dataset.documentImportBound) {
+    documentZipInput.dataset.documentImportBound = "true";
+    documentZipInput.addEventListener("change", event => {
+      const file = event.target.files && event.target.files[0];
+      const result = document.getElementById("applicant-document-result");
+      if (!file) return;
+      if (result) {
+        result.hidden = false;
+        result.textContent = file.name + " selected. Click Upload documents to continue.";
+      }
+    });
+  }
+
+  const documentUploadButton = document.getElementById("applicant-document-upload");
+  if (documentUploadButton && !documentUploadButton.dataset.documentImportBound) {
+    documentUploadButton.dataset.documentImportBound = "true";
+    documentUploadButton.addEventListener("click", uploadApplicantDocumentsZip);
+  }
+
   const dateFormat = document.getElementById("applicant-import-date-format");
   if (dateFormat && !dateFormat.dataset.importBound) {
     dateFormat.dataset.importBound = "true";
@@ -6496,4 +6516,4 @@ function initializeApplicantImport() {
 document.addEventListener("DOMContentLoaded", initializeApplicantImport);
 window.openApplicantImportModal = openApplicantImportModal;
 window.closeApplicantImportModal = closeApplicantImportModal;
-window.submitApplicantImport = submitApplicantImport;
+window.submitApplicantImport = submitApplicantImport;\nwindow.uploadApplicantDocumentsZip = uploadApplicantDocumentsZip;
