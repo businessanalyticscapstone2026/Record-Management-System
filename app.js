@@ -2204,7 +2204,7 @@ async function handleLogin(event) {
   try {
     // Send login request to backend
     const response = await fetch(
-      '/api/auth/login',
+      `${AUTH_API_BASE}/login`,
       {
         method: 'POST',
         headers: {
