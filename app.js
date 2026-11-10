@@ -1034,7 +1034,12 @@ function initMultiSelectDropdowns() {
       }
     });
   });
-  window.addEventListener('scroll', () => {
+  window.addEventListener('scroll', event => {
+    // Scrolling the options list itself must remain possible. Only close the
+    // dropdown when the page or another scrollable container moves.
+    if (event.target instanceof Element && event.target.closest('.multi-select-dropdown__menu')) {
+      return;
+    }
     document.querySelectorAll('.multi-select-dropdown__menu:not([hidden])').forEach(menu => {
       menu.hidden = true;
       if (menu._multiSelectTrigger) menu._multiSelectTrigger.setAttribute('aria-expanded', 'false');
@@ -2204,7 +2209,7 @@ async function handleLogin(event) {
   try {
     // Send login request to backend
     const response = await fetch(
-      '/api/auth/login',
+      `${AUTH_API_BASE}/login`,
       {
         method: 'POST',
         headers: {
@@ -3690,7 +3695,7 @@ async function updateTableStatus(
 
     const response =
       await fetch(
-        `/api/applications/${encodeURIComponent(appId)}/status`,
+        `https://record-management-backend.vercel.app/api/applications/${encodeURIComponent(appId)}/status`,
         {
           method: 'PUT',
 
@@ -7670,7 +7675,7 @@ async function refreshIdMakerQueueApplicationIds() {
 
   ID_MAKER_QUEUE_APPLICATION_IDS_PROMISE = (async () => {
     const response = await fetch(
-      '/api/id-maker-queue/application-ids',
+      'https://record-management-backend.vercel.app/api/id-maker-queue/application-ids',
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
     const result = await response.json().catch(() => ({}));

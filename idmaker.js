@@ -1646,6 +1646,60 @@ function analyticsSetCardState(id, message, visible) {
   element.style.display = visible ? 'flex' : 'none';
 }
 
+function renderIdMakerStatusTooltip(context, stats) {
+  const { chart, tooltip } = context;
+  const canvas = chart.canvas;
+  const wrapper = canvas?.closest('.chart-wrap');
+  if (!wrapper) return;
+
+  let element = wrapper.querySelector('.idmaker-status-tooltip');
+  if (!element) {
+    element = document.createElement('div');
+    element.className = 'idmaker-status-tooltip';
+    element.setAttribute('role', 'status');
+    element.setAttribute('aria-hidden', 'true');
+    wrapper.appendChild(element);
+  }
+
+  if (!tooltip || tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
+    element.style.opacity = '0';
+    element.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  const point = tooltip.dataPoints[0];
+  const label = String(point.label || 'Queue status');
+  const count = Number(point.parsed) || 0;
+  const percentage = label === 'Unrecognized'
+    ? stats.unknownStatusPercent
+    : (stats.percentages[label] ?? 0);
+
+  const heading = document.createElement('strong');
+  heading.className = 'idmaker-status-tooltip__title';
+  heading.textContent = label;
+  const detail = document.createElement('span');
+  detail.className = 'idmaker-status-tooltip__detail';
+  detail.textContent = count.toLocaleString() + ' (' + percentage + '% of total applications)';
+  element.replaceChildren(heading, detail);
+  element.setAttribute('aria-hidden', 'false');
+
+  // Keep the tooltip fully inside the chart card and above the center label.
+  element.style.opacity = '0';
+  const chartX = Number(tooltip.caretX) || 0;
+  const chartY = Number(tooltip.caretY) || 0;
+  const left = Math.max(8, Math.min(
+    chartX - element.offsetWidth / 2,
+    wrapper.clientWidth - element.offsetWidth - 8
+  ));
+  const above = chartY - element.offsetHeight - 12;
+  const top = above >= 8
+    ? above
+    : Math.min(chartY + 12, wrapper.clientHeight - element.offsetHeight - 8);
+  element.style.left = left + 'px';
+  element.style.top = Math.max(8, top) + 'px';
+  element.style.opacity = '1';
+}
+
 function initIdMakerStatusChart() {
   const ctx = mkCanvas('chart-idmaker-status');
   const stats = ID_MAKER_ANALYTICS_STATS;
@@ -1712,10 +1766,8 @@ function initIdMakerStatusChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          ...TIP,
-          callbacks: {
-            label: context => ` ${context.label}: ${context.parsed} (${context.label === 'Unrecognized' ? stats.unknownStatusPercent : stats.percentages[context.label]}% of total applications)`,
-          },
+          enabled: false,
+          external: context => renderIdMakerStatusTooltip(context, stats),
         },
       },
     },
