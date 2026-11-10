@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("/health", {
+fetch("https://www.osca-management.techsite.live/health", {
   method: "GET",
   mode: "cors",
   cache: "no-store",

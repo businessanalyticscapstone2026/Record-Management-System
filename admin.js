@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("https://record-management-backend.vercel.app/health", {
+fetch("https://www.osca-management.techsite.live/health", {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -11,19 +11,19 @@ fetch("https://record-management-backend.vercel.app/health", {
 // Admin portal logic
 
 const ADMIN_APPLICATIONS_API =
-  'https://record-management-backend.vercel.app/api/applications';
+  'https://www.osca-management.techsite.live/api/applications';
 
 const ADMIN_USERS_API =
-  'https://record-management-backend.vercel.app/api/auth/users';
+  'https://www.osca-management.techsite.live/api/auth/users';
 
 const ADMIN_AUDIT_API =
-  'https://record-management-backend.vercel.app/api/audit-logs';
+  'https://www.osca-management.techsite.live/api/audit-logs';
 
 const ADMIN_HEALTH_API =
-  'https://record-management-backend.vercel.app/api/test';
+  'https://www.osca-management.techsite.live/api/test';
 
 const ADMIN_SYSTEM_SETTINGS_API =
-  'https://record-management-backend.vercel.app/api/system-settings';
+  'https://www.osca-management.techsite.live/api/system-settings';
 
 let ADMIN_APPLICATIONS = [];
 
@@ -4920,7 +4920,7 @@ function exportAuditReport() {
    MODULE D — LIVE BACKUP & NON-DESTRUCTIVE RECOVERY
    ========================================================= */
 
-const ADMIN_BACKUPS_API = "https://record-management-backend.vercel.app/api/backups";
+const ADMIN_BACKUPS_API = "https://www.osca-management.techsite.live/api/backups";
 let backupIsRunning = false;
 let BACKUP_HISTORY = [];
 let backupProgressPoller = null;
