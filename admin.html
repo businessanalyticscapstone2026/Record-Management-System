@@ -543,23 +543,24 @@
               <path d="M11 11l3 3" />
             </svg><input type="search" id="audit-search" placeholder="Search events, users, or actions…"
               oninput="filterAuditLogs()" /></label>
-          <select class="filter-select" multiple size="4" title="Select multiple values. Hold Ctrl while clicking to select more than one." id="audit-user-filter" onchange="filterAuditLogs()">
-            <option value="">All Users</option>
-          </select>
-          <select class="filter-select" multiple size="4" title="Select multiple values. Hold Ctrl while clicking to select more than one." id="audit-action-filter" onchange="filterAuditLogs()">
-            <option value="">All Actions</option>
-            <option value="approve">Approvals</option>
-            <option value="reject">Rejections</option>
-            <option value="status">Application Status Updates</option>
-            <option value="documents">Document Verification</option>
-            <option value="validation">Eligibility Validation</option>
-            <option value="issuance">ID Issuance & Queue</option>
-            <option value="replacement">Replacement Requests</option>
-            <option value="export">Exports</option>
-            <option value="login">Authentication (login, logout, failed attempts)</option>
-            <option value="backup">Backups & Restore</option>
-            <option value="user">User Management</option>
-          </select>
+          <div class="audit-multiselect" data-audit-multiselect="audit-user-filter">
+            <button type="button" class="audit-multiselect__trigger" id="audit-user-filter-trigger"
+              aria-haspopup="true" aria-expanded="false" onclick="toggleAuditMultiSelect('audit-user-filter', event)">
+              <span>All Users</span><span class="audit-multiselect__chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="audit-multiselect__panel" id="audit-user-filter-panel" hidden>
+              <div class="audit-multiselect__options" id="audit-user-filter-options" role="group" aria-label="Filter by users"></div>
+            </div>
+          </div>
+          <div class="audit-multiselect" data-audit-multiselect="audit-action-filter">
+            <button type="button" class="audit-multiselect__trigger" id="audit-action-filter-trigger"
+              aria-haspopup="true" aria-expanded="false" onclick="toggleAuditMultiSelect('audit-action-filter', event)">
+              <span>All Actions</span><span class="audit-multiselect__chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="audit-multiselect__panel" id="audit-action-filter-panel" hidden>
+              <div class="audit-multiselect__options" id="audit-action-filter-options" role="group" aria-label="Filter by actions"></div>
+            </div>
+          </div>
           <details class="audit-date-range" id="audit-date-range">
             <summary aria-label="Choose audit log date range">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">

@@ -852,8 +852,9 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
     }
     barangayCounts.set(barangay, (barangayCounts.get(barangay) || 0) + 1);
   });
+  const knownBarangayTotal = total - missingBarangay;
   const barangayRanking = [...barangayCounts.entries()]
-    .map(([name, count]) => ({ name, count, percent: safePercent(count, total) }))
+    .map(([name, count]) => ({ name, count, percent: safePercent(count, knownBarangayTotal) }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, 10);
   const topThreeBarangays = barangayRanking.slice(0, 3);
@@ -939,8 +940,8 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
   const productionState = total && unknownStatuses === 0
     ? (stageCounts.Queued / total > ID_MAKER_ANALYTICS_CONFIG.productionElevatedQueuedShare ? 'Elevated' : 'Normal')
     : null;
-  const barangayState = total && missingBarangay === 0
-    ? (barangayRanking[0]?.count / total > ID_MAKER_ANALYTICS_CONFIG.barangayElevatedTopShare ? 'Elevated' : 'Normal')
+  const barangayState = knownBarangayTotal > 0
+    ? (barangayRanking[0]?.count / knownBarangayTotal > ID_MAKER_ANALYTICS_CONFIG.barangayElevatedTopShare ? 'Elevated' : 'Normal')
     : null;
   const monthlyState = completedWithoutTimestamp > 0 || completedTotal === 0
     ? null
@@ -951,11 +952,11 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
   const productionFallback = `${productionExpectedLead} ${stageCounts['In Production']} are in production, ${stageCounts.Printed} printed, ${stageCounts['In Transit']} in transit, and ${stageCounts.Completed} completed.`;
   const top = topThreeBarangays[0];
   const barangayExpectedLead = top
-    ? `**${top.name} has the highest workload with ${top.count} applications (${top.percent}% of total applications).**`
+    ? `**${top.name} has the highest workload with ${top.count} applications (${top.percent}% of records with barangay data).**`
     : null;
   const barangayFollow = topThreeBarangays.slice(1).map(item => `${item.name} (${item.count})`).join(' and ');
   const barangayFallback = top
-    ? `${barangayExpectedLead}${barangayFollow ? ` It is followed by ${barangayFollow}.` : ''} The top three barangays account for ${safePercent(topThreeCount, total)}% of total applications.`
+    ? `${barangayExpectedLead}${barangayFollow ? ` It is followed by ${barangayFollow}.` : ''} The top three barangays account for ${safePercent(topThreeCount, knownBarangayTotal)}% of records with barangay data.${missingBarangay ? ` ${missingBarangay} of ${total} queue records have no barangay recorded and are omitted from this chart.` : ''}`
     : 'No data available for this period.';
   const agingExpectedLead = `**${ageBuckets.over48} of ${active} active applications (${agingPercentages.over48}%) have waited over ${ID_MAKER_ANALYTICS_CONFIG.within48Hours} hours.**`;
   const agingFallback = `${agingExpectedLead} ${ageBuckets.from24To48} (${agingPercentages.from24To48}%) have waited 24 to 48 hours and ${ageBuckets.within24} (${agingPercentages.within24}%) within 24 hours.${oldestEntry ? ` The oldest record has waited ${formatAge(oldestEntry.hours)}.` : ''}`;
@@ -975,6 +976,7 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
     topThreeBarangays,
     topThreeCount,
     missingBarangay,
+    knownBarangayTotal,
     ageBuckets,
     agingPercentages,
     ageEntries,
@@ -1010,11 +1012,13 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
         fallback: productionFallback,
       },
       barangay: {
-        hasData: total > 0 && missingBarangay === 0 && topThreeBarangays.length > 0,
+        hasData: knownBarangayTotal > 0 && topThreeBarangays.length > 0,
         previousPeriodComparison: null,
         total,
+        knownBarangayTotal,
+        missingBarangay,
         ranking: topThreeBarangays.map(item => ({ barangay: item.name, count: item.count, percent: item.percent })),
-        topThreePercent: safePercent(topThreeCount, total),
+        topThreePercent: safePercent(topThreeCount, knownBarangayTotal),
         elevatedThresholdPercent: ID_MAKER_ANALYTICS_CONFIG.barangayElevatedTopShare * 100,
         statusLabel: barangayState,
         expectedLead: barangayExpectedLead,
@@ -1702,14 +1706,64 @@ function initIdMakerStatusChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          ...TIP,
-          callbacks: {
-            label: context => ` ${context.label}: ${context.parsed} (${context.label === 'Unrecognized' ? stats.unknownStatusPercent : stats.percentages[context.label]}% of total applications)`,
-          },
+          enabled: false,
+          external: renderIdMakerProductionTooltip,
         },
       },
     },
   });
+}
+
+function renderIdMakerProductionTooltip({ chart, tooltip }) {
+  let element = document.getElementById('idmaker-production-tooltip');
+  if (!element) {
+    element = document.createElement('div');
+    element.id = 'idmaker-production-tooltip';
+    element.className = 'idmaker-production-tooltip';
+    element.setAttribute('role', 'tooltip');
+    document.body.appendChild(element);
+  }
+
+  if (!tooltip || tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
+    element.classList.remove('is-visible');
+    return;
+  }
+
+  const point = tooltip.dataPoints[0];
+  const count = Number(point.raw || 0);
+  const percentage = ID_MAKER_ANALYTICS_STATS?.total
+    ? (count / ID_MAKER_ANALYTICS_STATS.total) * 100
+    : 0;
+  element.replaceChildren();
+
+  const title = document.createElement('strong');
+  title.textContent = point.label || 'Queue status';
+  const detail = document.createElement('span');
+  detail.textContent = `${count.toLocaleString()} applications · ${percentage.toFixed(1)}% of total`;
+  element.append(title, detail);
+  element.classList.add('is-visible');
+
+  const rect = chart.canvas.getBoundingClientRect();
+  const gap = 12;
+  const margin = 10;
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  const anchorY = rect.top + tooltip.caretY;
+  const hoveredSideIsLeft = tooltip.caretX < chart.width / 2;
+  const cardRect = chart.canvas.closest('.an-card')?.getBoundingClientRect();
+  const containerLeft = Math.max(margin, cardRect ? cardRect.left + margin : margin);
+  const containerRight = Math.min(window.innerWidth - margin, cardRect ? cardRect.right - margin : window.innerWidth - margin);
+  const preferredLeft = hoveredSideIsLeft
+    ? rect.left - width - gap
+    : rect.right + gap;
+  const maxLeft = Math.max(containerLeft, containerRight - width);
+  const left = Math.max(containerLeft, Math.min(preferredLeft, maxLeft));
+  const containerTop = Math.max(margin, cardRect ? cardRect.top + margin : margin);
+  const containerBottom = Math.min(window.innerHeight - margin, cardRect ? cardRect.bottom - margin : window.innerHeight - margin);
+  const maxTop = Math.max(containerTop, containerBottom - height);
+  const top = Math.max(containerTop, Math.min(anchorY - height / 2, maxTop));
+  element.style.left = `${left}px`;
+  element.style.top = `${top}px`;
 }
 
 function initIdMakerBarangayChart() {
@@ -1724,10 +1778,17 @@ function initIdMakerBarangayChart() {
   if (empty) {
     empty.textContent = ID_MAKER_ANALYTICS_REFRESH_ERROR
       ? 'Queue data could not be loaded.'
-      : stats.total === 0 || stats.missingBarangay > 0
-        ? 'No complete barangay data available for this period.'
+      : !ranking.length
+        ? 'No barangay data available for this period.'
         : 'No data available for this period.';
-    empty.style.display = (!stats.total || stats.missingBarangay > 0) ? 'flex' : 'none';
+    empty.style.display = (ID_MAKER_ANALYTICS_REFRESH_ERROR || !ranking.length) ? 'flex' : 'none';
+  }
+  const missingNote = document.getElementById('idm-barangay-note');
+  if (missingNote) {
+    missingNote.hidden = !stats.missingBarangay || !ranking.length;
+    missingNote.textContent = stats.missingBarangay && ranking.length
+      ? `${stats.missingBarangay} of ${stats.total} queue records have no barangay recorded and are omitted from this chart.`
+      : '';
   }
 
   if (CHARTS['idmaker-barangay']) CHARTS['idmaker-barangay'].destroy();
@@ -1939,7 +2000,9 @@ async function generateIdMakerInsights(stats) {
     if (requestVersion !== ID_MAKER_INSIGHT_REQUEST_VERSION) return;
     Object.entries(stats.cards).forEach(([key, cardStats]) => {
       const insight = result.insights?.[key];
-      if (cardStats.hasData && insight?.text) renderIdMakerInsightCard(key, insight, cardStats);
+      if (cardStats.hasData && insight?.text && !(key === 'barangay' && cardStats.missingBarangay > 0)) {
+        renderIdMakerInsightCard(key, insight, cardStats);
+      }
     });
   } catch (error) {
     console.warn('[ID Maker analytics] Insight request failed; live-data summaries remain visible.', error);

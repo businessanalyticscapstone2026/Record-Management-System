@@ -1213,6 +1213,36 @@ table {
   background: var(--surface)
 }
 
+.doc-card .doc-actions .btn--primary {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 2px 7px rgba(26, 79, 186, .2)
+}
+
+.doc-card .doc-actions .btn--primary:hover {
+  background: var(--primary-hover)
+}
+
+.doc-card .doc-actions .btn--warning {
+  border: 1px solid rgba(192, 122, 10, .2);
+  background: #FFF8E8;
+  color: #8A5700
+}
+
+.doc-card .doc-actions .btn--warning:hover {
+  border-color: rgba(192, 122, 10, .4);
+  background: #FFF1CC
+}
+
+.doc-card .doc-actions .btn:disabled,
+#approve-all-docs-button:disabled,
+#request-all-reupload-button:disabled {
+  cursor: not-allowed;
+  opacity: .46;
+  box-shadow: none;
+  transform: none
+}
+
 .doc-card .doc-actions .btn--ghost {
   border: 1px solid transparent;
   background: transparent
@@ -4183,27 +4213,34 @@ select.filter-select:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 48px;
   padding: 10px 10px;
   border-bottom: 1.5px solid var(--bg-alt);
   background: var(--bg)
 }
 
 .doc-card__name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-data);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--text-muted)
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
 }
 
 .doc-card__status {
+  flex: 0 0 auto;
   font-family: var(--font-data);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: .8px;
+  letter-spacing: .45px;
   text-transform: uppercase;
-  padding: 3px 8px;
+  padding: 4px 7px;
   border-radius: var(--r-pill)
 }
 
@@ -4273,9 +4310,29 @@ select.filter-select:hover {
 }
 
 .doc-actions {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px
+}
+
+.doc-card .doc-actions .btn {
+  min-width: 0;
+  justify-content: center;
+  padding: 0 6px;
+  font-size: 10.5px;
+  white-space: nowrap
+}
+
+.doc-card--empty .doc-preview {
+  cursor: default;
+  color: var(--text-muted);
+  background: var(--bg-alt);
+  border-color: var(--border-subtle)
+}
+
+.doc-preview__empty {
+  font-size: 12px;
+  font-weight: 700
 }
 
 /* Document Viewer Lightbox */

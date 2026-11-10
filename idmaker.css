@@ -32,6 +32,52 @@
 .row-action--icon:hover,.row-action--icon:focus-visible{color:var(--primary-dark);background:var(--primary-border)}
 .row-action--icon:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .row-action--icon svg{width:17px;height:17px}
+/* Floating tooltip for the Production Queue Status doughnut. */
+.idmaker-production-tooltip {
+  position: fixed;
+  z-index: 20000;
+  display: grid;
+  gap: 4px;
+  max-width: min(240px, calc(100vw - 20px));
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(15, 23, 42, .96);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .24);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+}
+
+.idmaker-production-tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.idmaker-production-tooltip strong {
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.idmaker-production-tooltip span {
+  color: rgba(255, 255, 255, .82);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.idmaker-chart-note {
+  margin: 8px 4px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.idmaker-chart-note[hidden] {
+  display: none !important;
+}
+
 .row-action--icon::after{content:attr(data-tooltip);position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%) translateX(4px);padding:6px 9px;border-radius:6px;background:#0F172A;color:#fff;font-size:11px;font-weight:600;line-height:1;white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:1000}
 .row-action--icon:hover::after,.row-action--icon:focus-visible::after{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0)}
 /* .barangay-select-wrap (map-pin Barangay filter) lives in base.css so the
@@ -270,7 +316,8 @@
 .an-grid-main>.an-card{height:100%;min-width:0}
 .an-card__sub{color:#475569}
 .analytics-updated{font-size:12px;color:#475569;white-space:nowrap}
-.analytics-info{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:4px;border:1px solid currentColor;border-radius:50%;font-size:11px;cursor:help;vertical-align:1px}
+.analytics-info{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:4px;color:var(--text-muted);cursor:help;vertical-align:1px;flex:0 0 auto}
+.analytics-info svg{display:block;width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
 .donut-center strong{font-size:25px;line-height:1.1;color:var(--text-primary);font-weight:800}
 .donut-center span{font-size:10px;color:#475569}

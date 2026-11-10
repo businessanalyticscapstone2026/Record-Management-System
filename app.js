@@ -190,8 +190,65 @@ function initStatus() {
   CHARTS['status'] = new Chart(ctx, {
     type: 'doughnut',
     data: { labels: ['Approved', 'Rejected', 'Pending', 'In Review'], datasets: [{ data: [statuses[0].value, statuses[3].value, statuses[1].value, statuses[2].value], backgroundColor: ['#059669', '#B91C1C', '#B45309', '#1D4ED8'], hoverOffset: 8, borderWidth: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => { const total = c.dataset.data.reduce((sum, value) => sum + Number(value || 0), 0); const percentage = total ? (c.parsed / total) * 100 : 0; return ` ${c.label}: ${c.parsed.toLocaleString()} (${percentage.toFixed(1)}%)`; } } } } }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: false,
+          external: renderQueueMixTooltip
+        }
+      }
+    }
   });
+}
+
+function renderQueueMixTooltip({ chart, tooltip }) {
+  let element = document.getElementById('queue-mix-tooltip');
+  if (!element) {
+    element = document.createElement('div');
+    element.id = 'queue-mix-tooltip';
+    element.className = 'queue-mix-tooltip';
+    element.setAttribute('role', 'tooltip');
+    document.body.appendChild(element);
+  }
+
+  if (!tooltip || tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
+    element.classList.remove('is-visible');
+    return;
+  }
+
+  const point = tooltip.dataPoints[0];
+  const total = point.dataset.data.reduce((sum, value) => sum + Number(value || 0), 0);
+  const value = Number(point.raw || 0);
+  const percentage = total ? (value / total) * 100 : 0;
+  element.replaceChildren();
+
+  const label = document.createElement('strong');
+  label.textContent = point.label || 'Status';
+  const detail = document.createElement('span');
+  detail.textContent = `${value.toLocaleString()} applications · ${percentage.toFixed(1)}%`;
+  element.append(label, detail);
+  element.classList.add('is-visible');
+
+  const canvasRect = chart.canvas.getBoundingClientRect();
+  const margin = 10;
+  const gap = 12;
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  const anchorX = canvasRect.left + tooltip.caretX;
+  const anchorY = canvasRect.top + tooltip.caretY;
+
+  let left = anchorX + gap;
+  if (left + width > window.innerWidth - margin) left = anchorX - width - gap;
+  left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+
+  let top = anchorY - height / 2;
+  top = Math.max(margin, Math.min(top, window.innerHeight - height - margin));
+  element.style.left = `${left}px`;
+  element.style.top = `${top}px`;
 }
 function initDashboardCardClick() {
   const cards = document.querySelectorAll('.stat-card');
@@ -3476,9 +3533,7 @@ function renderWorkflow(status) {
       el.classList.add('completed');
     } else if (i === idx) {
       el.classList.add('active');
-      if (st === 'Rejected') {
-        el.classList.add('rejected');
-      }
+      if (st === 'Rejected') el.classList.add('rejected');
     }
   });
 
@@ -5532,6 +5587,45 @@ function resetDocStatuses() {
   if (sum) sum.textContent = 'All documents pending review';
 }
 
+function getUploadedDocumentKeys(app = APP_DB[CURRENT_APP_ID]) {
+  const documents = app?.documents || {};
+  return DOC_KEYS.filter(doc => Boolean(String(documents[doc] || '').trim()));
+}
+
+function syncDocActionAvailability(app) {
+  const documents = app?.documents || {};
+  let uploadedCount = 0;
+
+  DOC_KEYS.forEach(doc => {
+    const uploaded = Boolean(String(documents[doc] || '').trim());
+    if (uploaded) uploadedCount++;
+
+    const card = document.querySelector(`[data-doc-card="${doc}"]`);
+    if (!card) return;
+    card.classList.toggle('doc-card--empty', !uploaded);
+    const status = card.querySelector('.doc-card__status');
+    if (!uploaded && status) {
+      status.className = 'doc-card__status pending';
+      status.textContent = 'Awaiting upload';
+    }
+    card.querySelectorAll('[data-doc-action]').forEach(button => {
+      button.disabled = !uploaded;
+      button.title = uploaded ? '' : 'No document uploaded';
+      button.setAttribute('aria-disabled', String(!uploaded));
+    });
+  });
+
+  const approveAllButton = document.getElementById('approve-all-docs-button');
+  if (approveAllButton) {
+    approveAllButton.textContent = `Approve Uploaded (${uploadedCount})`;
+    approveAllButton.disabled = uploadedCount === 0;
+  }
+
+  const reuploadAllButton = document.getElementById('request-all-reupload-button');
+  if (reuploadAllButton) reuploadAllButton.disabled = uploadedCount === 0;
+  updateDocsSummary();
+}
+
 function loadSavedDocStatuses(app) {
   resetDocStatuses();
 
@@ -5605,14 +5699,14 @@ function loadSavedDocStatuses(app) {
                 ? 'warn'
                 : state === 'bad'
                   ? 'bad'
-                  : 'ok'
+                  : 'pending'
           );
 
         statusEl.textContent =
           state === 'ok'
             ? 'Approved'
             : state === 'warn'
-              ? 'Re-upload'
+              ? 'Re-upload requested'
               : state === 'bad'
                 ? 'Rejected'
                 : 'Pending';
@@ -5632,16 +5726,21 @@ function populateDocPreviews(app) {
     if (!el) return;
     if (url) {
       el.innerHTML = '';
+      el.classList.remove('doc-preview--empty');
+      el.setAttribute('aria-label', `${DOC_LABELS[doc]} uploaded. Click to preview.`);
       el.style.background = 'none';
       el.style.backgroundImage = 'url(' + url + ')';
       el.style.backgroundSize = 'cover';
       el.style.backgroundPosition = 'center';
     } else {
-      el.textContent = 'No document uploaded';
+      el.innerHTML = '<span class="doc-preview__empty">Awaiting upload</span>';
+      el.classList.add('doc-preview--empty');
+      el.setAttribute('aria-label', `${DOC_LABELS[doc]}: no document uploaded`);
       el.style.background = '';
       el.style.backgroundImage = '';
     }
   });
+  syncDocActionAvailability(app);
 }
 
 /* Open the document viewer lightbox */
@@ -5649,6 +5748,10 @@ function viewDocument(docKey) {
   if (!CURRENT_APP_ID) return;
   const app = APP_DB[CURRENT_APP_ID] || FULL_APPLICANTS.find(a => a.id === CURRENT_APP_ID);
   const docs = (app && app.documents) || {};
+  if (!docs[docKey]) {
+    showToast(`${DOC_LABELS[docKey] || 'This document'} has not been uploaded yet.`, 'info');
+    return;
+  }
   docViewerDocs = DOC_KEYS.map(k => ({ key: k, label: DOC_LABELS[k], url: docs[k] || '' }));
   docViewerIndex = Math.max(0, docViewerDocs.findIndex(d => d.key === docKey));
   renderDocViewer();
@@ -5713,6 +5816,11 @@ async function setDocStatus(doc, state, options = {}) {
     return false;
   }
 
+  if (!getUploadedDocumentKeys().includes(doc)) {
+    if (!options.silent) showToast(`${DOC_LABELS[doc] || 'This document'} has not been uploaded yet.`, 'info');
+    return false;
+  }
+
   const statusMap = {
     ok: 'approved',
     warn: 'reupload',
@@ -5753,7 +5861,7 @@ async function setDocStatus(doc, state, options = {}) {
 
   const labels = {
     ok: 'Approved',
-    warn: 'Re-upload',
+    warn: 'Re-upload requested',
     pending: 'Pending'
   };
 
@@ -5777,7 +5885,7 @@ async function setDocStatus(doc, state, options = {}) {
             ? 'warn'
             : state === 'bad'
               ? 'bad'
-              : 'ok'
+              : 'pending'
       );
 
     el.textContent =
@@ -5868,6 +5976,72 @@ async function setDocStatus(doc, state, options = {}) {
       }
     }
 
+    // The deployed document-authentication API may not yet include the
+    // replacement-specific status synchronization. Use the existing replacement
+    // decision endpoint as a fallback so its database RPC updates the request
+    // row and application status together.
+    if (databaseStatus === 'approved' && !result.replacement_request_status) {
+      try {
+        let replacementRequests = Array.isArray(window.LIVE_REPLACEMENT_REQUESTS)
+          ? window.LIVE_REPLACEMENT_REQUESTS
+          : [];
+        const cachedRequestForApplication = replacementRequests.find(request =>
+          String(request.application_id) === String(CURRENT_APP_ID)
+        );
+        let linkedRequest = replacementRequests.find(request =>
+          String(request.application_id) === String(CURRENT_APP_ID) &&
+          String(request.request_status || 'Pending').trim().toLowerCase() === 'pending'
+        );
+
+        if (!cachedRequestForApplication) {
+          const requestsResponse = await fetch(
+            'https://management-backend-3cij.onrender.com/api/replacements',
+            { headers: getAuthHeaders(), cache: 'no-store' }
+          );
+          const requestsResult = await requestsResponse.json();
+          if (!requestsResponse.ok || !requestsResult.success) {
+            throw new Error(requestsResult.message || 'Unable to refresh replacement requests.');
+          }
+
+          replacementRequests = Array.isArray(requestsResult.requests)
+            ? requestsResult.requests
+            : [];
+          window.LIVE_REPLACEMENT_REQUESTS = replacementRequests;
+          linkedRequest = replacementRequests.find(request =>
+            String(request.application_id) === String(CURRENT_APP_ID) &&
+            String(request.request_status || 'Pending').trim().toLowerCase() === 'pending'
+          );
+        }
+
+        if (linkedRequest) {
+          const replacementResponse = await fetch(
+            `https://management-backend-3cij.onrender.com/api/replacements/${encodeURIComponent(linkedRequest.id)}/decision`,
+            {
+              method: 'PUT',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ status: 'Under Review' })
+            }
+          );
+          const replacementResult = await replacementResponse.json();
+          if (!replacementResponse.ok || !replacementResult.success) {
+            throw new Error(replacementResult.message || 'Failed to update replacement status.');
+          }
+
+          result.replacement_request_status = replacementResult.request?.request_status || 'Under Review';
+          result.application_status = result.replacement_request_status;
+          if (Array.isArray(window.LIVE_REPLACEMENT_REQUESTS)) {
+            const cachedRequest = window.LIVE_REPLACEMENT_REQUESTS.find(request =>
+              String(request.id) === String(linkedRequest.id)
+            );
+            if (cachedRequest) cachedRequest.request_status = result.replacement_request_status;
+          }
+        }
+      } catch (replacementStatusError) {
+        result.replacement_request_status_error = replacementStatusError.message;
+        console.error('Replacement status synchronization failed:', replacementStatusError);
+      }
+    }
+
     const savedApplicationStatus = result.application_status;
     const statusPromoted =
       databaseStatus === 'approved' &&
@@ -5906,6 +6080,10 @@ async function setDocStatus(doc, state, options = {}) {
       updateStatusTabCounts();
     }
 
+    if (result.replacement_request_status && typeof loadReplacementRequests === 'function') {
+      await loadReplacementRequests();
+    }
+
     appendAudit(
       CURRENT_USER?.displayName ||
       'Staff',
@@ -5919,6 +6097,11 @@ async function setDocStatus(doc, state, options = {}) {
         showToast(
           `${DOC_LABELS[doc] || doc} approved. Application status changed to Under Review.`,
           'success'
+        );
+      } else if (databaseStatus === 'approved' && result.replacement_request_status_error) {
+        showToast(
+          `${DOC_LABELS[doc] || doc} was approved, but the replacement status could not be updated. ${result.replacement_request_status_error}`,
+          'error'
         );
       } else if (databaseStatus === 'approved' && !savedApplicationStatus) {
         showToast(
@@ -6101,14 +6284,19 @@ async function saveDocumentAuthentication(
 function updateDocsSummary() {
   const sum = document.getElementById('docs-summary');
   if (!sum) return; // not every portal page has the docs summary card
-  const vals = Object.values(DOC_STATUS);
+  const uploadedDocs = getUploadedDocumentKeys();
+  if (!uploadedDocs.length) {
+    sum.textContent = 'Awaiting upload of all documents';
+    return;
+  }
+  const vals = uploadedDocs.map(doc => DOC_STATUS[doc]);
   const allOk = vals.every(v => v === 'ok');
   const anyReupload = vals.some(v => v === 'warn');
   const allPending = vals.every(v => v === 'pending');
-  if (allPending) sum.textContent = 'All documents pending review';
-  else if (allOk) sum.textContent = 'All required documents approved';
+  if (allPending) sum.textContent = `${uploadedDocs.length} uploaded document${uploadedDocs.length === 1 ? '' : 's'} pending review`;
+  else if (allOk) sum.textContent = `All ${uploadedDocs.length} uploaded document${uploadedDocs.length === 1 ? '' : 's'} approved`;
   else if (anyReupload) sum.textContent = 'Re-upload requested for some documents';
-  else sum.textContent = 'Some documents pending review';
+  else sum.textContent = 'Some uploaded documents pending review';
 }
 
 async function approveAllDocs() {
@@ -6117,86 +6305,58 @@ async function approveAllDocs() {
     return;
   }
 
-  const docs = ['idFront', 'idBack', 'photo', 'bc', 'cedula', 'signature'];
-  const documentTypeMap = {
-    idFront: 'valid_id',
-    idBack: 'valid_id_back',
-    photo: 'latest_photo',
-    bc: 'birth_certificate',
-    cedula: 'community_tax_certificate',
-    signature: 'signature'
-  };
-  const button = document.querySelector('[onclick="approveAllDocs()"]');
-  const originalLabel = button ? button.textContent : 'Approve All';
+  const docs = getUploadedDocumentKeys();
+  if (!docs.length) {
+    showToast('There are no uploaded documents to approve.', 'info');
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Approve ${docs.length} uploaded document${docs.length === 1 ? '' : 's'}? Documents without an upload will be skipped.`
+  );
+  if (!confirmed) return;
+
+  const button = document.getElementById('approve-all-docs-button');
 
   if (button) {
     button.disabled = true;
-    button.textContent = 'Approving...';
+    button.textContent = `Approving 0/${docs.length}...`;
   }
 
   try {
-    const response = await fetch(
-      `https://management-backend-3cij.onrender.com/api/applications/${encodeURIComponent(CURRENT_APP_ID)}/documents/approve-all`,
-      {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({})
-      }
-    );
-
-    const result = await response.json();
-    if (!response.ok || !result.success) {
-      throw new Error(result.message || 'Failed to approve all documents.');
-    }
-
-    const savedRecords = Array.isArray(result.documentAuthentications)
-      ? result.documentAuthentications
-      : [];
-    const savedByType = new Map(savedRecords.map(record => [record.document_type, record]));
+    let approvedCount = 0;
+    const failedDocuments = [];
 
     for (const doc of docs) {
-      const documentType = documentTypeMap[doc];
-      const saved = savedByType.get(documentType);
-      if (!saved || String(saved.authentication_status || '').toLowerCase() !== 'approved') {
-        throw new Error('The server did not confirm all six document approvals. Refresh the application details before continuing.');
-      }
-
-      DOC_STATUS[doc] = 'ok';
-      const elId = 'doc-' + doc.replace(/([A-Z])/g, '-$1').toLowerCase() + '-status';
-      const statusEl = document.getElementById(elId);
-      if (statusEl) {
-        statusEl.className = 'doc-card__status ok';
-        statusEl.textContent = 'Approved';
-      }
-    }
-
-    if (APP_DB[CURRENT_APP_ID]) {
-      if (!Array.isArray(APP_DB[CURRENT_APP_ID].documentAuthentications)) {
-        APP_DB[CURRENT_APP_ID].documentAuthentications = [];
-      }
-      const list = APP_DB[CURRENT_APP_ID].documentAuthentications;
-      for (const saved of savedRecords) {
-        const index = list.findIndex(item => item.document_type === saved.document_type);
-        if (index >= 0) list[index] = saved;
-        else list.push(saved);
-      }
+      const approved = await setDocStatus(doc, 'ok', { silent: true });
+      if (approved) approvedCount++;
+      else failedDocuments.push(DOC_LABELS[doc]);
+      if (button) button.textContent = `Approving ${approvedCount}/${docs.length}...`;
     }
 
     updateDocsSummary();
-    showToast('All six documents approved and saved.', 'success');
+    if (failedDocuments.length) {
+      showToast(
+        `${approvedCount} of ${docs.length} uploaded documents approved. Could not save: ${failedDocuments.join(', ')}.`,
+        'error'
+      );
+    } else {
+      showToast(`${approvedCount} uploaded document${approvedCount === 1 ? '' : 's'} approved and saved.`, 'success');
+    }
   } catch (error) {
     console.error('Failed to approve all documents:', error);
     showToast('Approve All failed: ' + error.message, 'error');
   } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = originalLabel;
-    }
+    syncDocActionAvailability(APP_DB[CURRENT_APP_ID]);
   }
 }
 
 async function requestReupload() {
-  const docs = ['idFront', 'idBack', 'photo', 'bc', 'cedula', 'signature'];
+  const docs = getUploadedDocumentKeys();
+  if (!docs.length) {
+    showToast('There are no uploaded documents to request again.', 'info');
+    return;
+  }
 
   let successCount = 0;
 
@@ -6214,7 +6374,7 @@ async function requestReupload() {
 
   if (successCount === docs.length) {
     showToast(
-      'Re-upload requested for all documents.',
+      `Re-upload requested for all ${successCount} uploaded document${successCount === 1 ? '' : 's'}.`,
       'info'
     );
 

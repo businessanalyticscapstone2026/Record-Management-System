@@ -1901,17 +1901,17 @@
               <div class="content-card__desc">Valid ID (Front/Back), Photo, Birth Certificate, Cedula, Signature</div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn--secondary" style="height:30px;font-size:11px;padding:0 12px"
-                onclick="approveAllDocs()">Approve All</button>
-              <button class="btn btn--ghost" style="height:30px;font-size:11px;padding:0 12px"
+              <button class="btn btn--primary" id="approve-all-docs-button"
+                onclick="approveAllDocs()">Approve Uploaded (0)</button>
+              <button class="btn btn--ghost" id="request-all-reupload-button"
                 onclick="requestReupload()">Request Re-upload</button>
             </div>
           </div>
           <div class="content-card__body">
             <div class="doc-grid">
-              <div class="doc-card">
+              <div class="doc-card" data-doc-card="idFront">
                 <div class="doc-card__top">
-                  <div class="doc-card__name">Valid ID (Front)</div><span class="doc-card__status ok"
+                  <div class="doc-card__name">Valid ID (Front)</div><span class="doc-card__status pending"
                     id="doc-id-front-status">Pending</span>
                 </div>
                 <div class="doc-card__body">
@@ -1921,20 +1921,20 @@
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>No document uploaded</div>
                   <div class="doc-actions">
-                    <button class="btn btn--secondary" onclick="viewDocument('idFront')"><svg viewBox="0 0 16 16"
+                    <button class="btn btn--secondary" data-doc-action="view" onclick="viewDocument('idFront')"><svg viewBox="0 0 16 16"
                         fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
                         <circle cx="8" cy="8" r="2.5" />
                       </svg>View</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('idFront','ok')">Approve</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('idFront','warn')">Re-upload</button>
+                    <button class="btn btn--primary" data-doc-action="approve" onclick="setDocStatus('idFront','ok')">Approve</button>
+                    <button class="btn btn--warning" data-doc-action="reupload" title="Request a new upload" onclick="setDocStatus('idFront','warn')">Re-upload</button>
                   </div>
                 </div>
               </div>
 
-              <div class="doc-card">
+              <div class="doc-card" data-doc-card="idBack">
                 <div class="doc-card__top">
-                  <div class="doc-card__name">Valid ID (Back)</div><span class="doc-card__status ok"
+                  <div class="doc-card__name">Valid ID (Back)</div><span class="doc-card__status pending"
                     id="doc-id-back-status">Pending</span>
                 </div>
                 <div class="doc-card__body">
@@ -1944,20 +1944,20 @@
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>No document uploaded</div>
                   <div class="doc-actions">
-                    <button class="btn btn--secondary" onclick="viewDocument('idBack')"><svg viewBox="0 0 16 16"
+                    <button class="btn btn--secondary" data-doc-action="view" onclick="viewDocument('idBack')"><svg viewBox="0 0 16 16"
                         fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
                         <circle cx="8" cy="8" r="2.5" />
                       </svg>View</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('idBack','ok')">Approve</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('idBack','warn')">Re-upload</button>
+                    <button class="btn btn--primary" data-doc-action="approve" onclick="setDocStatus('idBack','ok')">Approve</button>
+                    <button class="btn btn--warning" data-doc-action="reupload" title="Request a new upload" onclick="setDocStatus('idBack','warn')">Re-upload</button>
                   </div>
                 </div>
               </div>
 
-              <div class="doc-card">
+              <div class="doc-card" data-doc-card="photo">
                 <div class="doc-card__top">
-                  <div class="doc-card__name">Latest Photo</div><span class="doc-card__status ok"
+                  <div class="doc-card__name">Latest Photo</div><span class="doc-card__status pending"
                     id="doc-photo-status">Pending</span>
                 </div>
                 <div class="doc-card__body">
@@ -1967,20 +1967,20 @@
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>No document uploaded</div>
                   <div class="doc-actions">
-                    <button class="btn btn--secondary" onclick="viewDocument('photo')"><svg viewBox="0 0 16 16"
+                    <button class="btn btn--secondary" data-doc-action="view" onclick="viewDocument('photo')"><svg viewBox="0 0 16 16"
                         fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
                         <circle cx="8" cy="8" r="2.5" />
                       </svg>View</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('photo','ok')">Approve</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('photo','warn')">Re-upload</button>
+                    <button class="btn btn--primary" data-doc-action="approve" onclick="setDocStatus('photo','ok')">Approve</button>
+                    <button class="btn btn--warning" data-doc-action="reupload" title="Request a new upload" onclick="setDocStatus('photo','warn')">Re-upload</button>
                   </div>
                 </div>
               </div>
 
-              <div class="doc-card">
+              <div class="doc-card" data-doc-card="bc">
                 <div class="doc-card__top">
-                  <div class="doc-card__name">Birth Certificate</div><span class="doc-card__status warn"
+                  <div class="doc-card__name">Birth Certificate</div><span class="doc-card__status pending"
                     id="doc-bc-status">Pending</span>
                 </div>
                 <div class="doc-card__body">
@@ -1990,20 +1990,20 @@
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>No document uploaded</div>
                   <div class="doc-actions">
-                    <button class="btn btn--secondary" onclick="viewDocument('bc')"><svg viewBox="0 0 16 16" fill="none"
+                    <button class="btn btn--secondary" data-doc-action="view" onclick="viewDocument('bc')"><svg viewBox="0 0 16 16" fill="none"
                         stroke="currentColor" stroke-width="1.8">
                         <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
                         <circle cx="8" cy="8" r="2.5" />
                       </svg>View</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('bc','ok')">Approve</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('bc','warn')">Re-upload</button>
+                    <button class="btn btn--primary" data-doc-action="approve" onclick="setDocStatus('bc','ok')">Approve</button>
+                    <button class="btn btn--warning" data-doc-action="reupload" title="Request a new upload" onclick="setDocStatus('bc','warn')">Re-upload</button>
                   </div>
                 </div>
               </div>
 
-              <div class="doc-card">
+              <div class="doc-card" data-doc-card="cedula">
                 <div class="doc-card__top">
-                  <div class="doc-card__name">Community Tax Certificate</div><span class="doc-card__status ok"
+                  <div class="doc-card__name">Community Tax Certificate</div><span class="doc-card__status pending"
                     id="doc-cedula-status">Pending</span>
                 </div>
                 <div class="doc-card__body">
@@ -2013,20 +2013,20 @@
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>No document uploaded</div>
                   <div class="doc-actions">
-                    <button class="btn btn--secondary" onclick="viewDocument('cedula')"><svg viewBox="0 0 16 16"
+                    <button class="btn btn--secondary" data-doc-action="view" onclick="viewDocument('cedula')"><svg viewBox="0 0 16 16"
                         fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
                         <circle cx="8" cy="8" r="2.5" />
                       </svg>View</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('cedula','ok')">Approve</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('cedula','warn')">Re-upload</button>
+                    <button class="btn btn--primary" data-doc-action="approve" onclick="setDocStatus('cedula','ok')">Approve</button>
+                    <button class="btn btn--warning" data-doc-action="reupload" title="Request a new upload" onclick="setDocStatus('cedula','warn')">Re-upload</button>
                   </div>
                 </div>
               </div>
 
-              <div class="doc-card">
+              <div class="doc-card" data-doc-card="signature">
                 <div class="doc-card__top">
-                  <div class="doc-card__name">Signature</div><span class="doc-card__status ok"
+                  <div class="doc-card__name">Signature</div><span class="doc-card__status pending"
                     id="doc-signature-status">Pending</span>
                 </div>
                 <div class="doc-card__body">
@@ -2036,13 +2036,13 @@
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>No document uploaded</div>
                   <div class="doc-actions">
-                    <button class="btn btn--secondary" onclick="viewDocument('signature')"><svg viewBox="0 0 16 16"
+                    <button class="btn btn--secondary" data-doc-action="view" onclick="viewDocument('signature')"><svg viewBox="0 0 16 16"
                         fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
                         <circle cx="8" cy="8" r="2.5" />
                       </svg>View</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('signature','ok')">Approve</button>
-                    <button class="btn btn--secondary" onclick="setDocStatus('signature','warn')">Re-upload</button>
+                    <button class="btn btn--primary" data-doc-action="approve" onclick="setDocStatus('signature','ok')">Approve</button>
+                    <button class="btn btn--warning" data-doc-action="reupload" title="Request a new upload" onclick="setDocStatus('signature','warn')">Re-upload</button>
                   </div>
                 </div>
               </div>

@@ -438,7 +438,7 @@
           <div>
 
             <div class="an-card__title" title="Count of all ID Maker queue records in each current status.">
-              Production Queue Status <span class="analytics-info" title="Queued: waiting for production. In Production: being produced. Printed: printing is complete. In Transit: on the way. Completed: release or delivery is marked complete." aria-label="Definitions for queue stages">ⓘ</span>
+              Production Queue Status <span class="analytics-info" role="img" title="Queued: waiting for production. In Production: being produced. Printed: printing is complete. In Transit: on the way. Completed: release or delivery is marked complete." aria-label="Definitions for queue stages"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
             </div>
 
             <div class="an-card__sub">
@@ -584,8 +584,8 @@
 
           <div>
 
-            <div class="an-card__title" title="Count of all ID Maker queue records grouped by the applicant’s barangay.">
-              Queue by Barangay <span class="analytics-info" title="Barangay share is each barangay’s application count divided by total ID Maker queue applications." aria-label="Barangay analytics definition">ⓘ</span>
+            <div class="an-card__title" title="ID Maker queue records grouped by the applicant’s recorded barangay.">
+              Queue by Barangay <span class="analytics-info" role="img" title="Barangay shares are calculated from queue records that have a barangay recorded. Records without barangay data are omitted." aria-label="Barangay analytics definition"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
             </div>
 
             <div class="an-card__sub">
@@ -658,6 +658,8 @@
 
           </div>
 
+          <div class="idmaker-chart-note" id="idm-barangay-note" hidden></div>
+
         </div>
 
 
@@ -686,7 +688,7 @@
           <div>
 
             <div class="an-card__title" title="Queue aging is elapsed time since sent_at. SLA is grouped as within 24 hours, 24–48 hours, or over 48 hours.">
-              Queue Aging / SLA <span class="analytics-info" title="Queue age is calculated from the recorded sent_at timestamp. Active queue includes Queued and In Production only." aria-label="Queue aging and SLA definition">ⓘ</span>
+              Queue Aging / SLA <span class="analytics-info" role="img" title="Queue age is calculated from the recorded sent_at timestamp. Active queue includes Queued and In Production only." aria-label="Queue aging and SLA definition"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
             </div>
 
             <div class="an-card__sub">
@@ -888,7 +890,7 @@
       <div class="an-card">
         <div class="an-card__header">
           <div>
-            <div class="an-card__title" title="Counts completed queue items by completion date, falling back to date issued for older records.">Monthly ID Output <span class="analytics-info" title="Completed IDs use their completion timestamp when available, or date issued for historical records. Completed records without either date are excluded." aria-label="Monthly output definition">ⓘ</span></div>
+            <div class="an-card__title" title="Counts completed queue items by completion date, falling back to date issued for older records.">Monthly ID Output <span class="analytics-info" role="img" title="Completed IDs use their completion timestamp when available, or date issued for historical records. Completed records without either date are excluded." aria-label="Monthly output definition"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span></div>
             <div class="an-card__sub">Completed IDs recorded in the last six months</div>
           </div>
         </div>
