@@ -8,7 +8,6 @@ fetch(`${STAFF_API_BASE}/health`, {
   cache: "no-store",
   keepalive: true,
 }).catch(() => {
-  // Normal API requests display their own error feedback if the backend is unavailable.
 });
 
 // Staff dashboard

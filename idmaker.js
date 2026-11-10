@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("https://record-management-backend.vercel.app/health", {
+fetch("https://www.osca-management.techsite.live/health", {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -69,7 +69,7 @@ const ID_MAKER_ANALYTICS_STAGES = [
 ];
 
 const ID_MAKER_API =
-  'https://record-management-backend.vercel.app/api/id-maker-queue';
+  'https://www.osca-management.techsite.live/api/id-maker-queue';
 
 /* =========================================================
    MAIN QUEUE LIST — shared rules and state
@@ -1162,7 +1162,7 @@ async function inlineStatusChange(appId, newStatus) {
     // endpoint is temporarily unavailable or rejects the transition).
     try {
       const applicationStatusResponse = await fetch(
-        'https://record-management-backend.vercel.app/api/applications/' +
+        'https://www.osca-management.techsite.live/api/applications/' +
         encodeURIComponent(appId) +
         '/status',
         {
