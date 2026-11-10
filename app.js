@@ -7676,7 +7676,7 @@ async function refreshIdMakerQueueApplicationIds() {
 
   ID_MAKER_QUEUE_APPLICATION_IDS_PROMISE = (async () => {
     const response = await fetch(
-      `${RMS_API_BASE}/api/id-maker-queue/application-ids',
+      `${RMS_API_BASE}/api/id-maker-queue/application-ids`,
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
     const result = await response.json().catch(() => ({}));
@@ -7958,7 +7958,7 @@ async function sendFromIssuanceToIdMaker() {
     sendBtn.setAttribute('aria-busy', 'true');
     sendBtn.innerHTML = '<span class="btn__spinner" aria-hidden="true"></span><span>Sending to ID Maker...</span>';
   }
-  const apiBase = `${RMS_API_BASE}/api';
+  const apiBase = `${RMS_API_BASE}/api`;
   const fetchWithTimeout = (url, options = {}) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
