@@ -1,11 +1,9 @@
-// Wake the Record Management backend early without blocking page rendering.
 fetch("https://www.osca-management.techsite.live/health", {
   method: "GET",
   mode: "cors",
   cache: "no-store",
   keepalive: true,
 }).catch(() => {
-  // Normal API requests display their own error feedback if the backend is unavailable.
 });
 
 // Staff dashboard
