@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch(`${window.location.origin}/health", {
+fetch(`${window.location.origin}/health`, {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -4920,7 +4920,7 @@ function exportAuditReport() {
    MODULE D — LIVE BACKUP & NON-DESTRUCTIVE RECOVERY
    ========================================================= */
 
-const ADMIN_BACKUPS_API = `${window.location.origin}/api/backups";
+const ADMIN_BACKUPS_API = `${window.location.origin}/api/backups`;
 let backupIsRunning = false;
 let BACKUP_HISTORY = [];
 let backupProgressPoller = null;
