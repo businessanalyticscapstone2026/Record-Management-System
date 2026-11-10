@@ -540,7 +540,7 @@
 
 
   <script>
-    const REGISTRATION_API_BASE = "https://www.osca-management.techsite.live";
+    const REGISTRATION_API_BASE = window.location.origin;
     async function loadRegistrationAvailability() {
       const trigger = document.getElementById("login-register-trigger");
       if (!trigger) return;
@@ -627,7 +627,7 @@
       }
     });
 
-    const RESET_API_BASE = "https://www.osca-management.techsite.live";
+    const RESET_API_BASE = window.location.origin;
 
     const resetModal = document.getElementById("forgot-password-modal");
     const resetStatus = document.getElementById("reset-status");

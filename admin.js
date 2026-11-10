@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("https://www.osca-management.techsite.live/health", {
+fetch(`${window.location.origin}/health`, {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -11,19 +11,19 @@ fetch("https://www.osca-management.techsite.live/health", {
 // Admin portal logic
 
 const ADMIN_APPLICATIONS_API =
-  'https://www.osca-management.techsite.live/api/applications';
+  `${window.location.origin}/api/applications`;
 
 const ADMIN_USERS_API =
-  'https://www.osca-management.techsite.live/api/auth/users';
+  `${window.location.origin}/api/auth/users`;
 
 const ADMIN_AUDIT_API =
-  'https://www.osca-management.techsite.live/api/audit-logs';
+  `${window.location.origin}/api/audit-logs`;
 
 const ADMIN_HEALTH_API =
-  'https://www.osca-management.techsite.live/api/test';
+  `${window.location.origin}/api/test`;
 
 const ADMIN_SYSTEM_SETTINGS_API =
-  'https://www.osca-management.techsite.live/api/system-settings';
+  `${window.location.origin}/api/system-settings`;
 
 let ADMIN_APPLICATIONS = [];
 
@@ -4920,7 +4920,7 @@ function exportAuditReport() {
    MODULE D — LIVE BACKUP & NON-DESTRUCTIVE RECOVERY
    ========================================================= */
 
-const ADMIN_BACKUPS_API = "https://www.osca-management.techsite.live/api/backups";
+const ADMIN_BACKUPS_API = `${window.location.origin}/api/backups`;
 let backupIsRunning = false;
 let BACKUP_HISTORY = [];
 let backupProgressPoller = null;

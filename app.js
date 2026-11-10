@@ -386,7 +386,8 @@ function initRadar() {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 11 } } }, tooltip: { ...TIP } }, scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: C.grid }, angleLines: { color: C.grid }, pointLabels: { color: C.text, font: { size: 10, weight: '600' } } } } }
   });
 }
-const AUTH_API_BASE = 'https://www.osca-management.techsite.live/api/auth';
+const RMS_API_BASE = window.location.origin;
+const AUTH_API_BASE = `${RMS_API_BASE}/api/auth`;
 
 function getAuthToken() {
   // Prefer the token restored into the active account, then inspect both
@@ -787,7 +788,7 @@ async function updateReplacementStatus(
 
   try {
     const response = await fetch(
-      `https://www.osca-management.techsite.live/api/replacements/${encodeURIComponent(requestId)}/decision`,
+      `${RMS_API_BASE}/api/replacements/${encodeURIComponent(requestId)}/decision`,
       {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -3013,7 +3014,7 @@ async function openApplicationDetail(appId) {
   // Get the complete application information from the database
   try {
     const response = await fetch(
-      `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(appId)}`,
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(appId)}`,
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
 
@@ -3695,7 +3696,7 @@ async function updateTableStatus(
 
     const response =
       await fetch(
-        `https://record-management-backend.vercel.app/api/applications/${encodeURIComponent(appId)}/status`,
+        `${RMS_API_BASE}/api/applications/${encodeURIComponent(appId)}/status`,
         {
           method: 'PUT',
 
@@ -4012,7 +4013,7 @@ async function _populateDigitalIssuance(appId) {
   try {
     const issuanceDetailsPath = DI_MODE === 'idmaker' ? '/issuance-details' : '';
     const response = await fetch(
-      'https://www.osca-management.techsite.live/api/applications/' +
+      `${RMS_API_BASE}/api/applications/` +
       encodeURIComponent(appId) + issuanceDetailsPath,
       {
         method: 'GET',
@@ -4488,7 +4489,7 @@ async function sendToIdMaker() {
 
     // 1. Update the application status in the database first.
     const statusResponse = await fetch(
-      `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(appId)}/status`,
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(appId)}/status`,
       {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -4514,7 +4515,7 @@ async function sendToIdMaker() {
 
     try {
       const queueResponse = await fetch(
-        'https://www.osca-management.techsite.live/api/id-maker-queue',
+        `${RMS_API_BASE}/api/id-maker-queue`,
         {
           method: 'POST',
           headers: getAuthHeaders(),
@@ -4539,7 +4540,7 @@ async function sendToIdMaker() {
       // 3. Queue saving failed. Try to restore the previous database status.
       try {
         const rollbackResponse = await fetch(
-          `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(appId)}/status`,
+          `${RMS_API_BASE}/api/applications/${encodeURIComponent(appId)}/status`,
           {
             method: 'PUT',
             headers: getAuthHeaders(),
@@ -4667,7 +4668,7 @@ async function sendToIdMaker() {
     
     // Update the linked ID request status in the database too.
     const requestsResponse = await fetch(
-      'https://www.osca-management.techsite.live/api/replacements',
+      `${RMS_API_BASE}/api/replacements`,
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
 
@@ -4687,7 +4688,7 @@ async function sendToIdMaker() {
 
     if (linkedRequest) {
       const requestStatusResponse = await fetch(
-        `https://www.osca-management.techsite.live/api/replacements/${linkedRequest.id}/decision`,
+        `${RMS_API_BASE}/api/replacements/${linkedRequest.id}/decision`,
         {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -4852,7 +4853,7 @@ async function downloadDigitalIssuanceDocs() {
 
     const response =
       await fetch(
-        'https://www.osca-management.techsite.live/api/applications/' +
+        `${RMS_API_BASE}/api/applications/` +
         encodeURIComponent(appId) +
         '/issuance-document',
         {
@@ -5289,7 +5290,7 @@ async function runValidation() {
   // SAVE VALIDATION RESULT TO DATABASE
   try {
     const response = await fetch(
-      `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(
         CURRENT_APP_ID
       )}/validation`,
       {
@@ -5791,7 +5792,7 @@ async function setDocStatus(doc, state, options = {}) {
 
   try {
     const response = await fetch(
-      `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(
         CURRENT_APP_ID
       )}/documents/${encodeURIComponent(
         documentType
@@ -6005,7 +6006,7 @@ async function saveDocumentAuthentication(
 
   try {
     const response = await fetch(
-      `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(
         CURRENT_APP_ID
       )}/documents/${encodeURIComponent(
         documentType
@@ -6139,7 +6140,7 @@ async function approveAllDocs() {
 
   try {
     const response = await fetch(
-      `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(CURRENT_APP_ID)}/documents/approve-all`,
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(CURRENT_APP_ID)}/documents/approve-all`,
       {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -6396,7 +6397,7 @@ async function saveCurrent() {
 
     const response =
       await fetch(
-        `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(
+        `${RMS_API_BASE}/api/applications/${encodeURIComponent(
           CURRENT_APP_ID
         )}/validation`,
         {
@@ -7279,7 +7280,7 @@ async function downloadAnalyticsReport(format) {
 }
 
 async function recordStaffDataActivity(action, report, format, recordCount) {
-  const endpoint = 'https://www.osca-management.techsite.live/api/audit-logs/' +
+  const endpoint = `${RMS_API_BASE}/api/audit-logs/` +
     (action === 'DATA_IMPORTED' ? 'imports' : 'exports');
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -7675,7 +7676,7 @@ async function refreshIdMakerQueueApplicationIds() {
 
   ID_MAKER_QUEUE_APPLICATION_IDS_PROMISE = (async () => {
     const response = await fetch(
-      'https://record-management-backend.vercel.app/api/id-maker-queue/application-ids',
+      `${RMS_API_BASE}/api/id-maker-queue/application-ids`,
       { headers: getAuthHeaders(), cache: 'no-store' }
     );
     const result = await response.json().catch(() => ({}));
@@ -7813,7 +7814,7 @@ async function initSmallFormIssuance() {
 
     try {
       const response = await fetch(
-        `https://www.osca-management.techsite.live/api/applications/${encodeURIComponent(app.id)}`,
+        `${RMS_API_BASE}/api/applications/${encodeURIComponent(app.id)}`,
         { headers: getAuthHeaders(), cache: 'no-store' }
       );
       if (!response.ok) return;
@@ -7957,7 +7958,7 @@ async function sendFromIssuanceToIdMaker() {
     sendBtn.setAttribute('aria-busy', 'true');
     sendBtn.innerHTML = '<span class="btn__spinner" aria-hidden="true"></span><span>Sending to ID Maker...</span>';
   }
-  const apiBase = 'https://www.osca-management.techsite.live/api';
+  const apiBase = `${RMS_API_BASE}/api`;
   const fetchWithTimeout = (url, options = {}) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
@@ -8187,7 +8188,7 @@ async function logout(reason = 'manual') {
   let logoutRecorded = false;
   try {
     const response = await fetch(
-      'https://www.osca-management.techsite.live/api/auth/logout',
+      `${RMS_API_BASE}/api/auth/logout`,
       {
         method: 'POST',
         headers: getAuthHeaders(),

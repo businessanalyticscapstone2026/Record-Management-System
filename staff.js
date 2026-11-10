@@ -1,5 +1,5 @@
-// Use the separately deployed backend for all staff API requests.
-const STAFF_API_BASE = "https://record-management-backend.vercel.app";
+// Use this deployment for all staff API requests.
+const STAFF_API_BASE = window.location.origin;
 
 // Wake the Record Management backend early without blocking page rendering.
 fetch(`${STAFF_API_BASE}/health`, {
