@@ -891,3 +891,43 @@ body.portal-mode .admin-kpi-strip {
   }
   .bulk-queue-confirm-status { align-self: flex-start; }
 }
+
+
+/* Production queue doughnut tooltip: render above the center total and clamp to the chart. */
+#mod-id-maker-analytics .chart-wrap {
+  overflow: visible;
+}
+
+#mod-id-maker-analytics .idmaker-status-tooltip {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 9px 11px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  background: rgba(15,23,42,.96);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(15,23,42,.24);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .08s ease;
+}
+
+#mod-id-maker-analytics .idmaker-status-tooltip__title {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+#mod-id-maker-analytics .idmaker-status-tooltip__detail {
+  color: #e2e8f0;
+  font-size: 10px;
+}
