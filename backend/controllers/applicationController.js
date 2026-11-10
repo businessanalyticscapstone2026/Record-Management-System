@@ -1,20 +1,6 @@
 const supabase = require("../config/supabase");
 const { createAuditLogFromRequest } = require("./auditLogController");
 
-const {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  ImageRun,
-  Table,
-  TableRow,
-  TableCell,
-  WidthType,
-  AlignmentType,
-  BorderStyle,
-} = require("docx");
-
 const normalizeStorageObjectPath = (value) => {
   let path = String(value || "").trim();
   if (!path) return null;
@@ -115,6 +101,13 @@ const createSignedFileUrl = async (filePath) => {
 
 const downloadIssuanceDocument = async (req, res) => {
   try {
+    // DOCX generation is used only for issuance downloads. Load the
+    // relatively heavy document library on demand, not during API startup.
+    const {
+      Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow,
+      TableCell, WidthType, AlignmentType, BorderStyle,
+    } = require("docx");
+
     const applicationId = req.params.applicationId;
 
     if (!applicationId) {
@@ -2481,9 +2474,435 @@ const updateMembershipStatus = async (req, res) => {
   }
 };
 
+
+/* ============================================================
+   IMPORT HISTORICAL / LEGACY APPLICANT RECORDS
+   These are existing registered senior citizens, not new requests.
+   ============================================================ */
+const importApplicantRecords = async (req, res) => {
+  const normalizeText = (value) => String(value ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  const normalizeDate = (value) => {
+    if (!value) return "";
+    const raw = String(value).trim();
+    const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (iso) return iso[1];
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+  };
+  const safeDateTime = (value) => {
+    if (!value) return new Date().toISOString();
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  };
+  const relatedColumns = {
+    family_composition: ["name", "relationship", "age", "civil_status", "occupation", "income"],
+    memberships: ["association_name", "association_address", "association_date", "position"],
+    personal_background: ["income_own_earnings", "income_own_pension", "income_stocks_dividends", "income_dependent_children", "income_spouse_salary", "income_insurance", "income_rentals_sharecrops", "income_savings", "income_livestock_crop", "income_other", "asset_house", "asset_lot", "asset_farmland", "asset_fishponds_resorts", "asset_commercial_building", "asset_other", "living_alone", "living_spouse", "living_care_institution", "living_children", "living_friends", "living_common_law_spouse", "living_grandchildren", "living_households", "living_relatives", "living_in_laws", "living_other", "skill_medical", "skill_dental", "skill_farming", "skill_arts", "skill_teaching", "skill_counseling", "skill_fishing", "skill_engineering", "skill_legal_services", "skill_evangelization", "skill_cooking", "skill_vocational", "skill_other", "involvement_medical", "involvement_dental", "involvement_religious", "involvement_sportsmanship", "involvement_resource_volunteer", "involvement_friendly_visits", "involvement_counseling_referral", "involvement_legal_services", "involvement_community_leader", "involvement_other", "income_other_specify", "asset_other_specify", "monthly_income", "living_other_specify", "skill_other_specify", "involvement_other_specify"],
+    problems_needs: ["economic_lack_income", "economic_skills_training", "economic_livelihood", "economic_other", "social_neglect_rejection", "social_helplessness", "social_loneliness", "social_inadequate_recreation", "social_senior_friendly_environment", "social_other", "health_high_cost_medicine", "health_lack_medical_professionals", "health_no_sanitation", "health_no_insurance", "health_lack_hospital", "health_problem", "housing_overcrowding", "housing_no_permanent_home", "housing_independent_living", "housing_lost_privacy", "housing_squatter_area", "housing_high_rental", "housing_other", "community_desire_participate", "community_skills_to_share", "community_other", "economic_skills_training_specify", "economic_livelihood_specify", "economic_other_specify", "social_other_specify", "health_problem_specify", "housing_other_specify", "community_other_specify", "other_specific_needs"],
+    application_files: ["valid_id_url", "latest_photo_url", "birth_certificate_url", "community_tax_certificate_url", "signature_url", "application_date", "valid_id_back_url", "authentication_status", "authentication_method", "authentication_remarks", "supporting_document_type"]
+  };
+  const booleanColumns = new Set(Object.entries(relatedColumns).flatMap(([table, columns]) =>
+    columns.filter(column => /^(income_|asset_|living_|skill_|involvement_|economic_|social_|health_|housing_|community_)/.test(column) &&
+      !column.endsWith("_specify") && !["monthly_income"].includes(column)).map(column => table + "." + column)
+  ));
+  const normalizeFamilyCivilStatus = value => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return null;
+    const key = normalizeText(raw);
+    const accepted = {
+      single: "Single",
+      unmarried: "Single",
+      "never married": "Single",
+      separated: "Separated",
+      "legally separated": "Separated",
+      married: "Married",
+      widower: "Widower",
+      widow: "Widower",
+      widowed: "Widower"
+    };
+    return accepted[key] || null;
+  };
+  const parseBoolean = value => {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (["true", "1", "yes", "y", "checked", "✓", "✔"].includes(normalized)) return true;
+    if (["false", "0", "no", "n", "unchecked"].includes(normalized)) return false;
+    return null;
+  };
+  const hasValues = record => Object.entries(record).some(([key, value]) =>
+    key !== "application_id" && value !== null && value !== undefined && String(value).trim() !== ""
+  );
+
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (!rows.length) return res.status(400).json({ success: false, message: "No applicant rows were provided." });
+    if (rows.length > 100) return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
+
+    const existingRows = await fetchAllRows("applications",
+      "application_id, osca_id_number, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
+    const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
+    const currentYear = new Date().getFullYear();
+    const legacyReferencePattern = new RegExp("^LEGACY-" + currentYear + "-(\\d+)$", "i");
+    let nextLegacySequence = (existingRows || []).reduce((max, row) => {
+      const match = String(row.legacy_reference || "").match(legacyReferencePattern);
+      return match ? Math.max(max, Number(match[1]) || 0) : max;
+    }, 0) + 1;
+    const existingLegacyReferences = new Set((existingRows || [])
+      .map(row => String(row.legacy_reference || "").trim().toUpperCase()).filter(Boolean));
+    const identityKeys = new Set((existingRows || []).map(row => {
+      const first = normalizeText(row.first_name), last = normalizeText(row.surname);
+      const dob = normalizeDate(row.date_of_birth), barangay = normalizeText(row.barangay_district);
+      return first && last && dob ? [first, last, dob, barangay].join("|") : "";
+    }).filter(Boolean));
+
+    const importedIdentityKeys = new Set();
+    const importedOfficialIds = new Set();
+    const result = { success: true, received: rows.length, imported: 0, skippedDuplicates: 0,
+      skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [], warnings: [] };
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const source = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
+      const firstName = String(source.first_name || "").trim();
+      const surname = String(source.surname || "").trim();
+      const dateOfBirth = normalizeDate(source.date_of_birth);
+      const middleName = String(source.middle_name || "").trim();
+      const barangay = String(source.barangay_district || "").trim();
+
+      if (!firstName || !surname || !dateOfBirth) {
+        result.skippedInvalid += 1;
+        result.errors.push({ row: index + 1, reason: "First name, surname, and a valid date of birth are required by the applications table." });
+        continue;
+      }
+      const identityKey = [normalizeText(firstName), normalizeText(surname), dateOfBirth, normalizeText(barangay)].join("|");
+      const providedId = String(source.application_id || "").trim();
+      const suppliedOsCaId = String(source.osca_id_number || "").trim();
+      if ((providedId && existingIds.has(providedId.toLowerCase())) ||
+          (suppliedOsCaId && (existingRows || []).some(row =>
+            String(row.osca_id_number || "").trim().toLowerCase() === suppliedOsCaId.toLowerCase())) ||
+          identityKeys.has(identityKey) || importedIdentityKeys.has(identityKey)) {
+        result.skippedDuplicates += 1;
+        continue;
+      }
+
+      // application_id is the system's internal key. Only the dedicated
+      // osca_id_number source field represents an officially issued OSCA ID.
+      const externalOsCaId = suppliedOsCaId;
+      const internalApplicationId = providedId.length > 0 && providedId.length <= 10 ? providedId : null;
+      let legacyReference = null;
+      if (!externalOsCaId) {
+        do {
+          legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
+        } while (existingLegacyReferences.has(legacyReference));
+        existingLegacyReferences.add(legacyReference);
+      }
+      const createdAt = safeDateTime(source.registration_date);
+      const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
+      const applicationRecord = {
+        ...(internalApplicationId ? { application_id: internalApplicationId } : {}),
+        first_name: firstName, middle_name: middleName || null, surname,
+        date_of_birth: dateOfBirth, age: source.age === "" || source.age == null ? null : (Number.isFinite(Number(source.age)) ? Number(source.age) : null),
+        sex: source.sex || null, place_of_birth: source.place_of_birth || null, civil_status: source.civil_status || null,
+        house_street: source.house_street || null, barangay_district: barangay || null,
+        educational_attainment: source.educational_attainment || null, religion: source.religion || null,
+        religion_specify: source.religion_specify || null, occupation: source.occupation || null,
+        osca_id_number: externalOsCaId || null, legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
+        philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
+        tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
+        membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
+      };
+
+      const insertedTables = [];
+      let applicationIdForRollback = internalApplicationId;
+      try {
+        const { data: inserted, error: insertError } = await supabase.from("applications")
+          .insert(applicationRecord).select("application_id").single();
+        if (insertError) throw insertError;
+        const id = inserted.application_id;
+        applicationIdForRollback = id;
+
+        const historySource = source._related?.application_status_history || {};
+        const sourceStatus = String(historySource.status || "").trim();
+        const sourceStatusDate = safeDateTime(historySource.updated_at || source.registration_date);
+        // Preserve the status from the historical file, then mark the imported
+        // legacy profile Completed so it is treated as an existing registered senior.
+        if (sourceStatus && sourceStatus.toLowerCase() !== "completed") {
+          const { error: historicalStatusError } = await supabase.from("application_status_history").insert({
+            application_id: id, status: sourceStatus, updated_at: sourceStatusDate
+          });
+          if (historicalStatusError) throw historicalStatusError;
+          insertedTables.push("application_status_history");
+        }
+        const { error: statusError } = await supabase.from("application_status_history").insert({
+          application_id: id, status: "Completed",
+          updated_at: sourceStatus && sourceStatus.toLowerCase() === "completed"
+            ? sourceStatusDate : new Date().toISOString()
+        });
+        if (statusError) throw statusError;
+        insertedTables.push("application_status_history");
+
+        for (const [table, allowed] of Object.entries(relatedColumns)) {
+          const raw = source._related?.[table];
+          if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+          const record = { application_id: id };
+          allowed.forEach(column => {
+            const value = raw[column];
+            if (value === undefined || value === null || String(value).trim() === "") return;
+            if (booleanColumns.has(table + "." + column)) {
+              const parsed = parseBoolean(value);
+              if (parsed !== null) record[column] = parsed;
+            } else if (["age", "income"].includes(column)) {
+              const number = Number(String(value).replace(/[,₱\s]/g, ""));
+              if (Number.isFinite(number)) record[column] = number;
+            } else if (["association_date", "application_date"].includes(column)) {
+              const date = normalizeDate(value);
+              if (date) record[column] = date;
+            } else if (table === "family_composition" && column === "civil_status") {
+              const normalizedStatus = normalizeFamilyCivilStatus(value);
+              if (normalizedStatus) record[column] = normalizedStatus;
+            } else {
+              record[column] = String(value).trim();
+            }
+          });
+          if (!hasValues(record)) continue;
+          const { error } = await supabase.from(table).insert(record);
+          if (error) throw new Error(table + ": " + error.message);
+          insertedTables.push(table);
+        }
+
+        existingIds.add(String(id).toLowerCase());
+        if (externalOsCaId) importedOfficialIds.add(externalOsCaId.toLowerCase());
+        identityKeys.add(identityKey);
+        importedIdentityKeys.add(identityKey);
+        result.importedApplicants.push({
+          sourceRow: index + 1,
+          application_id: id,
+          osca_id_number: externalOsCaId || null,
+          legacy_reference: legacyReference
+        });
+        result.imported += 1;
+      } catch (error) {
+        // Best-effort rollback keeps the application and its linked records together.
+        if (applicationIdForRollback) {
+          for (const table of insertedTables.reverse()) {
+            const { error: rollbackError } = await supabase.from(table).delete().eq("application_id", applicationIdForRollback);
+            if (rollbackError) console.error("[Applicant Import] Rollback failed for " + table + ":", rollbackError);
+          }
+          const { error: rollbackApplicationError } = await supabase.from("applications").delete().eq("application_id", applicationIdForRollback);
+          if (rollbackApplicationError) console.error("[Applicant Import] Application rollback failed:", rollbackApplicationError);
+        }
+        result.failed += 1;
+        result.errors.push({ row: index + 1, reason: String(error?.message || "Database insert failed.").slice(0, 240) });
+      }
+    }
+
+    if (result.imported > 0) {
+      await createAuditLogFromRequest(req, {
+        action: "LEGACY_APPLICANTS_IMPORTED", entityType: "APPLICATION", entityId: null,
+        details: "Imported " + result.imported + " historical applicant record(s); skipped " + result.skippedDuplicates +
+          " duplicate(s), " + result.skippedInvalid + " invalid row(s), and " + result.failed + " failed row(s)."
+      });
+    }
+    result.warnings = [
+      "Imported records are marked Completed and appear in the Registered Seniors directory.",
+      "Existing records are never overwritten; duplicate records are skipped.",
+      "Related family, background, needs, membership, and file metadata are saved only when mapped source values are provided.",
+      "A single family-composition mapping creates one family member row per applicant. Multiple family members require separate source rows or a future multi-member grouping enhancement.",
+      "Document URLs are imported as references only; actual document files are not uploaded to Storage."
+    ];
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("[Applicant Import] Failed:", error);
+    return res.status(500).json({ success: false, message: "The applicant import could not be completed.",
+      error: String(error?.message || "Unexpected server error.").slice(0, 240) });
+  }
+};
+
+
+/* ============================================================
+   IMPORT HISTORICAL APPLICANT DOCUMENTS FROM A ZIP ARCHIVE
+   ZIP folder names must be official OSCA IDs or LEGACY references.
+   Files are stored under the internal application_id to preserve
+   the existing private Storage path and cleanup conventions.
+   ============================================================ */
+const importApplicantDocuments = async (req, res) => {
+  const MAX_ARCHIVE_BYTES = 80 * 1024 * 1024;
+  const MAX_EXPANDED_BYTES = 200 * 1024 * 1024;
+  const MAX_ENTRY_BYTES = 15 * 1024 * 1024;
+  const MAX_ENTRIES = 1200;
+  const documentTypes = {
+    valid_id_front: { column: "valid_id_url", label: "Valid ID (front)" },
+    valid_id_back: { column: "valid_id_back_url", label: "Valid ID (back)" },
+    formal_photo: { column: "latest_photo_url", label: "Formal photo" },
+    cedula: { column: "community_tax_certificate_url", label: "Cedula" },
+    birth_certificate: { column: "birth_certificate_url", label: "Birth certificate" },
+    signature: { column: "signature_url", label: "Signature" }
+  };
+  const allowedExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp"]);
+  const mimeTypes = {
+    ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp"
+  };
+  const result = {
+    success: true, foldersFound: 0, matchedApplicants: 0, unmatchedFolders: [],
+    uploaded: 0, alreadyPresent: 0, missingDocuments: [], invalidFiles: [], failed: []
+  };
+
+  try {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(400).json({ success: false, message: "Upload a ZIP archive containing applicant document folders." });
+    }
+    if (req.body.length > MAX_ARCHIVE_BYTES) {
+      return res.status(413).json({ success: false, message: "The ZIP archive exceeds the 80 MB upload limit." });
+    }
+
+    const AdmZip = require("adm-zip");
+    const archive = new AdmZip(req.body);
+    const entries = archive.getEntries();
+    if (!entries.length || entries.length > MAX_ENTRIES) {
+      return res.status(400).json({ success: false, message: "The ZIP archive is empty or contains too many entries." });
+    }
+
+    const applicantFolders = new Map();
+    let expandedBytes = 0;
+    for (const entry of entries) {
+      const rawName = String(entry.entryName || "").replace(/\\/g, "/");
+      const segments = rawName.split("/").filter(Boolean);
+      if (!segments.length || rawName.startsWith("/") ||
+          segments.some(segment => segment === "." || segment === ".." || segment.includes("\\0"))) {
+        result.invalidFiles.push({ file: rawName.slice(0, 160), reason: "Unsafe archive path." });
+        continue;
+      }
+      if (entry.isDirectory) continue;
+      const size = Number(entry.header?.size || 0);
+      expandedBytes += size;
+      if (size > MAX_ENTRY_BYTES || expandedBytes > MAX_EXPANDED_BYTES) {
+        return res.status(413).json({ success: false, message: "The ZIP contains a file or expanded content that exceeds the import limits." });
+      }
+      if (segments.length !== 2) {
+        result.invalidFiles.push({ file: rawName.slice(0, 160), reason: "Place each document directly inside one applicant-reference folder." });
+        continue;
+      }
+      const folder = segments[0].trim();
+      const filename = segments[1];
+      const dot = filename.lastIndexOf(".");
+      const baseName = dot > 0 ? filename.slice(0, dot).toLowerCase() : filename.toLowerCase();
+      const extension = dot > 0 ? filename.slice(dot).toLowerCase() : "";
+      if (!folder || !documentTypes[baseName] || !allowedExtensions.has(extension)) {
+        result.invalidFiles.push({ file: rawName.slice(0, 160), reason: "Use one of the six required document names and a PDF, JPG, PNG, or WEBP file." });
+        continue;
+      }
+      if (!applicantFolders.has(folder)) applicantFolders.set(folder, []);
+      applicantFolders.get(folder).push({ entry, baseName, extension, size, folder });
+    }
+
+    result.foldersFound = applicantFolders.size;
+    if (!applicantFolders.size) {
+      return res.status(400).json({ success: false, message: "No valid applicant document folders were found.", ...result });
+    }
+
+    const { data: applicants, error: applicantError } = await supabase.from("applications")
+      .select("application_id, osca_id_number, legacy_reference");
+    if (applicantError) throw applicantError;
+
+    const referenceMap = new Map();
+    (applicants || []).forEach(applicant => {
+      [applicant.osca_id_number, applicant.legacy_reference].forEach(value => {
+        const key = String(value || "").trim().toLowerCase();
+        if (!key) return;
+        if (!referenceMap.has(key)) referenceMap.set(key, []);
+        referenceMap.get(key).push(applicant);
+      });
+    });
+
+    for (const [folderName, files] of applicantFolders.entries()) {
+      const matches = referenceMap.get(folderName.toLowerCase()) || [];
+      if (matches.length !== 1) {
+        result.unmatchedFolders.push({ folder: folderName, reason: matches.length ? "Reference matches more than one applicant; no files were assigned." : "No applicant has this OSCA ID or legacy reference." });
+        continue;
+      }
+
+      const applicant = matches[0];
+      result.matchedApplicants += 1;
+      const { data: existingFileRows, error: existingFileError } = await supabase.from("application_files")
+        .select("application_id, valid_id_url, valid_id_back_url, latest_photo_url, birth_certificate_url, community_tax_certificate_url, signature_url")
+        .eq("application_id", applicant.application_id).limit(1);
+      if (existingFileError) {
+        result.failed.push({ folder: folderName, reason: existingFileError.message });
+        continue;
+      }
+
+      const currentFiles = existingFileRows?.[0] || { application_id: applicant.application_id };
+      const updates = {};
+      const uploadedPaths = [];
+      const seenTypes = new Set();
+
+      for (const file of files) {
+        if (seenTypes.has(file.baseName)) {
+          result.invalidFiles.push({ file: folderName + "/" + file.entry.entryName.split("/").pop(), reason: "Duplicate document type in the same applicant folder." });
+          continue;
+        }
+        seenTypes.add(file.baseName);
+        const definition = documentTypes[file.baseName];
+        if (currentFiles[definition.column]) {
+          result.alreadyPresent += 1;
+          continue;
+        }
+
+        const objectPath = String(applicant.application_id) + "/" + file.baseName + file.extension;
+        const buffer = file.entry.getData();
+        if (!buffer || buffer.length !== file.size) {
+          result.failed.push({ folder: folderName, document: definition.label, reason: "The ZIP entry could not be read completely." });
+          continue;
+        }
+        const { error: uploadError } = await supabase.storage.from("documents").upload(objectPath, buffer, {
+          contentType: mimeTypes[file.extension], upsert: false
+        });
+        if (uploadError) {
+          result.failed.push({ folder: folderName, document: definition.label, reason: uploadError.message });
+          continue;
+        }
+        uploadedPaths.push(objectPath);
+        updates[definition.column] = objectPath;
+        result.uploaded += 1;
+      }
+
+      const missing = Object.entries(documentTypes)
+        .filter(([key, definition]) => !currentFiles[definition.column] && !updates[definition.column] && !seenTypes.has(key))
+        .map(([, definition]) => definition.label);
+      if (missing.length) result.missingDocuments.push({ folder: folderName, missing });
+
+      if (Object.keys(updates).length) {
+        const saveResult = existingFileRows?.length
+          ? await supabase.from("application_files").update(updates).eq("application_id", applicant.application_id)
+          : await supabase.from("application_files").insert({ application_id: applicant.application_id, ...updates });
+        if (saveResult.error) {
+          await supabase.storage.from("documents").remove(uploadedPaths);
+          result.uploaded -= uploadedPaths.length;
+          result.failed.push({ folder: folderName, reason: "Document metadata could not be saved: " + saveResult.error.message });
+        }
+      }
+    }
+
+    if (result.uploaded > 0) {
+      await createAuditLogFromRequest(req, {
+        action: "LEGACY_APPLICANT_DOCUMENTS_IMPORTED", entityType: "APPLICATION", entityId: null,
+        details: "Uploaded " + result.uploaded + " historical applicant document(s) for " + result.matchedApplicants + " matched folder(s)."
+      });
+    }
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("[Applicant Document Import] Failed:", error);
+    return res.status(500).json({ success: false, message: "The applicant documents could not be imported.",
+      error: String(error?.message || "Unexpected server error.").slice(0, 240) });
+  }
+};
+
 // EXPORT
 module.exports = {
   getApplications,
+  importApplicantRecords,
+  importApplicantDocuments,
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,

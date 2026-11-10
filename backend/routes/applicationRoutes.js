@@ -5,6 +5,8 @@ const { authenticateToken, requireRoles } = require("../middleware/authMiddlewar
 
 const {
   getApplications,
+  importApplicantRecords,
+  importApplicantDocuments,
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,
@@ -16,6 +18,14 @@ const {
 } = require("../controllers/applicationController");
 
 router.get("/", authenticateToken, requireRoles("admin", "staff"), getApplications);
+router.post("/import", authenticateToken, requireRoles("admin", "staff"), importApplicantRecords);
+router.post(
+  "/import/documents",
+  authenticateToken,
+  requireRoles("admin", "staff"),
+  express.raw({ type: ["application/zip", "application/x-zip-compressed"], limit: "80mb" }),
+  importApplicantDocuments
+);
 
 router.get("/:applicationId/issuance-details", authenticateToken, requireRoles("admin", "staff", "idmaker"), getIssuanceDetails);
 

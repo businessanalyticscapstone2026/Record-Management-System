@@ -103,7 +103,7 @@ async function requestProvider(provider, metrics, prompt, expectedKeys, maxToken
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
         ...(provider.id === "openrouter" ? {
-          "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://record-management-system-black.vercel.app",
+          "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://www.osca-management.techsite.live",
           "X-Title": "OSCA Record Management System Analytics",
         } : {}),
       },

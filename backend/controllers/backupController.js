@@ -1,5 +1,4 @@
 const crypto = require("crypto");
-const AdmZip = require("adm-zip");
 const supabase = require("../config/supabase");
 const { createAuditLogFromRequest } = require("./auditLogController");
 
@@ -370,6 +369,7 @@ async function downloadAndOpenBackupArchive(storage, backupId, metadata) {
   if (metadata.archiveBytes && encryptedArchive.length !== Number(metadata.archiveBytes)) {
     throw new Error("Backup archive is incomplete. The downloaded size does not match its metadata.");
   }
+  const AdmZip = require("adm-zip");
   const zip = new AdmZip(decryptArchive(encryptedArchive));
   const manifestEntry = zip.getEntry("manifest.json");
   if (!manifestEntry) throw new Error("Backup manifest is missing.");
@@ -437,6 +437,7 @@ async function runSystemBackupJob(req) {
     checkBackupCancelled();
     setBackupProgress(5, "Secure backup storage is ready");
 
+    const AdmZip = require("adm-zip");
     const zip = new AdmZip();
     const createdAt = new Date().toISOString();
     const backupId = "backup-" + createdAt.replace(/[:.]/g, "-");

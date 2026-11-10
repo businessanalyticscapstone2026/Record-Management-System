@@ -1,19 +1,29 @@
+// Wake the Record Management backend early without blocking page rendering.
+fetch(`${window.location.origin}/health`, {
+  method: "GET",
+  mode: "cors",
+  cache: "no-store",
+  keepalive: true,
+}).catch(() => {
+  // Normal API requests display their own error feedback if the backend is unavailable.
+});
+
 // Admin portal logic
 
 const ADMIN_APPLICATIONS_API =
-  'https://management-backend-3cij.onrender.com/api/applications';
+  `${window.location.origin}/api/applications`;
 
 const ADMIN_USERS_API =
-  'https://management-backend-3cij.onrender.com/api/auth/users';
+  `${window.location.origin}/api/auth/users`;
 
 const ADMIN_AUDIT_API =
-  'https://management-backend-3cij.onrender.com/api/audit-logs';
+  `${window.location.origin}/api/audit-logs`;
 
 const ADMIN_HEALTH_API =
-  'https://management-backend-3cij.onrender.com/api/test';
+  `${window.location.origin}/api/test`;
 
 const ADMIN_SYSTEM_SETTINGS_API =
-  'https://management-backend-3cij.onrender.com/api/system-settings';
+  `${window.location.origin}/api/system-settings`;
 
 let ADMIN_APPLICATIONS = [];
 
@@ -4982,7 +4992,7 @@ function exportAuditReport() {
    MODULE D — LIVE BACKUP & NON-DESTRUCTIVE RECOVERY
    ========================================================= */
 
-const ADMIN_BACKUPS_API = "https://management-backend-3cij.onrender.com/api/backups";
+const ADMIN_BACKUPS_API = `${window.location.origin}/api/backups`;
 let backupIsRunning = false;
 let BACKUP_HISTORY = [];
 let backupProgressPoller = null;
