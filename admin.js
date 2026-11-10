@@ -31,6 +31,21 @@ let ADMIN_USER_ACCOUNTS = [];
 
 let AUDIT_LOG_DATA = [];
 let ADMIN_USER_SORT = { column: null, ascending: true };
+let AUDIT_SELECTED_USERS = [];
+let AUDIT_SELECTED_ACTIONS = [];
+const AUDIT_ACTION_OPTIONS = [
+  { value: 'approve', label: 'Approvals' },
+  { value: 'reject', label: 'Rejections' },
+  { value: 'status', label: 'Application Status Updates' },
+  { value: 'documents', label: 'Document Verification' },
+  { value: 'validation', label: 'Eligibility Validation' },
+  { value: 'issuance', label: 'ID Issuance & Queue' },
+  { value: 'replacement', label: 'Replacement Requests' },
+  { value: 'export', label: 'Exports' },
+  { value: 'login', label: 'Authentication (login, logout, failed attempts)' },
+  { value: 'backup', label: 'Backups & Restore' },
+  { value: 'user', label: 'User Management' },
+];
 
 
 /* ADMIN SYSTEM SETTINGS */
@@ -1709,6 +1724,8 @@ function renderAuditSummaryFromLiveData() {
 document.addEventListener(
   'DOMContentLoaded',
   () => {
+
+    initializeAuditMultiSelects();
 
     // Close the date-range popover whenever the user clicks anywhere
     // outside the filter control, matching the behavior of other popovers.
@@ -3850,25 +3867,82 @@ const escHtml =
       );
 
 
+function initializeAuditMultiSelects() {
+  renderAuditUserFilter();
+  syncAuditMultiSelect('audit-action-filter', AUDIT_ACTION_OPTIONS);
+  document.addEventListener('click', event => {
+    document.querySelectorAll('.audit-multiselect.is-open').forEach(wrapper => {
+      if (!wrapper.contains(event.target)) {
+        wrapper.classList.remove('is-open');
+        const trigger = wrapper.querySelector('.audit-multiselect__trigger');
+        const panel = wrapper.querySelector('.audit-multiselect__panel');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        if (panel) panel.hidden = true;
+      }
+    });
+  });
+}
+
+function toggleAuditMultiSelect(selectId, event) {
+  event?.stopPropagation();
+  const wrapper = document.querySelector(`[data-audit-multiselect="${selectId}"]`);
+  if (!wrapper) return;
+  const willOpen = !wrapper.classList.contains('is-open');
+  document.querySelectorAll('.audit-multiselect.is-open').forEach(openWrapper => {
+    openWrapper.classList.remove('is-open');
+    openWrapper.querySelector('.audit-multiselect__panel').hidden = true;
+    openWrapper.querySelector('.audit-multiselect__trigger').setAttribute('aria-expanded', 'false');
+  });
+  wrapper.classList.toggle('is-open', willOpen);
+  wrapper.querySelector('.audit-multiselect__panel').hidden = !willOpen;
+  wrapper.querySelector('.audit-multiselect__trigger').setAttribute('aria-expanded', String(willOpen));
+}
+
+function syncAuditMultiSelect(selectId, availableOptions = []) {
+  const wrapper = document.querySelector(`[data-audit-multiselect="${selectId}"]`);
+  const list = document.getElementById(`${selectId}-options`);
+  const triggerLabel = document.querySelector(`#${selectId}-trigger > span:first-child`);
+  if (!wrapper || !list || !triggerLabel) return;
+
+  const options = availableOptions;
+  const selected = selectId === 'audit-user-filter' ? AUDIT_SELECTED_USERS : AUDIT_SELECTED_ACTIONS;
+  const selectedLabels = options.filter(option => selected.includes(option.value)).map(option => option.label);
+  const singular = selectId === 'audit-user-filter' ? 'user' : 'action';
+  triggerLabel.textContent = selectedLabels.length === 0
+    ? (singular === 'user' ? 'All Users' : 'All Actions')
+    : selectedLabels.length === 1
+      ? selectedLabels[0]
+      : `${selectedLabels.length} ${singular}s selected`;
+
+  list.replaceChildren();
+  const allLabel = singular === 'user' ? 'All Users' : 'All Actions';
+  [{ value: '', label: allLabel }, ...options].forEach(option => {
+    const label = document.createElement('label');
+    label.className = 'audit-multiselect__option';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = option.value ? selected.includes(option.value) : selected.length === 0;
+    checkbox.addEventListener('change', () => {
+      if (!option.value) {
+        if (selectId === 'audit-user-filter') AUDIT_SELECTED_USERS = [];
+        else AUDIT_SELECTED_ACTIONS = [];
+      } else {
+        const updated = selected.filter(value => value !== option.value);
+        if (checkbox.checked) updated.push(option.value);
+        if (selectId === 'audit-user-filter') AUDIT_SELECTED_USERS = updated;
+        else AUDIT_SELECTED_ACTIONS = updated;
+      }
+      syncAuditMultiSelect(selectId, options);
+      filterAuditLogs();
+    });
+    const text = document.createElement('span');
+    text.textContent = option.label;
+    label.append(checkbox, text);
+    list.appendChild(label);
+  });
+}
+
 function renderAuditUserFilter() {
-
-  const sel =
-    document.getElementById(
-      'audit-user-filter'
-    );
-
-
-  if (!sel) {
-
-    return;
-
-  }
-
-
-  const current =
-    Array.from(sel.selectedOptions).map(option => option.value);
-
-
   const names = [];
 
 
@@ -3912,9 +3986,8 @@ function renderAuditUserFilter() {
   );
 
 
-  sel.innerHTML = names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
-  Array.from(sel.options).forEach(option => { option.selected = current.includes(option.value); });
-
+  AUDIT_SELECTED_USERS = AUDIT_SELECTED_USERS.filter(name => names.includes(name));
+  syncAuditMultiSelect('audit-user-filter', names.map(name => ({ value: name, label: name })));
 }
 
 
@@ -4016,8 +4089,8 @@ function renderAuditTable() {
                 </td>
 
 
-                <td data-label="Action">
-                  <span class="cell-text">${escHtml(e.action)}</span>
+                <td data-label="Action" title="${escHtml(e.action)}">
+                  <span class="cell-text audit-trail__truncate">${escHtml(e.action)}</span>
                 </td>
 
 
@@ -4264,8 +4337,8 @@ function filterAuditLogs() {
 function readAuditFilterInputs() {
   return {
     q: (document.getElementById('audit-search')?.value || '').trim().toLocaleLowerCase(),
-    userF: Array.from(document.getElementById('audit-user-filter')?.selectedOptions || []).map(option => option.value).filter(Boolean),
-    actionF: Array.from(document.getElementById('audit-action-filter')?.selectedOptions || []).map(option => option.value).filter(Boolean),
+    userF: [...AUDIT_SELECTED_USERS],
+    actionF: [...AUDIT_SELECTED_ACTIONS],
     from: document.getElementById('audit-date-from')?.value || '',
     to: document.getElementById('audit-date-to')?.value || ''
   };
@@ -4760,13 +4833,12 @@ function clearAuditDateRange() {
 }
 
 function resetAuditFilters() {
-  ['audit-search', 'audit-user-filter', 'audit-action-filter'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      if (el.multiple) Array.from(el.options).forEach(option => { option.selected = false; });
-      else el.value = '';
-    }
-  });
+  const search = document.getElementById('audit-search');
+  if (search) search.value = '';
+  AUDIT_SELECTED_USERS = [];
+  AUDIT_SELECTED_ACTIONS = [];
+  renderAuditUserFilter();
+  syncAuditMultiSelect('audit-action-filter', AUDIT_ACTION_OPTIONS);
   clearAuditDateRange();
 }
 

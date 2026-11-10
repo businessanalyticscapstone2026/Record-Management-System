@@ -1881,56 +1881,92 @@ const updateDocumentAuthentication = async (req, res) => {
 
     let applicationStatus;
     let applicationStatusError;
+    let replacementRequestStatus;
     if (status === "approved") {
       try {
-        const { data: currentStatusRecord, error: currentStatusError } = await supabase
-          .from("application_status_history")
-          .select("status")
+        // Replacement requests keep their list/dashboard status in id_requests,
+        // separately from the application status history. Promote both through
+        // the existing transactional RPC, and only while the request is Pending.
+        const { data: replacementRequest, error: replacementRequestError } = await supabase
+          .from("id_requests")
+          .select("id, request_status")
           .eq("application_id", applicationId)
-          .order("updated_at", { ascending: false })
-          .limit(1)
           .maybeSingle();
 
-        if (currentStatusError) throw currentStatusError;
-        applicationStatus = currentStatusRecord?.status || "Pending";
+        if (replacementRequestError) throw replacementRequestError;
 
-        if (applicationStatus === "Pending") {
-          if (currentStatusRecord) {
-            const { data: updatedStatusRecords, error: statusUpdateError } = await supabase
-              .from("application_status_history")
-              .update({ status: "Under Review", updated_at: now })
-              .eq("application_id", applicationId)
-              .eq("status", "Pending")
-              .select("status");
+        if (replacementRequest) {
+          replacementRequestStatus = replacementRequest.request_status || "Pending";
 
-            if (statusUpdateError) throw statusUpdateError;
+          if (replacementRequestStatus === "Pending") {
+            const { data: statusUpdate, error: replacementStatusError } = await supabase.rpc(
+              "update_replacement_request_status",
+              {
+                p_request_id: replacementRequest.id,
+                p_status: "Under Review",
+              }
+            );
 
-            if (updatedStatusRecords?.length) {
-              applicationStatus = "Under Review";
-            } else {
-              const { data: latestStatusRecord, error: latestStatusError } = await supabase
-                .from("application_status_history")
-                .select("status")
-                .eq("application_id", applicationId)
-                .order("updated_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              if (latestStatusError) throw latestStatusError;
-              applicationStatus = latestStatusRecord?.status || "Pending";
+            if (replacementStatusError) throw replacementStatusError;
+            if (!statusUpdate?.success || !statusUpdate.request) {
+              throw new Error("The database did not confirm the replacement status update.");
             }
-          } else {
-            const { data: insertedStatusRecord, error: statusInsertError } = await supabase
-              .from("application_status_history")
-              .insert({
-                application_id: applicationId,
-                status: "Under Review",
-                updated_at: now,
-              })
-              .select("status")
-              .single();
 
-            if (statusInsertError) throw statusInsertError;
-            applicationStatus = insertedStatusRecord.status;
+            replacementRequestStatus = statusUpdate.request.request_status || "Under Review";
+          }
+
+          // The RPC owns the coordinated application and replacement status change.
+          applicationStatus = replacementRequestStatus;
+        } else {
+          const { data: currentStatusRecord, error: currentStatusError } = await supabase
+            .from("application_status_history")
+            .select("status")
+            .eq("application_id", applicationId)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (currentStatusError) throw currentStatusError;
+          applicationStatus = currentStatusRecord?.status || "Pending";
+
+          if (applicationStatus === "Pending") {
+            if (currentStatusRecord) {
+              const { data: updatedStatusRecords, error: statusUpdateError } = await supabase
+                .from("application_status_history")
+                .update({ status: "Under Review", updated_at: now })
+                .eq("application_id", applicationId)
+                .eq("status", "Pending")
+                .select("status");
+
+              if (statusUpdateError) throw statusUpdateError;
+
+              if (updatedStatusRecords?.length) {
+                applicationStatus = "Under Review";
+              } else {
+                const { data: latestStatusRecord, error: latestStatusError } = await supabase
+                  .from("application_status_history")
+                  .select("status")
+                  .eq("application_id", applicationId)
+                  .order("updated_at", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (latestStatusError) throw latestStatusError;
+                applicationStatus = latestStatusRecord?.status || "Pending";
+              }
+            } else {
+              const { data: insertedStatusRecord, error: statusInsertError } = await supabase
+                .from("application_status_history")
+                .insert({
+                  application_id: applicationId,
+                  status: "Under Review",
+                  updated_at: now,
+                })
+                .select("status")
+                .single();
+
+              if (statusInsertError) throw statusInsertError;
+              applicationStatus = insertedStatusRecord.status;
+            }
           }
         }
       } catch (error) {
@@ -1952,6 +1988,7 @@ const updateDocumentAuthentication = async (req, res) => {
       message: "Document authentication saved successfully.",
       documentAuthentication: savedRecord,
       ...(applicationStatus ? { application_status: applicationStatus } : {}),
+      ...(replacementRequestStatus ? { replacement_request_status: replacementRequestStatus } : {}),
       ...(applicationStatusError ? { application_status_error: applicationStatusError } : {}),
     });
   } catch (error) {
