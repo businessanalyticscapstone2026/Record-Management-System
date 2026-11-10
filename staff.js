@@ -4962,7 +4962,11 @@ async function requestStaffAnalyticsInsights(applications) {
   displayStaffAnalyticsInsights(fallback);
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    // The backend may try Groq, OpenRouter, and Cloudflare sequentially.
+    // Their combined provider timeouts can exceed 20 seconds, so do not
+    // cancel the dashboard insight request before the fallback/provider
+    // chain has a reasonable chance to finish.
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     let response;
 
