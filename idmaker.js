@@ -1,5 +1,5 @@
 // Wake the Record Management backend early without blocking page rendering.
-fetch("https://www.osca-management.techsite.live/health", {
+fetch(`${window.location.origin}/health`, {
   method: "GET",
   mode: "cors",
   cache: "no-store",
@@ -69,7 +69,7 @@ const ID_MAKER_ANALYTICS_STAGES = [
 ];
 
 const ID_MAKER_API =
-  'https://www.osca-management.techsite.live/api/id-maker-queue';
+  `${window.location.origin}/api/id-maker-queue`;
 
 /* =========================================================
    MAIN QUEUE LIST — shared rules and state
