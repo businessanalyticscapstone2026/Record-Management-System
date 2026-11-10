@@ -20,10 +20,10 @@ const ADMIN_AUDIT_API =
   `${window.location.origin}/api/audit-logs`;
 
 const ADMIN_HEALTH_API =
-  `${window.location.origin}/api/test';
+  `${window.location.origin}/api/test`;
 
 const ADMIN_SYSTEM_SETTINGS_API =
-  `${window.location.origin}/api/system-settings';
+  `${window.location.origin}/api/system-settings`;
 
 let ADMIN_APPLICATIONS = [];
 
