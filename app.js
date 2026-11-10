@@ -1034,7 +1034,12 @@ function initMultiSelectDropdowns() {
       }
     });
   });
-  window.addEventListener('scroll', () => {
+  window.addEventListener('scroll', event => {
+    // Scrolling the options list itself must remain possible. Only close the
+    // dropdown when the page or another scrollable container moves.
+    if (event.target instanceof Element && event.target.closest('.multi-select-dropdown__menu')) {
+      return;
+    }
     document.querySelectorAll('.multi-select-dropdown__menu:not([hidden])').forEach(menu => {
       menu.hidden = true;
       if (menu._multiSelectTrigger) menu._multiSelectTrigger.setAttribute('aria-expanded', 'false');
