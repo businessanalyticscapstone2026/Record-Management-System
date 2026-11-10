@@ -17,7 +17,7 @@ app.disable("x-powered-by");
 
 app.use(cors({
   origin: [
-    "https://record-management-system-black.vercel.app",
+    "https://www.osca-management.techsite.live",
     /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
     "http://localhost:5500",
     "http://127.0.0.1:5500",

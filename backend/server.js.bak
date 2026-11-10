@@ -12,7 +12,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    'https://record-management-system-black.vercel.app',
+    'https://www.osca-management.techsite.live',
     // Allow local development servers regardless of the port they choose.
     /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
     'http://localhost:5500',
