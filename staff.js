@@ -2591,10 +2591,7 @@ function renderLiveApplicants(applications) {
     else if (recipientType === 'barangay_president') claimedBy = 'Barangay President';
     else if (recipientType === 'authorized_personnel') claimedBy = recipientName || 'Authorized Personnel';
 
-    const status = application.status || 'Completed';
-    const statusHtml = typeof buildStatusSelect === 'function'
-      ? buildStatusSelect(appId, status)
-      : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
+    const statusHtml = '<span class="status-select__label">Registered</span>';
 
     return `<tr data-app-id="${escapeApplicationHtml(appId)}">
       <td><div class="applicant-cell"><div class="applicant-avatar" style="background:linear-gradient(135deg,#FDE68A,#D97706)">${escapeApplicationHtml(initials)}</div><div class="applicant-info"><span class="applicant-name">${escapeApplicationHtml(fullName)}</span><span class="applicant-id">Registered senior citizen</span></div></div></td>
@@ -4154,7 +4151,7 @@ function renderLiveApplications(applications) {
   const tbody = document.getElementById('applications-tbody');
   if (!tbody) return;
   if (!Array.isArray(applications) || !applications.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted)">No applications found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No applications found.</td></tr>';
     if (typeof Skeleton !== 'undefined') Skeleton.clearBusy('applications-tbody');
     const shown = document.getElementById('apps-shown');
     const total = document.getElementById('apps-total');
