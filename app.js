@@ -3937,7 +3937,7 @@ async function updateTableStatus(
 
     APP_DB[appId] = app;
 
-    // Keep the person registry, membership column, and KPI groups in sync
+    // Keep the person registry, remarks column, and KPI groups in sync
     // immediately after the backend confirms the status update.
     if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
       const liveApplication = LIVE_APPLICATIONS.find(item =>
