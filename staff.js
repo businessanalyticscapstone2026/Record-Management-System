@@ -2585,7 +2585,7 @@ function renderLiveApplicants(applications) {
     const age = application.age ?? '—';
     const registrationDate = application.registration_date || application.created_at || getApplicationSubmittedDate(application);
     const recipientType = String(application.pickup_recipient_type || '')
-      .trim().toLowerCase().replace(/[\\s-]+/g, '_');
+      .trim().toLowerCase().replace(/[\s-]+/g, '_');
     const recipientName = String(application.pickup_recipient_name || '').trim();
     // Remarks/membership values must never be presented as the person who collected the ID.
     const invalidRecipientNames = new Set([
@@ -2593,11 +2593,16 @@ function renderLiveApplicants(applications) {
       'bedridden', 'unlocated', 'transferred'
     ]);
     let claimedBy = 'Not yet claimed';
-    if (recipientType === 'applicant') {
+    if (['applicant', 'senior_citizen', 'the_applicant'].includes(recipientType)) {
       claimedBy = 'Applicant';
-    } else if (['barangay_president', 'senior_barangay_president'].includes(recipientType)) {
+    } else if ([
+      'barangay_president',
+      'senior_barangay_president',
+      'senior_barangay_captain',
+      'barangay_captain'
+    ].includes(recipientType)) {
       claimedBy = 'Senior Barangay President';
-    } else if (['authorized_personnel', 'authorized_staff'].includes(recipientType)) {
+    } else if (['authorized_personnel', 'authorized_staff', 'authorized_person'].includes(recipientType)) {
       claimedBy = recipientName && !invalidRecipientNames.has(recipientName.toLowerCase())
         ? recipientName
         : 'Authorized Personnel (name not recorded)';
