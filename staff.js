@@ -3727,11 +3727,9 @@ function renderLiveApplicants(applications) {
   const profiles = STAFF_APPLICANT_PROFILES;
   const badge = document.getElementById('applicants-total-badge');
   if (badge) badge.textContent = profiles.length.toLocaleString() + ' Registered Profiles';
-  // The sidebar badge remains the count of ongoing applications (all except Completed and Rejected).
+  // The Applicants navigation badge reflects registered senior profiles only.
   const sidebarBadge = document.getElementById('applicants-sidebar-count');
-  const ongoingApplicationCount = allProfiles.reduce((count, profile) =>
-    count + profile.ongoingApplications.length, 0);
-  if (sidebarBadge) sidebarBadge.textContent = ongoingApplicationCount.toLocaleString();
+  if (sidebarBadge) sidebarBadge.textContent = profiles.length.toLocaleString();
   if (!profiles.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
     if (typeof Skeleton !== 'undefined') Skeleton.clearBusy('applicants-tbody');
@@ -4679,8 +4677,8 @@ function updateApplicantSummaryCards(applications) {
     'applicants-verified-count': ongoingProfiles.length,
     'applicants-unverified-count': newThisMonth,
     'applicants-issued-count': duplicateProfiles,
-    'applicants-sidebar-count': ongoingApplicationCount,
-    'applicants-total-badge': ongoingProfiles.length.toLocaleString() + ' Ongoing Profiles'
+    'applicants-sidebar-count': totalRegistered,
+    'applicants-total-badge': totalRegistered.toLocaleString() + ' Registered Profiles'
   };
   Object.entries(counts).forEach(([id, value]) => {
     const el = document.getElementById(id);
