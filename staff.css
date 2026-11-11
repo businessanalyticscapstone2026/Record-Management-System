@@ -4011,3 +4011,43 @@ body>.status-select__menu {
   background: rgba(37, 99, 235, .08);
   color: var(--primary, #2563eb);
 }
+
+
+/* Applicant directory: identify the person who collected the issued ID. */
+.id-claimed-by {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  padding: 5px 9px;
+  border: 1px solid rgba(37, 99, 235, .18);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .07);
+  color: var(--primary, #2563eb);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* Remarks are an editable applicant classification, separate from stage. */
+.remarks-status-select {
+  width: 145px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 5px 25px 5px 9px;
+  border: 1px solid var(--border-color, #dbe3ef);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #334155);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.remarks-status-select:focus {
+  outline: 2px solid rgba(37, 99, 235, .2);
+  border-color: var(--primary, #2563eb);
+}
+.remarks-status-select:disabled {
+  opacity: .65;
+  cursor: wait;
+}
