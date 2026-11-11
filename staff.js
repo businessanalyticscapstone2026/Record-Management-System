@@ -5573,7 +5573,7 @@ const APPLICANT_IMPORT_FIELDS = [
   { key: "house_street", label: "House / Street / Address", aliases: ["house street", "house number", "street", "street address", "address", "complete address", "residential address"] },
   { key: "barangay_district", label: "Barangay / District", aliases: ["barangay", "barangay district", "district", "baranggay", "brgy", "brgy district"] },
   { key: "contact_number", label: "Contact number", aliases: ["contact number", "contact no", "mobile number", "phone number", "telephone", "cellphone", "mobile", "phone"] },
-  { key: "membership_status", label: "Membership status (Active / Deceased)", aliases: ["membership status", "member status", "senior status"] },
+  { key: "remarks", label: "Remarks", aliases: ["remarks", "remark", "membership status", "member status", "senior status"] },
   { key: "registration_date", label: "Original registration date", aliases: ["registration date", "date registered", "date of registration", "date issued", "registered date", "date entered"] }
 ];
 
@@ -6079,9 +6079,19 @@ function getApplicantImportMappedRow(row) {
     if (["m", "male"].includes(sex)) mapped.sex = "Male";
     else if (["f", "female"].includes(sex)) mapped.sex = "Female";
   }
-  if (mapped.membership_status) {
-    const status = normalizeApplicantImportHeader(mapped.membership_status);
-    mapped.membership_status = status.includes("deceased") || status.includes("dead") ? "Deceased" : "Active";
+  if (mapped.remarks) {
+    const value = normalizeApplicantImportHeader(mapped.remarks);
+    const legacyRemarkMap = {
+      active: "Registered",
+      registered: "Registered",
+      deceased: "Deceased",
+      dead: "Deceased",
+      bedridden: "Bedridden",
+      unlocated: "Unlocated",
+      transferred: "Transferred",
+      "non registered": "Non-registered"
+    };
+    mapped.remarks = legacyRemarkMap[value] || String(mapped.remarks).trim();
   }
   return mapped;
 }
