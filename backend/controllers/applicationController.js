@@ -1048,25 +1048,6 @@ const getApplications = async (req, res) => {
     const statusHistory =
       statusResults.flat();
 
-    // Load ID pickup recipient details for the Applicants directory.
-    const pickupQueueResults = await Promise.all(
-      applicationIdChunks.map(async (idChunk) => {
-        const { data, error } = await supabase
-          .from("id_maker_queue")
-          .select("application_id, pickup_recipient_type, pickup_recipient_name")
-          .in("application_id", idChunk);
-        if (error) throw error;
-        return data || [];
-      })
-    );
-    const pickupRecipientByApplication = new Map();
-    pickupQueueResults.flat().forEach(record => {
-      if (record?.application_id) {
-        pickupRecipientByApplication.set(record.application_id, record);
-      }
-    });
-
-
     // ============================================================
     // 5B. LOAD DOCUMENT AUTHENTICATIONS IN PARALLEL
     // This lets the ID Issuance selector verify that every required
@@ -1245,11 +1226,8 @@ const getApplications = async (req, res) => {
               status_updated_at:
                 statusUpdatedAt,
 
-              pickup_recipient_type:
-                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type || null,
-
-              pickup_recipient_name:
-                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name || null,
+              pickup_recipient_type: latestStatus?.pickup_recipient_type || null,
+              pickup_recipient_name: latestStatus?.pickup_recipient_name || null,
 
               documentAuthentications:
                 applicationDocumentAuthentications,
@@ -1285,11 +1263,8 @@ const getApplications = async (req, res) => {
             status_updated_at:
               statusUpdatedAt,
 
-            pickup_recipient_type:
-              pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type || null,
-
-            pickup_recipient_name:
-              pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name || null,
+            pickup_recipient_type: latestStatus?.pickup_recipient_type || null,
+              pickup_recipient_name: latestStatus?.pickup_recipient_name || null,
 
             documentAuthentications:
               applicationDocumentAuthentications,
@@ -2328,28 +2303,40 @@ const updateApplicationStatus = async (req, res) => {
       if (findStatusError) throw findStatusError;
 
       if (existingRecords && existingRecords.length > 0) {
+        const statusUpdate = { status, updated_at: now };
+        if (status === "Completed") {
+          statusUpdate.pickup_recipient_type = pickupRecipientType;
+          statusUpdate.pickup_recipient_name =
+            pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null;
+        }
         const {
           data: updatedRecords,
           error: updateStatusError,
         } = await supabase
           .from("application_status_history")
-          .update({ status, updated_at: now })
+          .update(statusUpdate)
           .eq("application_id", applicationId)
           .select();
 
         if (updateStatusError) throw updateStatusError;
         statusRecord = updatedRecords?.[0] || null;
       } else {
+        const newStatusPayload = {
+          application_id: applicationId,
+          status,
+          updated_at: now,
+          pickup_recipient_type: status === "Completed" ? pickupRecipientType : null,
+          pickup_recipient_name:
+            status === "Completed" && pickupRecipientType === "authorized_personnel"
+              ? pickupRecipientName
+              : null,
+        };
         const {
           data: newStatusRecord,
           error: insertStatusError,
         } = await supabase
           .from("application_status_history")
-          .insert({
-            application_id: applicationId,
-            status,
-            updated_at: now,
-          })
+          .insert(newStatusPayload)
           .select()
           .single();
 
@@ -2369,25 +2356,19 @@ const updateApplicationStatus = async (req, res) => {
       throw statusWriteError;
     }
 
-    // Save who collected the ID when Staff marks the application Completed.
-    let pickupRecipientSync = { attempted: false, updated: false };
-    if (status === "Completed") {
-      pickupRecipientSync.attempted = true;
-      const { data: updatedQueue, error: pickupUpdateError } = await supabase
-        .from("id_maker_queue")
-        .update({
-          pickup_recipient_type: pickupRecipientType,
-          pickup_recipient_name: pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null,
-        })
-        .eq("application_id", applicationId)
-        .select("application_id, pickup_recipient_type, pickup_recipient_name")
-        .maybeSingle();
-
-      if (pickupUpdateError) throw pickupUpdateError;
-      if (!updatedQueue) throw new Error("Pickup recipient information was not saved.");
-      pickupRecipientSync.updated = true;
-      pickupRecipientSync.recipient = updatedQueue;
-    }
+    // Pickup recipient details are saved with the Completed status in
+    // application_status_history, never in id_maker_queue.
+    const pickupRecipientSync = status === "Completed"
+      ? {
+          attempted: true,
+          updated: Boolean(statusRecord),
+          recipient: {
+            pickup_recipient_type: statusRecord?.pickup_recipient_type || pickupRecipientType,
+            pickup_recipient_name: statusRecord?.pickup_recipient_name ||
+              (pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null),
+          },
+        }
+      : { attempted: false, updated: false };
 
     // Synchronize the existing ID Maker queue row whenever staff status is
     // Ready for Release. Keep this independent from SMS notification logic.
