@@ -2584,14 +2584,24 @@ function renderLiveApplicants(applications) {
     const barangay = application.barangay_district || application.barangay || '—';
     const age = application.age ?? '—';
     const registrationDate = application.registration_date || application.created_at || getApplicationSubmittedDate(application);
-    const recipientType = String(application.pickup_recipient_type || '').trim().toLowerCase().replace(/[\\s-]+/g, '_');
+    const recipientType = String(application.pickup_recipient_type || '')
+      .trim().toLowerCase().replace(/[\\s-]+/g, '_');
     const recipientName = String(application.pickup_recipient_name || '').trim();
-    // Only show a person/role that is explicitly saved by the ID pickup flow.
-    // Legacy values such as "Registered" are applicant remarks, not pickup recipients.
+    // Remarks/membership values must never be presented as the person who collected the ID.
+    const invalidRecipientNames = new Set([
+      'registered', 'non-registered', 'active', 'deceased',
+      'bedridden', 'unlocated', 'transferred'
+    ]);
     let claimedBy = 'Not yet claimed';
-    if (recipientType === 'applicant') claimedBy = 'Applicant';
-    else if (['barangay_president', 'senior_barangay_president'].includes(recipientType)) claimedBy = 'Barangay President';
-    else if (['authorized_personnel', 'authorized_staff'].includes(recipientType)) claimedBy = recipientName || 'Authorized Personnel';
+    if (recipientType === 'applicant') {
+      claimedBy = 'Applicant';
+    } else if (['barangay_president', 'senior_barangay_president'].includes(recipientType)) {
+      claimedBy = 'Senior Barangay President';
+    } else if (['authorized_personnel', 'authorized_staff'].includes(recipientType)) {
+      claimedBy = recipientName && !invalidRecipientNames.has(recipientName.toLowerCase())
+        ? recipientName
+        : 'Authorized Personnel (name not recorded)';
+    }
 
     const statusHtml = '<span class="status-select__label">Registered</span>';
 
