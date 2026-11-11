@@ -1560,6 +1560,50 @@ const getIssuanceDetails = async (req, res) => {
 };
 
 // SAVE APPLICATION VALIDATION
+// Promote a Pending application to Under Review after staff begins validation.
+const promotePendingApplicationToUnderReview = async (applicationId, now = new Date().toISOString()) => {
+  const { data: latestRecord, error: latestError } = await supabase
+    .from("application_status_history")
+    .select("status")
+    .eq("application_id", applicationId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestError) throw latestError;
+  const currentStatus = latestRecord?.status || "Pending";
+  if (currentStatus !== "Pending") return currentStatus;
+
+  if (latestRecord) {
+    const { data: updatedRows, error: updateError } = await supabase
+      .from("application_status_history")
+      .update({ status: "Under Review", updated_at: now })
+      .eq("application_id", applicationId)
+      .eq("status", "Pending")
+      .select("status");
+    if (updateError) throw updateError;
+    if (updatedRows?.length) return "Under Review";
+
+    const { data: latestAfterUpdate, error: latestAfterError } = await supabase
+      .from("application_status_history")
+      .select("status")
+      .eq("application_id", applicationId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestAfterError) throw latestAfterError;
+    return latestAfterUpdate?.status || currentStatus;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("application_status_history")
+    .insert({ application_id: applicationId, status: "Under Review", updated_at: now })
+    .select("status")
+    .single();
+  if (insertError) throw insertError;
+  return inserted.status;
+};
+
 const saveApplicationValidation = async (req, res) => {
   try {
     const applicationId = req.params.applicationId;
@@ -1597,6 +1641,11 @@ const saveApplicationValidation = async (req, res) => {
       throw error;
     }
 
+    const applicationStatus = await promotePendingApplicationToUnderReview(
+      applicationId,
+      data.validation_updated_at || new Date().toISOString()
+    );
+
     await createAuditLogFromRequest(req, {
       action: "APPLICATION_VALIDATION_UPDATED",
       entityType: "APPLICATION",
@@ -1608,8 +1657,8 @@ const saveApplicationValidation = async (req, res) => {
       success: true,
 
       message: "Validation result saved successfully.",
-
       application: data,
+      application_status: applicationStatus,
     });
   } catch (error) {
     console.error("Error saving validation:", error);
@@ -1713,6 +1762,8 @@ const approveAllDocumentAuthentications = async (req, res) => {
       throw new Error("Not all six document approvals were returned by the database.");
     }
 
+    const applicationStatus = await promotePendingApplicationToUnderReview(applicationId, now);
+
     await createAuditLogFromRequest(req, {
       action: "DOCUMENTS_BULK_APPROVED",
       entityType: "APPLICATION",
@@ -1724,6 +1775,7 @@ const approveAllDocumentAuthentications = async (req, res) => {
       success: true,
       message: "All six required documents were approved successfully.",
       documentAuthentications: savedRecords,
+      application_status: applicationStatus,
     });
   } catch (error) {
     console.error("Error bulk approving documents:", error);
@@ -1972,7 +2024,11 @@ const updateDocumentAuthentication = async (req, res) => {
 const updateApplicationStatus = async (req, res) => {
   try {
     const applicationId = req.params.applicationId;
-    const { status } = req.body;
+    const {
+      status,
+      pickup_recipient_type,
+      pickup_recipient_name,
+    } = req.body || {};
 
     const allowedStatuses = [
       "Pending",
@@ -2023,6 +2079,25 @@ const updateApplicationStatus = async (req, res) => {
         success: false,
         message: "Application not found.",
       });
+    }
+
+    const pickupRecipientType = String(pickup_recipient_type || "").trim().toLowerCase();
+    const pickupRecipientName = String(pickup_recipient_name || "").trim();
+
+    if (status === "Completed") {
+      const allowedPickupRecipients = ["applicant", "barangay_president", "authorized_personnel"];
+      if (!allowedPickupRecipients.includes(pickupRecipientType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Select who collected the Senior Citizen ID.",
+        });
+      }
+      if (pickupRecipientType === "authorized_personnel" && !pickupRecipientName) {
+        return res.status(400).json({
+          success: false,
+          message: "Enter the name of the authorized personnel.",
+        });
+      }
     }
 
     const now = new Date().toISOString();
@@ -2205,6 +2280,41 @@ const updateApplicationStatus = async (req, res) => {
       throw statusWriteError;
     }
 
+    // Save who collected the ID when Staff marks the application Completed.
+    let pickupRecipientSync = { attempted: false, updated: false };
+    if (status === "Completed") {
+      pickupRecipientSync.attempted = true;
+      const { data: queueRecord, error: queueLookupError } = await supabase
+        .from("id_maker_queue")
+        .select("application_id")
+        .eq("application_id", applicationId)
+        .maybeSingle();
+
+      if (queueLookupError) throw queueLookupError;
+      if (!queueRecord) {
+        return res.status(409).json({
+          success: false,
+          message: "No ID Maker queue record was found for this application. Confirm that the ID is ready for release before completing pickup.",
+        });
+      }
+
+      const { data: updatedQueue, error: pickupUpdateError } = await supabase
+        .from("id_maker_queue")
+        .update({
+          pickup_recipient_type: pickupRecipientType,
+          pickup_recipient_name: pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null,
+          updated_at: now,
+        })
+        .eq("application_id", applicationId)
+        .select("application_id, pickup_recipient_type, pickup_recipient_name")
+        .maybeSingle();
+
+      if (pickupUpdateError) throw pickupUpdateError;
+      if (!updatedQueue) throw new Error("Pickup recipient information was not saved.");
+      pickupRecipientSync.updated = true;
+      pickupRecipientSync.recipient = updatedQueue;
+    }
+
     // Automatically activate membership when staff marks an application
     // Completed. Membership can still later be changed to Deceased through
     // the dedicated membership-status endpoint.
@@ -2321,7 +2431,9 @@ const updateApplicationStatus = async (req, res) => {
       action: "APPLICATION_STATUS_UPDATED",
       entityType: "APPLICATION",
       entityId: applicationId,
-      details: `Application status changed to "${status}".`,
+      details: status === "Completed"
+        ? `Application status changed to "Completed". ID picked up by ${pickupRecipientType === "authorized_personnel" ? pickupRecipientName + " (authorized personnel)" : pickupRecipientType === "barangay_president" ? "the senior barangay president" : "the applicant"}.`
+        : `Application status changed to "${status}".`,
     });
 
     return res.status(200).json({
@@ -2331,6 +2443,7 @@ const updateApplicationStatus = async (req, res) => {
       statusHistory: statusRecord,
       idMakerSync,
       membershipSync,
+      pickupRecipientSync,
       smsNotification
     });
 
