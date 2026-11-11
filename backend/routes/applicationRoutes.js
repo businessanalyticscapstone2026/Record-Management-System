@@ -11,6 +11,7 @@ const {
   getIssuanceDetails,
   saveApplicationValidation,
   updateApplicationStatus,
+  updateApplicationRemarks,
   updateMembershipStatus,
   updateDocumentAuthentication,
   approveAllDocumentAuthentications,
@@ -34,6 +35,7 @@ router.get("/:applicationId", authenticateToken, requireRoles("admin", "staff"),
 router.post("/:applicationId/issuance-document", authenticateToken, requireRoles("admin", "staff", "idmaker"), downloadIssuanceDocument);
 
 router.put("/:applicationId/status", authenticateToken, requireRoles("admin", "staff", "idmaker"), updateApplicationStatus);
+router.put("/:applicationId/remarks", authenticateToken, requireRoles("admin", "staff"), updateApplicationRemarks);
 
 router.put("/:applicationId/membership-status", authenticateToken, requireRoles("admin", "staff"), updateMembershipStatus);
 
