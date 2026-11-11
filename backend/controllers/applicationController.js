@@ -2223,6 +2223,24 @@ const updateApplicationStatus = async (req, res) => {
       idMakerSync.message = "Issuance form data was queued for ID Maker.";
     }
 
+    // A Completed status represents an actual pickup. Confirm the queue row
+    // exists before changing application history.
+    if (status === "Completed") {
+      const { data: pickupQueueRow, error: pickupQueueLookupError } = await supabase
+        .from("id_maker_queue")
+        .select("application_id")
+        .eq("application_id", applicationId)
+        .maybeSingle();
+
+      if (pickupQueueLookupError) throw pickupQueueLookupError;
+      if (!pickupQueueRow) {
+        return res.status(409).json({
+          success: false,
+          message: "No ID Maker queue record was found for this application. Confirm that the ID is ready for release before completing pickup.",
+        });
+      }
+    }
+
     // Write the new status only after any required ID Maker queue entry
     // has been created successfully. If history persistence fails, remove
     // the queue row created by this request so the two systems do not diverge.
@@ -2284,20 +2302,6 @@ const updateApplicationStatus = async (req, res) => {
     let pickupRecipientSync = { attempted: false, updated: false };
     if (status === "Completed") {
       pickupRecipientSync.attempted = true;
-      const { data: queueRecord, error: queueLookupError } = await supabase
-        .from("id_maker_queue")
-        .select("application_id")
-        .eq("application_id", applicationId)
-        .maybeSingle();
-
-      if (queueLookupError) throw queueLookupError;
-      if (!queueRecord) {
-        return res.status(409).json({
-          success: false,
-          message: "No ID Maker queue record was found for this application. Confirm that the ID is ready for release before completing pickup.",
-        });
-      }
-
       const { data: updatedQueue, error: pickupUpdateError } = await supabase
         .from("id_maker_queue")
         .update({
