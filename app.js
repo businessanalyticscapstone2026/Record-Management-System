@@ -772,7 +772,6 @@ function openPickupRecipientDialog(applicationIds, previousStatuses = {}) {
   const modal = document.getElementById('pickup-recipient-modal');
   const select = document.getElementById('pickup-recipient-type');
   const nameInput = document.getElementById('pickup-recipient-name');
-  const remarksSelect = document.getElementById('pickup-applicant-remarks');
   const error = document.getElementById('pickup-recipient-error');
   if (!modal || !select || !nameInput) {
     showToast('Pickup recipient form is unavailable. Please refresh the page.', 'error');
@@ -781,7 +780,6 @@ function openPickupRecipientDialog(applicationIds, previousStatuses = {}) {
   }
   select.value = 'applicant';
   nameInput.value = '';
-  if (remarksSelect) remarksSelect.value = '';
   if (error) error.textContent = '';
   updatePickupRecipientFields();
   const count = document.getElementById('pickup-recipient-count');
@@ -809,13 +807,11 @@ async function confirmPickupRecipient() {
   const pending = PENDING_PICKUP_COMPLETION;
   const select = document.getElementById('pickup-recipient-type');
   const nameInput = document.getElementById('pickup-recipient-name');
-  const remarksSelect = document.getElementById('pickup-applicant-remarks');
   const error = document.getElementById('pickup-recipient-error');
-  if (!pending || !select || !nameInput || !remarksSelect) return;
+  if (!pending || !select || !nameInput) return;
 
   const type = select.value;
   const name = nameInput.value.trim();
-  const remarks = remarksSelect.value;
   if (!['applicant', 'barangay_president', 'authorized_personnel'].includes(type)) {
     if (error) error.textContent = 'Please select who collected the ID.';
     return;
@@ -825,17 +821,9 @@ async function confirmPickupRecipient() {
     nameInput.focus();
     return;
   }
-  const allowedRemarks = ['Bedridden', 'Deceased', 'Unlocated', 'Transferred', 'Registered', 'Non-registered'];
-  if (!allowedRemarks.includes(remarks)) {
-    if (error) error.textContent = 'Please select an applicant remark.';
-    remarksSelect.focus();
-    return;
-  }
-
   const recipient = {
     pickup_recipient_type: type,
-    pickup_recipient_name: type === 'authorized_personnel' ? name : null,
-    remarks
+    pickup_recipient_name: type === 'authorized_personnel' ? name : null
   };
   const selectedIds = pending.ids.slice();
   const requests = selectedIds.map(id => {
@@ -3931,10 +3919,6 @@ async function updateTableStatus(
       app.pickup_recipient_type = result.pickupRecipientSync.recipient.pickup_recipient_type;
       app.pickup_recipient_name = result.pickupRecipientSync.recipient.pickup_recipient_name;
     }
-    if (savedStatus === 'Completed' && result.remarksSync?.updated) {
-      app.remarks = result.remarksSync.remarks;
-    }
-
     APP_DB[appId] = app;
 
     // Keep the person registry, remarks column, and KPI groups in sync
@@ -3950,10 +3934,6 @@ async function updateTableStatus(
         if (savedStatus === 'Completed' && result.pickupRecipientSync?.recipient) {
           liveApplication.pickup_recipient_type = result.pickupRecipientSync.recipient.pickup_recipient_type;
           liveApplication.pickup_recipient_name = result.pickupRecipientSync.recipient.pickup_recipient_name;
-        }
-        if (savedStatus === 'Completed' && result.remarksSync?.updated) {
-          liveApplication.remarks = result.remarksSync.remarks;
-          app.remarks = result.remarksSync.remarks;
         }
       }
       if (typeof updateApplicantSummaryCards === 'function') updateApplicantSummaryCards(LIVE_APPLICATIONS);
