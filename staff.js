@@ -3747,6 +3747,7 @@ function buildApplicantProfiles(applications) {
     profile.registeredAt = registeredDates[0] || null;
     // Applicants module shows registered citizens only. Use their newest completed record.
     if (profile.isRegistered) profile.latestApplication = profile.completedApplications[0];
+    profile.remarks = profile.latestApplication?.remarks || '';
     profile.isActive = profile.ongoingApplications.length > 0;
     profile.hasDuplicateFlag = profile.applications.some(isProfileDuplicateFlagged);
     profile.status = profile.isRegistered ? 'Registered' : 'Rejected';
@@ -3787,7 +3788,8 @@ function renderLiveApplicants(applications) {
     const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('');
     const status = String(profile.status || 'Pending');
     const ids = profile.applications.map(a => a.application_id || a.id || '').join(' ');
-    const searchText = [profile.name, profile.seniorId, profile.barangay, ids].join(' ').toLowerCase();
+    const remarks = String(profile.remarks || '').trim();
+    const searchText = [profile.name, profile.seniorId, profile.barangay, remarks, ids].join(' ').toLowerCase();
     return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}"
       data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-name="${escapeApplicationHtml(profile.name || '')}"
       data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
@@ -3797,6 +3799,7 @@ function renderLiveApplicants(applications) {
       <td><span class="cell-text">${escapeApplicationHtml(profile.barangay || '—')}</span></td>
       <td><span class="cell-text">${escapeApplicationHtml(String(profile.age))}</span></td>
       <td><span class="cell-text">${profile.registeredAt ? escapeApplicationHtml(formatStaffDate(profile.registeredAt)) : '—'}</span></td>
+      <td><span class="remarks-pill${remarks ? ' remarks-pill--set' : ''}">${escapeApplicationHtml(remarks || 'Not yet recorded')}</span></td>
       <td><span class="badge ${getProfileStatusClass(status)}"><span class="status-select__label">${escapeApplicationHtml(status)}</span></span></td>
       <td style="text-align:right"><button type="button" class="row-action always-visible" onclick="openApplicantProfile(${index})">View Profile</button></td>
     </tr>`;
@@ -4380,10 +4383,10 @@ function renderLiveApplications(applications) {
     const status = application.status || 'Pending';
     const docs = typeof buildDocsStatusPill === 'function' ? buildDocsStatusPill(application) : '—';
     const statusHtml = typeof buildStatusSelect === 'function' ? buildStatusSelect(id, status) : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
-    const membershipStatus = application.membership_status || '';
-    const membershipHtml =
+    const remarks = String(application.remarks || '').trim();
+    const remarksHtml =
       String(status).trim().toLowerCase() === 'completed'
-        ? buildMembershipSelect(id, membershipStatus)
+        ? `<span class="remarks-pill${remarks ? ' remarks-pill--set' : ''}">${escapeApplicationHtml(remarks || 'Not yet recorded')}</span>`
         : '<span class="cell-text">—</span>';
 
     const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('');
@@ -4393,7 +4396,7 @@ function renderLiveApplications(applications) {
       <td style="width:36px;text-align:center"><input type="checkbox" class="row-check" data-app-id="${escapeApplicationHtml(id)}" aria-label="Select ${escapeApplicationHtml(name)}" ${STAFF_SELECTED_APP_IDS.has(String(id)) ? 'checked' : ''}  /></td>
       <td data-label="Applicant"><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info"><span class="applicant-name">${escapeApplicationHtml(name)}</span><span class="applicant-id">${escapeApplicationHtml(id)}</span></div></div></td>
       <td data-label="Submitted"><span class="cell-text">${escapeApplicationHtml(formatStaffDate(getApplicationSubmittedDate(application)))}</span></td>
-      <td data-label="Documents">${docs}</td><td data-label="Stage">${statusHtml}</td><td data-label="Membership">${membershipHtml}</td>
+      <td data-label="Documents">${docs}</td><td data-label="Stage">${statusHtml}</td><td data-label="Remarks">${remarksHtml}</td>
       <td data-label="Days Pending" style="text-align:center"><span class="cell-text">${days === null ? '—' : Math.floor(days).toLocaleString()}</span></td>
       <td style="text-align:center"><button type="button" class="row-action-eye" onclick="event.stopPropagation();openApplicationDetail('${escapeApplicationHtml(id)}')" title="View applicant" aria-label="View applicant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="10" r="3"/></svg></button></td></tr>`;
   }).join('');
