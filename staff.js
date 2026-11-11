@@ -247,6 +247,12 @@ function updateBatchState() {
   const label = document.getElementById('batch-ops-label');
   const exportButton = document.querySelector('#batch-ops-menu [onclick="runBatchAction(\'export\')"]');
   const approveButton = document.querySelector('#batch-ops-menu [onclick="runBatchAction(\'approve\')"]');
+  const completeButton = document.getElementById('batch-complete-selected');
+  const readySelectedCount = Array.from(STAFF_SELECTED_APP_IDS).filter(id => {
+    const app = LIVE_APPLICATIONS.find(item => String(item.application_id || item.id) === id);
+    return app && normalizeApplicationStatus(app.status) === 'ready';
+  }).length;
+  if (completeButton) completeButton.disabled = readySelectedCount === 0;
   if (trigger) trigger.disabled = selectedCount === 0;
   if (label) label.textContent = selectedCount
     ? 'Batch Operations (' + selectedCount.toLocaleString() + ')'
@@ -2511,6 +2517,9 @@ function renderLiveApplicants(applications) {
     return;
   }
 
+  const registeredApplications = Array.isArray(applications)
+    ? applications.filter(application => String(application.status || '').trim().toLowerCase() === 'completed')
+    : [];
   const totalBadge =
     document.getElementById(
       'applicants-total-badge'
@@ -2518,16 +2527,14 @@ function renderLiveApplicants(applications) {
 
   if (totalBadge) {
     totalBadge.textContent =
-      `${applications.length.toLocaleString()} Total`;
+      `${registeredApplications.length.toLocaleString()} Registered Profiles`;
   }
 
 
-  if (
-    !Array.isArray(
-      applications
-    ) ||
-    applications.length === 0
-  ) {
+  const sidebarBadge = document.getElementById('applicants-sidebar-count');
+  if (sidebarBadge) sidebarBadge.textContent = registeredApplications.length.toLocaleString();
+
+  if (registeredApplications.length === 0) {
 
     tbody.innerHTML = `
       <tr>
@@ -2557,7 +2564,7 @@ function renderLiveApplicants(applications) {
 
 
   tbody.innerHTML =
-    applications.map(
+    registeredApplications.map(
       application => {
 
         const appId =
@@ -4444,11 +4451,29 @@ async function approveSelectedApplications() {
   renderLiveApplications(LIVE_APPLICATIONS);
 }
 
+async function completeSelectedApplications() {
+  const selectedIds = new Set(getSelectedApplicationIds().map(String));
+  const selected = LIVE_APPLICATIONS.filter(app =>
+    selectedIds.has(String(app.application_id || app.id)) &&
+    normalizeApplicationStatus(app.status) === 'ready'
+  );
+  if (!selected.length) {
+    showToast('Select at least one application marked Ready for Release.', 'info');
+    return;
+  }
+  const ids = selected.map(app => String(app.application_id || app.id));
+  const previousStatuses = Object.fromEntries(ids.map(id => [id, 'Ready for Release']));
+  if (typeof openPickupRecipientDialog === 'function') {
+    openPickupRecipientDialog(ids, previousStatuses);
+  }
+}
+
 async function runBatchAction(action) {
   document.getElementById('batch-ops-wrap')?.classList.remove('open');
   document.getElementById('batch-ops-trigger')?.setAttribute('aria-expanded', 'false');
   if (action === 'export') exportSelectedApplications();
   else if (action === 'approve') await approveSelectedApplications();
+  else if (action === 'complete') await completeSelectedApplications();
 }
 
 window.toggleBatchMenu = toggleBatchMenu;
