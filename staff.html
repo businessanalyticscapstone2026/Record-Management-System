@@ -442,6 +442,9 @@
 
           <div class="table-footer">
             <span class="table-footer__info">Showing 0 recent submissions</span>
+            <button type="button" class="btn btn--ghost" onclick="loadApplicationsFromDatabase()" title="Refresh recent submissions">
+              <i class="fi fi-rr-refresh" aria-hidden="true"></i> Refresh
+            </button>
             <button class="view-all-btn" id="btn-view-all-submissions" onclick="navigate('applicants')">
               View all submissions
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -470,6 +473,9 @@
                 <path d="M8 10V2m-3 3 3-3 3 3M2 10v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/>
               </svg>
               Import Applicant Records
+            </button>
+            <button class="btn btn--ghost" type="button" onclick="loadApplicationsFromDatabase()" title="Refresh registered senior records">
+              <i class="fi fi-rr-refresh" aria-hidden="true"></i> Refresh
             </button>
             <button class="btn btn--ghost" onclick="exportCSV()">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -685,6 +691,11 @@
                       clip-rule="evenodd" />
                   </svg>
                   Export Selected
+                </button>
+                <button type="button" class="batch-ops__item" id="batch-complete-selected"
+                  onclick="runBatchAction('complete')" disabled>
+                  <i class="fi fi-rr-check-circle" aria-hidden="true"></i>
+                  Mark Selected as Completed
                 </button>
                 <button type="button" class="batch-ops__item batch-ops__item--danger"
                   onclick="runBatchAction('approve')" disabled>
@@ -919,6 +930,11 @@
                   <path d="M4 6l4 4 4-4" />
                 </svg>
               </div>
+              <button type="button" class="applications-filter-reset" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh applications table" title="Reload application records without refreshing the page">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
+                <span>Refresh</span>
+              </button>
               <button type="button" class="applications-filter-reset" onclick="resetApplicationsFilters()"
                 aria-label="Reset application filters" title="Clear search, stage, and barangay filters">
                 <i class="fi fi-rr-refresh" aria-hidden="true"></i>
@@ -1875,7 +1891,7 @@
         <div class="content-card">
           <div class="content-card__header">
             <div>
-              <div class="content-card__title">Eligibility Validation (Rules + AI)</div>
+              <div class="content-card__title">ELIGIBILITY VALIDATION (RULES-BASED)</div>
               <div class="content-card__desc">Auto-check age (60+), residency, document completeness</div>
             </div>
             <button class="btn btn--ghost" style="height:34px;font-size:12px" onclick="runValidation()">Run
@@ -2177,6 +2193,37 @@
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PICKUP RECIPIENT CONFIRMATION -->
+  <div class="modal-backdrop pickup-recipient-modal" id="pickup-recipient-modal">
+    <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="pickup-recipient-title">
+      <div class="confirm-hero">
+        <div class="confirm-icon"><i class="fi fi-rr-id-card-clip-alt"></i></div>
+        <div>
+          <div class="confirm-title" id="pickup-recipient-title">Record ID Pickup</div>
+          <div class="confirm-desc">Select who collected the Senior Citizen ID.</div>
+        </div>
+      </div>
+      <div class="confirm-body">
+        <p id="pickup-recipient-count" class="pickup-recipient-count">Record who collected this Senior Citizen ID.</p>
+        <label class="form-label" for="pickup-recipient-type">Collected by</label>
+        <select class="form-select" id="pickup-recipient-type" onchange="updatePickupRecipientFields()">
+          <option value="applicant">Applicant</option>
+          <option value="barangay_president">Senior Barangay President</option>
+          <option value="authorized_personnel">Authorized Personnel</option>
+        </select>
+        <div id="pickup-recipient-name-field" class="pickup-recipient-name-field" hidden>
+          <label class="form-label" for="pickup-recipient-name">Name of Authorized Personnel</label>
+          <input class="form-input" id="pickup-recipient-name" type="text" maxlength="150" placeholder="Enter full name" />
+        </div>
+        <div id="pickup-recipient-error" class="pickup-recipient-error" role="alert" aria-live="polite"></div>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn--ghost" onclick="closePickupRecipientDialog()">Cancel</button>
+        <button type="button" class="btn btn--primary" onclick="confirmPickupRecipient()">Confirm Pickup</button>
       </div>
     </div>
   </div>
