@@ -882,12 +882,13 @@ function selectStatusOption(btn, event) {
 
 
   if (!root.dataset.requestId && status === 'Completed') {
-    if (previousStatus !== 'Ready for Release') {
+    if (!['Ready for Release', 'Completed'].includes(previousStatus)) {
       closeAllStatusMenus();
       showToast('The application must be Ready for Release before recording ID pickup.', 'info');
       return;
     }
     closeAllStatusMenus();
+    // Completed records may reopen this dialog to correct or complete pickup details.
     openPickupRecipientDialog([appId], { [appId]: previousStatus });
     return;
   }
