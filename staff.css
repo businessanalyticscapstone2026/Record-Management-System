@@ -4051,3 +4051,27 @@ body>.status-select__menu {
   opacity: .65;
   cursor: wait;
 }
+
+
+/* Keep the custom Remarks control visually aligned with the Stage selector. */
+#applications-tbody .remarks-select {
+  min-width: 0;
+  width: 132px;
+}
+#applications-tbody .remarks-select .status-select__trigger {
+  width: 100%;
+  min-height: 30px;
+  padding: 2px 7px;
+  gap: 5px;
+  font-size: 11px;
+  justify-content: space-between;
+}
+#applications-tbody .remarks-select .status-select__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body > .remarks-select__menu {
+  z-index: 3001;
+  min-width: 160px;
+}
