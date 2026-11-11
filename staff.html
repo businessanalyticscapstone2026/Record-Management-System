@@ -642,7 +642,7 @@
                 <th>Age</th>
                 <th onclick="sortApplicantsByColumn('registration',this)" aria-sort="descending">Registration Date <span class="sort-icon">↓</span>
                 </th>
-                <th>Remarks</th>
+                <th>ID Claimed By</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -2213,16 +2213,6 @@
       </div>
       <div class="confirm-body">
         <p id="pickup-recipient-count" class="pickup-recipient-count">Record who collected this Senior Citizen ID.</p>
-        <label class="form-label" for="pickup-applicant-remarks">Applicant remarks</label>
-        <select class="form-select" id="pickup-applicant-remarks" required>
-          <option value="">Select a remark</option>
-          <option value="Bedridden">Bedridden</option>
-          <option value="Deceased">Deceased</option>
-          <option value="Unlocated">Unlocated</option>
-          <option value="Transferred">Transferred</option>
-          <option value="Registered">Registered</option>
-          <option value="Non-registered">Non-registered</option>
-        </select>
         <label class="form-label" for="pickup-recipient-type" style="margin-top:14px">Collected by</label>
         <select class="form-select" id="pickup-recipient-type" onchange="updatePickupRecipientFields()">
           <option value="applicant">Applicant</option>
