@@ -474,9 +474,6 @@
               </svg>
               Import Applicant Records
             </button>
-            <button class="btn btn--ghost" type="button" onclick="loadApplicationsFromDatabase()" title="Refresh registered senior records">
-              <i class="fi fi-rr-refresh" aria-hidden="true"></i> Refresh
-            </button>
             <button class="btn btn--ghost" onclick="exportCSV()">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                 <path d="M8 2v10M4 9l4 4 4-4M2 14h12" />
@@ -622,6 +619,11 @@
                   <option value="name-za">Name Z-A</option>
                 </select>
               </div>
+              <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh registered applicants" title="Reload this table without refreshing the page">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
+                <span>Refresh</span>
+              </button>
               <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="resetRegisteredApplicantFilters()"
                 aria-label="Reset applicant filters" title="Clear search and barangay filter">
                 <i class="fi fi-rr-refresh" aria-hidden="true"></i>
