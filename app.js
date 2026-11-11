@@ -6953,7 +6953,7 @@ const STAFF_EXPORT_FIELDS = {
     { key: 'age', label: 'Age', checked: false },
     { key: 'application_type', label: 'Application Type', checked: false },
     { key: 'status', label: 'Application Status', checked: true },
-    { key: 'membership_status', label: 'Membership Status', checked: false },
+    { key: 'remarks', label: 'Remarks', checked: false },
     { key: 'created_at', label: 'Date Submitted', checked: false }
   ]
 };
@@ -6993,9 +6993,9 @@ function openStaffExport() {
   }
 
   const statusSelect = document.getElementById('staff-export-status');
-  const membershipSelect = document.getElementById('staff-export-membership');
+  const remarksSelect = document.getElementById('staff-export-remarks');
   if (statusSelect) statusSelect.value = '';
-  if (membershipSelect) membershipSelect.value = '';
+  if (remarksSelect) remarksSelect.value = '';
 
   const typeSelect = document.getElementById('staff-export-type');
   if (typeSelect) typeSelect.value = 'barangay';
@@ -7045,7 +7045,7 @@ function staffExportValue(application, key) {
     age: application.age ?? '',
     application_type: application.application_type || application.applicationType || '',
     status: application.status || '',
-    membership_status: application.membership_status || '',
+    remarks: application.remarks || '',
     created_at: application.created_at || application.submitted_at || application.application_date || ''
   };
   return values[key] ?? '';
