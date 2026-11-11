@@ -774,10 +774,16 @@ async function confirmPickupRecipient() {
     return updateTableStatus(id, 'Completed', previous, recipient);
   });
   closePickupRecipientDialog();
-  await Promise.allSettled(requests);
-
+  const results = await Promise.all(requests);
+  const succeeded = results.filter(Boolean).length;
+  const failed = results.length - succeeded;
   if (selectedIds.length > 1 && typeof showToast === 'function') {
-    showToast(`Pickup details applied to ${selectedIds.length} selected applicants.`, 'success');
+    showToast(
+      failed
+        ? `Pickup details saved for ${succeeded} of ${selectedIds.length} applicants; ${failed} failed.`
+        : `Pickup details saved for all ${succeeded} selected applicants.`,
+      failed ? 'error' : 'success'
+    );
   }
 }
 
@@ -819,6 +825,11 @@ function selectStatusOption(btn, event) {
 
 
   if (!root.dataset.requestId && status === 'Completed') {
+    if (previousStatus !== 'Ready for Release') {
+      closeAllStatusMenus();
+      showToast('The application must be Ready for Release before recording ID pickup.', 'info');
+      return;
+    }
     closeAllStatusMenus();
     openPickupRecipientDialog([appId], { [appId]: previousStatus });
     return;
@@ -3667,14 +3678,20 @@ window.syncRecentSubmissionsStatus = syncRecentSubmissionsStatus;
 function updateStatus(newStatus) {
   if (!CURRENT_APP_ID) return;
   const currentStatus = APP_DB[CURRENT_APP_ID]?.status || 'Pending';
-  if (newStatus === 'Completed') {
-    openPickupRecipientDialog([CURRENT_APP_ID], { [CURRENT_APP_ID]: currentStatus });
-    return;
-  }
   if (!isValidStatusTransition(currentStatus, newStatus)) {
     showToast('Invalid transition: ' + currentStatus + ' → ' + newStatus + '. Follow the workflow sequence.', 'error');
     const sel = document.getElementById('status-select');
     if (sel) sel.value = currentStatus;
+    return;
+  }
+  if (newStatus === 'Completed') {
+    if (currentStatus !== 'Ready for Release') {
+      showToast('The application must be Ready for Release before recording ID pickup.', 'info');
+      const sel = document.getElementById('status-select');
+      if (sel) sel.value = currentStatus;
+      return;
+    }
+    openPickupRecipientDialog([CURRENT_APP_ID], { [CURRENT_APP_ID]: currentStatus });
     return;
   }
   if (APP_DB[CURRENT_APP_ID]) {
@@ -3942,6 +3959,7 @@ async function updateTableStatus(
         applicantsStatusFilter.value
       );
     }
+    return true;
 
   } catch (error) {
 
@@ -4019,6 +4037,7 @@ async function updateTableStatus(
       (error.message || ''),
       'error'
     );
+    return false;
   }
 }
 
@@ -6195,6 +6214,10 @@ async function saveDocumentAuthentication(
         result.message ||
         'Failed to save document verification.'
       );
+    }
+
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
     }
 
     if (APP_DB[CURRENT_APP_ID]) {
