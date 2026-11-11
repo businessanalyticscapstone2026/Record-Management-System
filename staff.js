@@ -2584,12 +2584,14 @@ function renderLiveApplicants(applications) {
     const barangay = application.barangay_district || application.barangay || '—';
     const age = application.age ?? '—';
     const registrationDate = application.registration_date || application.created_at || getApplicationSubmittedDate(application);
-    const recipientType = String(application.pickup_recipient_type || '').trim().toLowerCase();
+    const recipientType = String(application.pickup_recipient_type || '').trim().toLowerCase().replace(/[\\s-]+/g, '_');
     const recipientName = String(application.pickup_recipient_name || '').trim();
-    let claimedBy = 'Not recorded';
+    // Only show a person/role that is explicitly saved by the ID pickup flow.
+    // Legacy values such as "Registered" are applicant remarks, not pickup recipients.
+    let claimedBy = 'Not yet claimed';
     if (recipientType === 'applicant') claimedBy = 'Applicant';
-    else if (recipientType === 'barangay_president') claimedBy = 'Barangay President';
-    else if (recipientType === 'authorized_personnel') claimedBy = recipientName || 'Authorized Personnel';
+    else if (['barangay_president', 'senior_barangay_president'].includes(recipientType)) claimedBy = 'Barangay President';
+    else if (['authorized_personnel', 'authorized_staff'].includes(recipientType)) claimedBy = recipientName || 'Authorized Personnel';
 
     const statusHtml = '<span class="status-select__label">Registered</span>';
 
@@ -4168,13 +4170,7 @@ function renderLiveApplications(applications) {
     const docs = typeof buildDocsStatusPill === 'function' ? buildDocsStatusPill(application) : '—';
     const statusHtml = typeof buildStatusSelect === 'function' ? buildStatusSelect(id, status) : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
     const remarks = String(application.remarks || '').trim();
-    const remarkOptions = ['Bedridden', 'Deceased', 'Unlocated', 'Transferred', 'Registered', 'Non-registered'];
-    const remarksHtml = `<select class="remarks-status-select" aria-label="Remarks for ${escapeApplicationHtml(name)}"
-      data-previous-value="${escapeApplicationHtml(remarks)}"
-      onchange="updateApplicationRemarks('${escapeApplicationHtml(id)}', this)">
-      <option value="">Select remark</option>
-      ${remarkOptions.map(option => `<option value="${option}" ${remarks === option ? 'selected' : ''}>${option}</option>`).join('')}
-    </select>`;
+    const remarksHtml = buildApplicationRemarksSelect(id, remarks);
 
     const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('');
     const barangay = application.barangay_district || application.barangay || '';
@@ -4208,18 +4204,121 @@ function renderLiveApplications(applications) {
   updateBatchState();
 }
 
-async function updateApplicationRemarks(applicationId, selectEl) {
-  if (!applicationId || !selectEl) return;
-  const newRemarks = String(selectEl.value || '').trim();
-  const previousRemarks = selectEl.dataset.previousValue || '';
-  const allowedRemarks = ['Bedridden', 'Deceased', 'Unlocated', 'Transferred', 'Registered', 'Non-registered'];
+const APPLICATION_REMARKS_CONFIG = {
+  'Bedridden': { icon: 'bed', color: '#7C3AED', path: '<path d="M3 5v14M3 13h18v6M3 9h4a4 4 0 0 1 4 4M11 13h10V9a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v4Z"/>' },
+  'Deceased': { icon: 'cross', color: '#64748B', path: '<path d="M10 2v16M2 10h16"/>' },
+  'Unlocated': { icon: 'search', color: '#D97706', path: '<circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 5 5"/>' },
+  'Transferred': { icon: 'transfer', color: '#2563EB', path: '<path d="M3 6h12m-4-4 4 4-4 4M17 14H5m4-4-4 4 4 4"/>' },
+  'Registered': { icon: 'check', color: '#059669', path: '<path d="m3 10 5 5L17 5"/>' },
+  'Non-registered': { icon: 'x', color: '#DC2626', path: '<path d="m4 4 12 12M16 4 4 16"/>' }
+};
 
-  if (!allowedRemarks.includes(newRemarks)) {
-    selectEl.value = previousRemarks;
+function buildApplicationRemarksSelect(applicationId, currentRemarks) {
+  const options = Object.keys(APPLICATION_REMARKS_CONFIG).map(label => {
+    const config = APPLICATION_REMARKS_CONFIG[label];
+    const active = label === currentRemarks ? ' active' : '';
+    return `<button type="button" class="status-select__option${active}" data-remark="${label}" data-color="${config.color}" data-icon="${config.icon}" onclick="selectApplicationRemarkOption(this,event)">
+      <span class="status-select__option-icon" style="color:${config.color}">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${config.path}</svg>
+      </span>
+      <span>${label}</span>
+    </button>`;
+  }).join('');
+  const selected = APPLICATION_REMARKS_CONFIG[currentRemarks];
+  const label = selected ? currentRemarks : 'Select remark';
+  const color = selected ? selected.color : '#94A3B8';
+  const path = selected ? selected.path : '<circle cx="10" cy="10" r="6"/><path d="M10 7v3m0 3h.01"/>';
+  return `<div class="status-select remarks-select" data-app-id="${escapeApplicationHtml(applicationId)}" data-previous-value="${escapeApplicationHtml(currentRemarks)}">
+    <button type="button" class="status-select__trigger" onclick="toggleApplicationRemarksSelect(this,event)" aria-label="Remarks: ${escapeApplicationHtml(label)}">
+      <span class="status-select__icon" style="color:${color}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span>
+      <span class="status-select__label">${escapeApplicationHtml(label)}</span>
+      <svg class="status-select__arrow" viewBox="0 0 12 12" fill="currentColor"><path d="M3 4l3 3 3-3"/></svg>
+    </button>
+    <div class="status-select__menu remarks-select__menu">${options}</div>
+  </div>`;
+}
+
+function toggleApplicationRemarksSelect(button, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const root = button.closest('.remarks-select');
+  const menu = root?.querySelector('.remarks-select__menu');
+  if (!root || !menu) return;
+  const wasOpen = menu.classList.contains('show');
+  if (typeof closeAllStatusMenus === 'function') closeAllStatusMenus(menu);
+  if (wasOpen) {
+    menu.classList.remove('show');
+    menu.style.left = '';
+    menu.style.top = '';
+    menu.style.width = '';
+    if (menu.parentElement !== root) root.appendChild(menu);
     return;
   }
+  menu.__statusRoot = root;
+  menu.__remarksRoot = root;
+  menu.dataset.statusOwnerId = root.dataset.appId || '';
+  document.body.appendChild(menu);
+  menu.classList.add('show');
+  if (typeof positionStatusMenu === 'function') positionStatusMenu(button, menu);
+}
 
-  selectEl.disabled = true;
+async function selectApplicationRemarkOption(button, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const menu = button.closest('.remarks-select__menu');
+  const root = button.closest('.remarks-select') || menu?.__remarksRoot || menu?.__statusRoot;
+  if (!root) return;
+  const value = button.dataset.remark;
+  const config = APPLICATION_REMARKS_CONFIG[value];
+  if (!config) return;
+
+  const label = root.querySelector('.status-select__label');
+  const icon = root.querySelector('.status-select__icon');
+  const trigger = root.querySelector('.status-select__trigger');
+  const previous = root.dataset.previousValue || '';
+  const previousConfig = APPLICATION_REMARKS_CONFIG[previous];
+  if (label) label.textContent = value;
+  if (icon) {
+    icon.style.color = config.color;
+    icon.innerHTML = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${config.path}</svg>`;
+  }
+  if (trigger) trigger.setAttribute('aria-label', `Remarks: ${value}`);
+  menu?.querySelectorAll('.status-select__option').forEach(option => option.classList.toggle('active', option === button));
+  if (menu) {
+    menu.classList.remove('show');
+    menu.style.left = '';
+    menu.style.top = '';
+    menu.style.width = '';
+    if (menu.parentElement !== root) root.appendChild(menu);
+  }
+  await updateApplicationRemarks(root.dataset.appId, value, root, previous);
+}
+
+async function updateApplicationRemarks(applicationId, remarksValue, root, previousRemarks = '') {
+  if (!applicationId || !root) return;
+  const newRemarks = String(remarksValue || '').trim();
+  const config = APPLICATION_REMARKS_CONFIG[newRemarks];
+  const label = root.querySelector('.status-select__label');
+  const icon = root.querySelector('.status-select__icon');
+  const trigger = root.querySelector('.status-select__trigger');
+  const previousConfig = APPLICATION_REMARKS_CONFIG[previousRemarks];
+  const setValue = (value, cfg) => {
+    if (label) label.textContent = value || 'Select remark';
+    if (icon) {
+      icon.style.color = cfg?.color || '#94A3B8';
+      icon.innerHTML = cfg
+        ? `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${cfg.path}</svg>`
+        : '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/></svg>';
+    }
+    if (trigger) trigger.setAttribute('aria-label', `Remarks: ${value || 'Select remark'}`);
+  };
+  if (!config) { setValue(previousRemarks, previousConfig); return; }
+  root.dataset.saving = 'true';
+  if (trigger) trigger.disabled = true;
   try {
     const response = await fetch(
       `${STAFF_API_BASE}/api/applications/${encodeURIComponent(applicationId)}/remarks`,
@@ -4235,8 +4334,8 @@ async function updateApplicationRemarks(applicationId, selectEl) {
     }
 
     const savedRemarks = result.remarks || newRemarks;
-    selectEl.value = savedRemarks;
-    selectEl.dataset.previousValue = savedRemarks;
+    root.dataset.previousValue = savedRemarks;
+    setValue(savedRemarks, APPLICATION_REMARKS_CONFIG[savedRemarks]);
 
     if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
       const application = LIVE_APPLICATIONS.find(item =>
@@ -4253,17 +4352,20 @@ async function updateApplicationRemarks(applicationId, selectEl) {
     }
   } catch (error) {
     console.error('Error updating applicant remarks:', error);
-    selectEl.value = previousRemarks;
+    setValue(previousRemarks, previousConfig);
     if (typeof showToast === 'function') {
       showToast(error.message || 'Unable to update applicant remarks.', 'error');
     } else {
       alert(error.message || 'Unable to update applicant remarks.');
     }
   } finally {
-    selectEl.disabled = false;
+    delete root.dataset.saving;
+    if (trigger) trigger.disabled = false;
   }
 }
 window.updateApplicationRemarks = updateApplicationRemarks;
+window.toggleApplicationRemarksSelect = toggleApplicationRemarksSelect;
+window.selectApplicationRemarkOption = selectApplicationRemarkOption;
 
 function getSelectedApplicationIds() {
   return [...document.querySelectorAll('#applications-tbody .row-check:checked')]
