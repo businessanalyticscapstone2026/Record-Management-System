@@ -1048,6 +1048,24 @@ const getApplications = async (req, res) => {
     const statusHistory =
       statusResults.flat();
 
+    // Load ID pickup recipient details for the Applicants directory.
+    const pickupQueueResults = await Promise.all(
+      applicationIdChunks.map(async (idChunk) => {
+        const { data, error } = await supabase
+          .from("id_maker_queue")
+          .select("application_id, pickup_recipient_type, pickup_recipient_name")
+          .in("application_id", idChunk);
+        if (error) throw error;
+        return data || [];
+      })
+    );
+    const pickupRecipientByApplication = new Map();
+    pickupQueueResults.flat().forEach(record => {
+      if (record?.application_id) {
+        pickupRecipientByApplication.set(record.application_id, record);
+      }
+    });
+
 
     // ============================================================
     // 5B. LOAD DOCUMENT AUTHENTICATIONS IN PARALLEL
@@ -1227,6 +1245,12 @@ const getApplications = async (req, res) => {
               status_updated_at:
                 statusUpdatedAt,
 
+              pickup_recipient_type:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type || null,
+
+              pickup_recipient_name:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name || null,
+
               documentAuthentications:
                 applicationDocumentAuthentications,
 
@@ -1260,6 +1284,12 @@ const getApplications = async (req, res) => {
 
             status_updated_at:
               statusUpdatedAt,
+
+            pickup_recipient_type:
+              pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type || null,
+
+            pickup_recipient_name:
+              pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name || null,
 
             documentAuthentications:
               applicationDocumentAuthentications,
@@ -2065,7 +2095,6 @@ const updateApplicationStatus = async (req, res) => {
       status,
       pickup_recipient_type,
       pickup_recipient_name,
-      remarks,
     } = req.body || {};
 
     const allowedStatuses = [
@@ -2121,23 +2150,7 @@ const updateApplicationStatus = async (req, res) => {
 
     const pickupRecipientType = String(pickup_recipient_type || "").trim().toLowerCase();
     const pickupRecipientName = String(pickup_recipient_name || "").trim();
-    const normalizedRemarks = String(remarks || "").trim();
-    const allowedRemarks = [
-      "Bedridden",
-      "Deceased",
-      "Unlocated",
-      "Transferred",
-      "Registered",
-      "Non-registered",
-    ];
-
     if (status === "Completed") {
-      if (!allowedRemarks.includes(normalizedRemarks)) {
-        return res.status(400).json({
-          success: false,
-          message: "Select a valid applicant remark before confirming ID pickup.",
-        });
-      }
       const allowedPickupRecipients = ["applicant", "barangay_president", "authorized_personnel"];
       if (!allowedPickupRecipients.includes(pickupRecipientType)) {
         return res.status(400).json({
@@ -2300,24 +2313,6 @@ const updateApplicationStatus = async (req, res) => {
       }
     }
 
-    // Save the selected applicant remark as part of the pickup operation.
-    // The SQL migration adds this column before this endpoint is deployed.
-    let remarksSync = { attempted: false, updated: false, remarks: application.remarks || null };
-    if (status === "Completed") {
-      remarksSync.attempted = true;
-      const { data: updatedApplication, error: remarksUpdateError } = await supabase
-        .from("applications")
-        .update({ remarks: normalizedRemarks })
-        .eq("application_id", applicationId)
-        .select("application_id, remarks")
-        .maybeSingle();
-
-      if (remarksUpdateError) throw remarksUpdateError;
-      if (!updatedApplication) throw new Error("The applicant remark could not be saved.");
-      remarksSync.updated = true;
-      remarksSync.remarks = updatedApplication.remarks;
-    }
-
     // Write the new status only after any required ID Maker queue entry
     // and applicant remark have been saved successfully.
     let statusRecord;
@@ -2369,15 +2364,6 @@ const updateApplicationStatus = async (req, res) => {
           .eq("application_id", applicationId);
         if (rollbackQueueError) {
           console.error("[ID Maker] Could not roll back queue entry after status write failure:", rollbackQueueError);
-        }
-      }
-      if (status === "Completed" && remarksSync.updated) {
-        const { error: rollbackRemarksError } = await supabase
-          .from("applications")
-          .update({ remarks: application.remarks || null })
-          .eq("application_id", applicationId);
-        if (rollbackRemarksError) {
-          console.error("[Remarks] Could not restore previous remark after status write failure:", rollbackRemarksError);
         }
       }
       throw statusWriteError;
@@ -2493,7 +2479,7 @@ const updateApplicationStatus = async (req, res) => {
       entityType: "APPLICATION",
       entityId: applicationId,
       details: status === "Completed"
-        ? `Application status changed to "Completed". Remark: ${normalizedRemarks}. ID picked up by ${pickupRecipientType === "authorized_personnel" ? pickupRecipientName + " (authorized personnel)" : pickupRecipientType === "barangay_president" ? "the senior barangay president" : "the applicant"}.`
+        ? `Application status changed to "Completed". ID picked up by ${pickupRecipientType === "authorized_personnel" ? pickupRecipientName + " (authorized personnel)" : pickupRecipientType === "barangay_president" ? "the senior barangay president" : "the applicant"}.`
         : `Application status changed to "${status}".`,
     });
 
@@ -2503,7 +2489,6 @@ const updateApplicationStatus = async (req, res) => {
       status: status,
       statusHistory: statusRecord,
       idMakerSync,
-      remarksSync,
       pickupRecipientSync,
       smsNotification
     });
@@ -2523,6 +2508,61 @@ const updateApplicationStatus = async (req, res) => {
   }
 };
 
+
+const updateApplicationRemarks = async (req, res) => {
+  try {
+    const applicationId = String(req.params.applicationId || "").trim();
+    const remarks = String(req.body?.remarks || "").trim();
+    const allowedRemarks = [
+      "Bedridden",
+      "Deceased",
+      "Unlocated",
+      "Transferred",
+      "Registered",
+      "Non-registered",
+    ];
+
+    if (!applicationId) {
+      return res.status(400).json({ success: false, message: "Application ID is required." });
+    }
+    if (!allowedRemarks.includes(remarks)) {
+      return res.status(400).json({ success: false, message: "Select a valid applicant remark." });
+    }
+
+    const { data: updatedApplication, error } = await supabase
+      .from("applications")
+      .update({ remarks })
+      .eq("application_id", applicationId)
+      .select("application_id, remarks")
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!updatedApplication) {
+      return res.status(404).json({ success: false, message: "Application not found." });
+    }
+
+    await createAuditLogFromRequest(req, {
+      action: "APPLICATION_REMARKS_UPDATED",
+      entityType: "APPLICATION",
+      entityId: applicationId,
+      details: `Applicant remark changed to "${updatedApplication.remarks}".`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Applicant remark updated successfully.",
+      applicationId: updatedApplication.application_id,
+      remarks: updatedApplication.remarks,
+    });
+  } catch (error) {
+    console.error("Error updating applicant remarks:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update applicant remarks.",
+      error: error.message,
+    });
+  }
+};
 
 const updateMembershipStatus = async (req, res) => {
   try {
@@ -3044,6 +3084,7 @@ module.exports = {
   getIssuanceDetails,
   saveApplicationValidation,
   updateApplicationStatus,
+  updateApplicationRemarks,
   updateMembershipStatus,
   updateDocumentAuthentication,
   approveAllDocumentAuthentications,
