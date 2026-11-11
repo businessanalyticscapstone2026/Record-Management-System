@@ -2901,6 +2901,30 @@ function saveLocalIdMakerQueue(queueEntry, broadcastUpdate = true) {
 
 let CURRENT_APP_ID = null;
 
+function formatApplicantAddress(application = {}) {
+  const street = String(
+    application.house_street ||
+    application.houseStreet ||
+    application.address ||
+    ''
+  ).trim();
+
+  const barangay = String(
+    application.barangay_district ||
+    application.barangayDistrict ||
+    application.barangay ||
+    ''
+  ).trim();
+
+  if (!street) return barangay;
+  if (!barangay) return street;
+
+  // Avoid repeating the barangay if the imported address already contains it.
+  if (street.toLowerCase().includes(barangay.toLowerCase())) return street;
+
+  return `${street}, Brgy. ${barangay.replace(/^brgy\.?\s*/i, '')}`;
+}
+
 function syncApplicationsToAppDB(applications) {
   if (!Array.isArray(applications)) return;
 
@@ -2943,11 +2967,7 @@ function syncApplicationsToAppDB(applications) {
       middleName: middleName,
       surname: surname,
 
-      address:
-        application.house_street ||
-        application.houseStreet ||
-        application.address ||
-        '',
+      address: formatApplicantAddress(application),
 
       barangay:
         application.barangay_district ||
