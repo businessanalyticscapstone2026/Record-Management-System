@@ -4171,10 +4171,13 @@ function renderLiveApplications(applications) {
     const docs = typeof buildDocsStatusPill === 'function' ? buildDocsStatusPill(application) : '—';
     const statusHtml = typeof buildStatusSelect === 'function' ? buildStatusSelect(id, status) : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
     const remarks = String(application.remarks || '').trim();
-    const remarksHtml =
-      String(status).trim().toLowerCase() === 'completed'
-        ? `<span class="remarks-pill${remarks ? ' remarks-pill--set' : ''}">${escapeApplicationHtml(remarks || 'Not yet recorded')}</span>`
-        : '<span class="cell-text">—</span>';
+    const remarkOptions = ['Bedridden', 'Deceased', 'Unlocated', 'Transferred', 'Registered', 'Non-registered'];
+    const remarksHtml = `<select class="remarks-status-select" aria-label="Remarks for ${escapeApplicationHtml(name)}"
+      data-previous-value="${escapeApplicationHtml(remarks)}"
+      onchange="updateApplicationRemarks('${escapeApplicationHtml(id)}', this)">
+      <option value="">Select remark</option>
+      ${remarkOptions.map(option => `<option value="${option}" ${remarks === option ? 'selected' : ''}>${option}</option>`).join('')}
+    </select>`;
 
     const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('');
     const barangay = application.barangay_district || application.barangay || '';
@@ -4207,6 +4210,63 @@ function renderLiveApplications(applications) {
   if (urgentDescription) urgentDescription.textContent = urgentCount ? 'These applications have been pending for more than 5 days and need immediate attention.' : 'Applications pending for more than 5 days will appear here.';
   updateBatchState();
 }
+
+async function updateApplicationRemarks(applicationId, selectEl) {
+  if (!applicationId || !selectEl) return;
+  const newRemarks = String(selectEl.value || '').trim();
+  const previousRemarks = selectEl.dataset.previousValue || '';
+  const allowedRemarks = ['Bedridden', 'Deceased', 'Unlocated', 'Transferred', 'Registered', 'Non-registered'];
+
+  if (!allowedRemarks.includes(newRemarks)) {
+    selectEl.value = previousRemarks;
+    return;
+  }
+
+  selectEl.disabled = true;
+  try {
+    const response = await fetch(
+      `${STAFF_API_BASE}/api/applications/${encodeURIComponent(applicationId)}/remarks`,
+      {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ remarks: newRemarks })
+      }
+    );
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to update applicant remarks.');
+    }
+
+    const savedRemarks = result.remarks || newRemarks;
+    selectEl.value = savedRemarks;
+    selectEl.dataset.previousValue = savedRemarks;
+
+    if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
+      const application = LIVE_APPLICATIONS.find(item =>
+        String(item.application_id || item.id) === String(applicationId)
+      );
+      if (application) application.remarks = savedRemarks;
+    }
+    if (typeof APP_DB !== 'undefined' && APP_DB[applicationId]) {
+      APP_DB[applicationId].remarks = savedRemarks;
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(`Remarks updated to ${savedRemarks}.`, 'success');
+    }
+  } catch (error) {
+    console.error('Error updating applicant remarks:', error);
+    selectEl.value = previousRemarks;
+    if (typeof showToast === 'function') {
+      showToast(error.message || 'Unable to update applicant remarks.', 'error');
+    } else {
+      alert(error.message || 'Unable to update applicant remarks.');
+    }
+  } finally {
+    selectEl.disabled = false;
+  }
+}
+window.updateApplicationRemarks = updateApplicationRemarks;
 
 function getSelectedApplicationIds() {
   return [...document.querySelectorAll('#applications-tbody .row-check:checked')]
