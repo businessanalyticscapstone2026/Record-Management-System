@@ -2551,81 +2551,6 @@ window.setRole =
 
 // RENDER LIVE APPLICANTS
 
-function renderLiveApplicants(applications) {
-  const tbody = document.getElementById('applicants-tbody');
-  if (!tbody) return;
-
-  const registeredApplications = Array.isArray(applications)
-    ? applications.filter(application => String(application.status || '').trim().toLowerCase() === 'completed')
-    : [];
-
-  const totalBadge = document.getElementById('applicants-total-badge');
-  if (totalBadge) totalBadge.textContent = `${registeredApplications.length.toLocaleString()} Registered Profiles`;
-
-  const sidebarBadge = document.getElementById('applicants-sidebar-count');
-  if (sidebarBadge) sidebarBadge.textContent = registeredApplications.length.toLocaleString();
-
-  if (!registeredApplications.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
-    const footer = document.querySelector('#mod-applicants .table-footer__info');
-    if (footer) footer.textContent = 'Showing 0 of 0 registered seniors';
-    return;
-  }
-
-  tbody.innerHTML = registeredApplications.map(application => {
-    const appId = application.application_id || application.id || '';
-    const fullName = [
-      application.first_name,
-      application.middle_name,
-      application.surname
-    ].filter(Boolean).join(' ').trim() || 'Unnamed Applicant';
-    const initials = fullName.split(/\\s+/).filter(Boolean).slice(0, 2)
-      .map(part => part.charAt(0).toUpperCase()).join('');
-    const barangay = application.barangay_district || application.barangay || '—';
-    const age = application.age ?? '—';
-    const registrationDate = application.registration_date || application.created_at || getApplicationSubmittedDate(application);
-    const recipientType = String(application.pickup_recipient_type || '')
-      .trim().toLowerCase().replace(/[\s-]+/g, '_');
-    const recipientName = String(application.pickup_recipient_name || '').trim();
-    // Remarks/membership values must never be presented as the person who collected the ID.
-    const invalidRecipientNames = new Set([
-      'registered', 'non-registered', 'active', 'deceased',
-      'bedridden', 'unlocated', 'transferred'
-    ]);
-    let claimedBy = 'Not yet claimed';
-    if (['applicant', 'senior_citizen', 'the_applicant'].includes(recipientType)) {
-      claimedBy = 'Applicant';
-    } else if ([
-      'barangay_president',
-      'senior_barangay_president',
-      'senior_barangay_captain',
-      'barangay_captain'
-    ].includes(recipientType)) {
-      claimedBy = 'Senior Barangay President';
-    } else if (['authorized_personnel', 'authorized_staff', 'authorized_person'].includes(recipientType)) {
-      claimedBy = recipientName && !invalidRecipientNames.has(recipientName.toLowerCase())
-        ? recipientName
-        : 'Authorized Personnel (name not recorded)';
-    }
-
-    const statusHtml = '<span class="status-select__label">Registered</span>';
-
-    return `<tr data-app-id="${escapeApplicationHtml(appId)}">
-      <td><div class="applicant-cell"><div class="applicant-avatar" style="background:linear-gradient(135deg,#FDE68A,#D97706)">${escapeApplicationHtml(initials)}</div><div class="applicant-info"><span class="applicant-name">${escapeApplicationHtml(fullName)}</span><span class="applicant-id">Registered senior citizen</span></div></div></td>
-      <td><span class="cell-text">${escapeApplicationHtml(appId)}</span></td>
-      <td><span class="cell-text">${escapeApplicationHtml(barangay)}</span></td>
-      <td><span class="cell-text">${escapeApplicationHtml(String(age))}</span></td>
-      <td><span class="cell-text">${escapeApplicationHtml(registrationDate ? formatStaffDate(registrationDate) : '—')}</span></td>
-      <td><span class="id-claimed-by">${escapeApplicationHtml(claimedBy)}</span></td>
-      <td>${statusHtml}</td>
-      <td style="text-align:right">${buildViewAction(appId)}</td>
-    </tr>`;
-  }).join('');
-
-  const footer = document.querySelector('#mod-applicants .table-footer__info');
-  if (footer) footer.textContent = `Showing ${registeredApplications.length.toLocaleString()} of ${registeredApplications.length.toLocaleString()} registered seniors`;
-}
-
 // Applicant summary cards calculation
 
 
@@ -3549,6 +3474,31 @@ function buildApplicantProfiles(applications) {
     // Applicants module shows registered citizens only. Use their newest completed record.
     if (profile.isRegistered) profile.latestApplication = profile.completedApplications[0];
     profile.remarks = profile.latestApplication?.remarks || '';
+    // ID pickup recipient is stored on the linked id_maker_queue record and
+    // returned by the applications API. Use the latest completed application.
+    const pickupType = String(profile.latestApplication?.pickup_recipient_type || '')
+      .trim().toLowerCase().replace(/[\\s-]+/g, '_');
+    const pickupName = String(profile.latestApplication?.pickup_recipient_name || '').trim();
+    const invalidPickupNames = new Set([
+      'registered', 'non-registered', 'active', 'deceased',
+      'bedridden', 'unlocated', 'transferred'
+    ]);
+    if (['applicant', 'senior_citizen', 'the_applicant'].includes(pickupType)) {
+      profile.idClaimedBy = 'Applicant';
+    } else if ([
+      'barangay_president',
+      'senior_barangay_president',
+      'senior_barangay_captain',
+      'barangay_captain'
+    ].includes(pickupType)) {
+      profile.idClaimedBy = 'Senior Barangay President';
+    } else if (['authorized_personnel', 'authorized_staff', 'authorized_person'].includes(pickupType)) {
+      profile.idClaimedBy = pickupName && !invalidPickupNames.has(pickupName.toLowerCase())
+        ? pickupName
+        : 'Authorized Personnel (name not recorded)';
+    } else {
+      profile.idClaimedBy = 'Not yet claimed';
+    }
     profile.isActive = profile.ongoingApplications.length > 0;
     profile.hasDuplicateFlag = profile.applications.some(isProfileDuplicateFlagged);
     profile.status = profile.isRegistered ? 'Registered' : 'Rejected';
@@ -3590,7 +3540,7 @@ function renderLiveApplicants(applications) {
     const status = String(profile.status || 'Pending');
     const ids = profile.applications.map(a => a.application_id || a.id || '').join(' ');
     const remarks = String(profile.remarks || '').trim();
-    const searchText = [profile.name, profile.seniorId, profile.barangay, remarks, ids].join(' ').toLowerCase();
+    const searchText = [profile.name, profile.seniorId, profile.barangay, profile.idClaimedBy, remarks, ids].join(' ').toLowerCase();
     return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}"
       data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-name="${escapeApplicationHtml(profile.name || '')}"
       data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
@@ -3600,7 +3550,7 @@ function renderLiveApplicants(applications) {
       <td><span class="cell-text">${escapeApplicationHtml(profile.barangay || '—')}</span></td>
       <td><span class="cell-text">${escapeApplicationHtml(String(profile.age))}</span></td>
       <td><span class="cell-text">${profile.registeredAt ? escapeApplicationHtml(formatStaffDate(profile.registeredAt)) : '—'}</span></td>
-      <td><span class="remarks-pill${remarks ? ' remarks-pill--set' : ''}">${escapeApplicationHtml(remarks || 'Not yet recorded')}</span></td>
+      <td><span class="id-claimed-by">${escapeApplicationHtml(profile.idClaimedBy || 'Not yet claimed')}</span></td>
       <td><span class="badge ${getProfileStatusClass(status)}"><span class="status-select__label">${escapeApplicationHtml(status)}</span></span></td>
       <td style="text-align:right"><button type="button" class="row-action always-visible" onclick="openApplicantProfile(${index})">View Profile</button></td>
     </tr>`;
