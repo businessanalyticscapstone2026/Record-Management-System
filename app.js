@@ -3916,9 +3916,9 @@ async function updateTableStatus(
 
     app.status =
       savedStatus;
-    if (savedStatus === 'Completed' && result.pickupRecipientSync?.recipient) {
-      app.pickup_recipient_type = result.pickupRecipientSync.recipient.pickup_recipient_type;
-      app.pickup_recipient_name = result.pickupRecipientSync.recipient.pickup_recipient_name;
+    if (savedStatus === 'Completed' && result.statusHistory) {
+      app.pickup_recipient_type = result.statusHistory.pickup_recipient_type || null;
+      app.pickup_recipient_name = result.statusHistory.pickup_recipient_name || null;
     }
     APP_DB[appId] = app;
 
@@ -3932,9 +3932,9 @@ async function updateTableStatus(
         liveApplication.status = savedStatus;
         liveApplication.status_updated_at =
           result.statusHistory?.[0]?.updated_at || new Date().toISOString();
-        if (savedStatus === 'Completed' && result.pickupRecipientSync?.recipient) {
-          liveApplication.pickup_recipient_type = result.pickupRecipientSync.recipient.pickup_recipient_type;
-          liveApplication.pickup_recipient_name = result.pickupRecipientSync.recipient.pickup_recipient_name;
+        if (savedStatus === 'Completed' && result.statusHistory) {
+          liveApplication.pickup_recipient_type = result.statusHistory.pickup_recipient_type || null;
+          liveApplication.pickup_recipient_name = result.statusHistory.pickup_recipient_name || null;
         }
       }
       if (typeof updateApplicantSummaryCards === 'function') updateApplicantSummaryCards(LIVE_APPLICATIONS);
