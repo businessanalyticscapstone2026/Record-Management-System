@@ -2065,6 +2065,7 @@ const updateApplicationStatus = async (req, res) => {
       status,
       pickup_recipient_type,
       pickup_recipient_name,
+      remarks,
     } = req.body || {};
 
     const allowedStatuses = [
@@ -2103,7 +2104,7 @@ const updateApplicationStatus = async (req, res) => {
       error: applicationError,
     } = await supabase
       .from("applications")
-      .select("application_id, contact_number, validation_status")
+      .select("application_id, contact_number, validation_status, remarks")
       .eq("application_id", applicationId)
       .maybeSingle();
 
@@ -2120,8 +2121,23 @@ const updateApplicationStatus = async (req, res) => {
 
     const pickupRecipientType = String(pickup_recipient_type || "").trim().toLowerCase();
     const pickupRecipientName = String(pickup_recipient_name || "").trim();
+    const normalizedRemarks = String(remarks || "").trim();
+    const allowedRemarks = [
+      "Bedridden",
+      "Deceased",
+      "Unlocated",
+      "Transferred",
+      "Registered",
+      "Non-registered",
+    ];
 
     if (status === "Completed") {
+      if (!allowedRemarks.includes(normalizedRemarks)) {
+        return res.status(400).json({
+          success: false,
+          message: "Select a valid applicant remark before confirming ID pickup.",
+        });
+      }
       const allowedPickupRecipients = ["applicant", "barangay_president", "authorized_personnel"];
       if (!allowedPickupRecipients.includes(pickupRecipientType)) {
         return res.status(400).json({
@@ -2284,9 +2300,26 @@ const updateApplicationStatus = async (req, res) => {
       }
     }
 
+    // Save the selected applicant remark as part of the pickup operation.
+    // The SQL migration adds this column before this endpoint is deployed.
+    let remarksSync = { attempted: false, updated: false, remarks: application.remarks || null };
+    if (status === "Completed") {
+      remarksSync.attempted = true;
+      const { data: updatedApplication, error: remarksUpdateError } = await supabase
+        .from("applications")
+        .update({ remarks: normalizedRemarks })
+        .eq("application_id", applicationId)
+        .select("application_id, remarks")
+        .maybeSingle();
+
+      if (remarksUpdateError) throw remarksUpdateError;
+      if (!updatedApplication) throw new Error("The applicant remark could not be saved.");
+      remarksSync.updated = true;
+      remarksSync.remarks = updatedApplication.remarks;
+    }
+
     // Write the new status only after any required ID Maker queue entry
-    // has been created successfully. If history persistence fails, remove
-    // the queue row created by this request so the two systems do not diverge.
+    // and applicant remark have been saved successfully.
     let statusRecord;
     try {
       const {
@@ -2338,6 +2371,15 @@ const updateApplicationStatus = async (req, res) => {
           console.error("[ID Maker] Could not roll back queue entry after status write failure:", rollbackQueueError);
         }
       }
+      if (status === "Completed" && remarksSync.updated) {
+        const { error: rollbackRemarksError } = await supabase
+          .from("applications")
+          .update({ remarks: application.remarks || null })
+          .eq("application_id", applicationId);
+        if (rollbackRemarksError) {
+          console.error("[Remarks] Could not restore previous remark after status write failure:", rollbackRemarksError);
+        }
+      }
       throw statusWriteError;
     }
 
@@ -2359,33 +2401,6 @@ const updateApplicationStatus = async (req, res) => {
       if (!updatedQueue) throw new Error("Pickup recipient information was not saved.");
       pickupRecipientSync.updated = true;
       pickupRecipientSync.recipient = updatedQueue;
-    }
-
-    // Automatically activate membership when staff marks an application
-    // Completed. Membership can still later be changed to Deceased through
-    // the dedicated membership-status endpoint.
-    let membershipSync = { attempted: false, updated: false };
-    if (status === "Completed") {
-      membershipSync.attempted = true;
-      try {
-        const { data: updatedApplication, error: membershipUpdateError } = await supabase
-          .from("applications")
-          .update({ membership_status: "Active" })
-          .eq("application_id", applicationId)
-          .select("application_id, membership_status")
-          .maybeSingle();
-
-        if (membershipUpdateError) throw membershipUpdateError;
-        if (!updatedApplication) {
-          throw new Error("Application was not found while setting its membership status.");
-        }
-
-        membershipSync.updated = true;
-        membershipSync.membership_status = updatedApplication.membership_status;
-      } catch (membershipError) {
-        membershipSync.error = membershipError.message;
-        console.error("[Membership] Failed to set membership Active for completed application:", membershipError);
-      }
     }
 
     // Synchronize the existing ID Maker queue row whenever staff status is
@@ -2478,7 +2493,7 @@ const updateApplicationStatus = async (req, res) => {
       entityType: "APPLICATION",
       entityId: applicationId,
       details: status === "Completed"
-        ? `Application status changed to "Completed". ID picked up by ${pickupRecipientType === "authorized_personnel" ? pickupRecipientName + " (authorized personnel)" : pickupRecipientType === "barangay_president" ? "the senior barangay president" : "the applicant"}.`
+        ? `Application status changed to "Completed". Remark: ${normalizedRemarks}. ID picked up by ${pickupRecipientType === "authorized_personnel" ? pickupRecipientName + " (authorized personnel)" : pickupRecipientType === "barangay_president" ? "the senior barangay president" : "the applicant"}.`
         : `Application status changed to "${status}".`,
     });
 
@@ -2488,7 +2503,7 @@ const updateApplicationStatus = async (req, res) => {
       status: status,
       statusHistory: statusRecord,
       idMakerSync,
-      membershipSync,
+      remarksSync,
       pickupRecipientSync,
       smsNotification
     });
