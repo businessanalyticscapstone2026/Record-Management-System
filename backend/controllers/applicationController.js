@@ -2114,6 +2114,12 @@ const updateApplicationStatus = async (req, res) => {
 
     if (previousStatusError) throw previousStatusError;
     const currentStatus = previousStatusRecord?.status || "Pending";
+    if (status === "Completed" && currentStatus !== "Ready for Release") {
+      return res.status(409).json({
+        success: false,
+        message: "An application can only be marked Completed after its status is Ready for Release.",
+      });
+    }
     const shouldNotifyReady =
       status === "Ready for Release" &&
       currentStatus !== "Ready for Release";
@@ -2307,7 +2313,6 @@ const updateApplicationStatus = async (req, res) => {
         .update({
           pickup_recipient_type: pickupRecipientType,
           pickup_recipient_name: pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null,
-          updated_at: now,
         })
         .eq("application_id", applicationId)
         .select("application_id, pickup_recipient_type, pickup_recipient_name")
