@@ -8336,8 +8336,21 @@ async function sendFromIssuanceToIdMaker() {
   const apiBase = `${RMS_API_BASE}/api`;
   const fetchWithTimeout = (url, options = {}) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutMs = 60000;
+    const timeoutId = setTimeout(() => {
+      controller.abort(new DOMException(
+        `Request timed out after ${timeoutMs / 1000} seconds: ${url}`,
+        'TimeoutError'
+      ));
+    }, timeoutMs);
+
     return fetch(url, { ...options, signal: controller.signal })
+      .catch(error => {
+        if (error?.name === 'TimeoutError') {
+          throw new Error(error.message);
+        }
+        throw error;
+      })
       .finally(() => clearTimeout(timeoutId));
   };
   try {
