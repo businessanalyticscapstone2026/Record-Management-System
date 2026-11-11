@@ -2180,7 +2180,7 @@ const updateApplicationStatus = async (req, res) => {
 
     if (previousStatusError) throw previousStatusError;
     const currentStatus = previousStatusRecord?.status || "Pending";
-    if (status === "Completed" && currentStatus !== "Ready for Release") {
+    if (status === "Completed" && !["Ready for Release", "Completed"].includes(currentStatus)) {
       return res.status(409).json({
         success: false,
         message: "An application can only be marked Completed after its status is Ready for Release.",
