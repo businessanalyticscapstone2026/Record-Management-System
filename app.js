@@ -7679,7 +7679,7 @@ async function downloadStaffExport() {
   const type = document.getElementById('staff-export-type')?.value || 'barangay';
   const barangayFilter = document.getElementById('staff-export-barangay')?.value || '';
   const statusFilter = document.getElementById('staff-export-status')?.value || '';
-  const membershipFilter = document.getElementById('staff-export-membership')?.value || '';
+  const remarksFilter = document.getElementById('staff-export-remarks')?.value || '';
   const errorEl = document.getElementById('staff-export-error');
   const selectedFields = [...document.querySelectorAll('input[name="staff-export-field"]:checked')].map(input => input.value);
 
@@ -7687,11 +7687,10 @@ async function downloadStaffExport() {
   const filtered = source.filter(application => {
     const barangay = String(application.barangay_district || application.barangay || '').trim();
     const status = String(application.status || '').trim().toLowerCase();
-    const membership = String(application.membership_status || '').trim().toLowerCase();
+    const remarks = String(application.remarks || '').trim().toLowerCase();
     if (barangayFilter && barangay !== barangayFilter) return false;
     if (statusFilter && status !== statusFilter.toLowerCase()) return false;
-    if (membershipFilter === 'Unassigned' && membership) return false;
-    if (membershipFilter && membershipFilter !== 'Unassigned' && membership !== membershipFilter.toLowerCase()) return false;
+    if (remarksFilter && remarks !== remarksFilter.toLowerCase()) return false;
     return true;
   });
 
