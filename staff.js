@@ -2552,277 +2552,64 @@ window.setRole =
 // RENDER LIVE APPLICANTS
 
 function renderLiveApplicants(applications) {
-
-  const tbody =
-    document.getElementById(
-      'applicants-tbody'
-    );
-
-  if (!tbody) {
-    return;
-  }
+  const tbody = document.getElementById('applicants-tbody');
+  if (!tbody) return;
 
   const registeredApplications = Array.isArray(applications)
     ? applications.filter(application => String(application.status || '').trim().toLowerCase() === 'completed')
     : [];
-  const totalBadge =
-    document.getElementById(
-      'applicants-total-badge'
-    );
 
-  if (totalBadge) {
-    totalBadge.textContent =
-      `${registeredApplications.length.toLocaleString()} Registered Profiles`;
-  }
-
+  const totalBadge = document.getElementById('applicants-total-badge');
+  if (totalBadge) totalBadge.textContent = `${registeredApplications.length.toLocaleString()} Registered Profiles`;
 
   const sidebarBadge = document.getElementById('applicants-sidebar-count');
   if (sidebarBadge) sidebarBadge.textContent = registeredApplications.length.toLocaleString();
 
-  if (registeredApplications.length === 0) {
-
-    tbody.innerHTML = `
-      <tr>
-        <td
-          colspan="9"
-          style="
-            text-align:center;
-            padding:32px;
-            color:var(--text-muted);
-          "
-        >
-          No applicants found.
-        </td>
-      </tr>
-    `;
-
-    const footer = document.querySelector(
-      '#mod-applicants .table-footer__info'
-    );
-
-    if (footer) {
-      footer.textContent = 'Showing 0 of 0 registered seniors';
-    }
-
+  if (!registeredApplications.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
+    const footer = document.querySelector('#mod-applicants .table-footer__info');
+    if (footer) footer.textContent = 'Showing 0 of 0 registered seniors';
     return;
   }
 
-
-  tbody.innerHTML =
-    registeredApplications.map(
-      application => {
-
-        const appId =
-          application.application_id ||
-          application.id ||
-          '';
-
-
-        const fullName = [
-          application.first_name,
-          application.middle_name,
-          application.surname
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .trim() ||
-          'Unnamed Applicant';
-
-
-        const initials =
-          fullName
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map(
-              part =>
-                part
-                  .charAt(0)
-                  .toUpperCase()
-            )
-            .join('');
-
-
-        const barangay =
-          application.barangay_district ||
-          application.barangay ||
-          '—';
-
-
-        const age =
-          application.age ??
-          '—';
-
-
-        const occupation =
-          application.occupation ||
-          '—';
-
-
-        const status =
-          application.status ||
-          'Pending';
-
-
-        let docsHtml =
-          '<span class="docs-pill">—</span>';
-
-
-        if (
-          typeof buildDocsStatusPill ===
-          'function'
-        ) {
-
-          try {
-
-            docsHtml =
-              buildDocsStatusPill(
-                application
-              );
-
-          } catch (error) {
-
-            console.warn(
-              'Unable to build document status:',
-              error
-            );
-
-          }
-
-        }
-
-
-        let statusHtml =
-          `<span class="status-select__label">
-            ${escapeApplicationHtml(status)}
-          </span>`;
-
-
-        if (
-          typeof buildStatusSelect ===
-          'function'
-        ) {
-
-          try {
-
-            statusHtml =
-              buildStatusSelect(
-                appId,
-                status
-              );
-
-          } catch (error) {
-
-            console.warn(
-              'Unable to build applicant status:',
-              error
-            );
-
-          }
-
-        }
-
-
-        return `
-          <tr
-            data-app-id="${escapeApplicationHtml(appId)}"
-          >
-
-            <td>
-              <div class="applicant-cell">
-
-                <div class="applicant-avatar" style="background:linear-gradient(135deg,#FDE68A,#D97706)">
-                  ${escapeApplicationHtml(initials)}
-                </div>
-
-                <div class="applicant-info">
-
-                  <span class="applicant-name">
-                    ${escapeApplicationHtml(fullName)}
-                  </span>
-
-                  <span class="applicant-id">
-                    ${escapeApplicationHtml(
-          application.sex || 'Applicant'
-        )}
-                    ·
-                    ${escapeApplicationHtml(
-          String(age)
-        )}
-                    yrs
-                  </span>
-
-                </div>
-
-              </div>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(appId)}
-              </span>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(barangay)}
-              </span>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(
-          String(age)
-        )}
-              </span>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(
-          occupation
-        )}
-              </span>
-            </td>
-
-
-            <td>
-              ${renderApplicationTypePill(application)}
-            </td>
-
-
-            <td>
-              ${docsHtml}
-            </td>
-
-
-            <td>
-              ${statusHtml}
-            </td>
-
-
-            <td style="text-align:right">${buildViewAction(appId)}</td>
-
-          </tr>
-        `;
-
-      }
-    )
-      .join('');
-
-  const footer = document.querySelector(
-    '#mod-applicants .table-footer__info'
-  );
-
-  if (footer) {
-    footer.textContent =
-      `Showing ${applications.length.toLocaleString()} of ${applications.length.toLocaleString()} applicants`;
-  }
-
+  tbody.innerHTML = registeredApplications.map(application => {
+    const appId = application.application_id || application.id || '';
+    const fullName = [
+      application.first_name,
+      application.middle_name,
+      application.surname
+    ].filter(Boolean).join(' ').trim() || 'Unnamed Applicant';
+    const initials = fullName.split(/\\s+/).filter(Boolean).slice(0, 2)
+      .map(part => part.charAt(0).toUpperCase()).join('');
+    const barangay = application.barangay_district || application.barangay || '—';
+    const age = application.age ?? '—';
+    const registrationDate = application.registration_date || application.created_at || getApplicationSubmittedDate(application);
+    const recipientType = String(application.pickup_recipient_type || '').trim().toLowerCase();
+    const recipientName = String(application.pickup_recipient_name || '').trim();
+    let claimedBy = 'Not recorded';
+    if (recipientType === 'applicant') claimedBy = 'Applicant';
+    else if (recipientType === 'barangay_president') claimedBy = 'Barangay President';
+    else if (recipientType === 'authorized_personnel') claimedBy = recipientName || 'Authorized Personnel';
+
+    const status = application.status || 'Completed';
+    const statusHtml = typeof buildStatusSelect === 'function'
+      ? buildStatusSelect(appId, status)
+      : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
+
+    return `<tr data-app-id="${escapeApplicationHtml(appId)}">
+      <td><div class="applicant-cell"><div class="applicant-avatar" style="background:linear-gradient(135deg,#FDE68A,#D97706)">${escapeApplicationHtml(initials)}</div><div class="applicant-info"><span class="applicant-name">${escapeApplicationHtml(fullName)}</span><span class="applicant-id">Registered senior citizen</span></div></div></td>
+      <td><span class="cell-text">${escapeApplicationHtml(appId)}</span></td>
+      <td><span class="cell-text">${escapeApplicationHtml(barangay)}</span></td>
+      <td><span class="cell-text">${escapeApplicationHtml(String(age))}</span></td>
+      <td><span class="cell-text">${escapeApplicationHtml(registrationDate ? formatStaffDate(registrationDate) : '—')}</span></td>
+      <td><span class="id-claimed-by">${escapeApplicationHtml(claimedBy)}</span></td>
+      <td>${statusHtml}</td>
+      <td style="text-align:right">${buildViewAction(appId)}</td>
+    </tr>`;
+  }).join('');
+
+  const footer = document.querySelector('#mod-applicants .table-footer__info');
+  if (footer) footer.textContent = `Showing ${registeredApplications.length.toLocaleString()} of ${registeredApplications.length.toLocaleString()} registered seniors`;
 }
 
 // Applicant summary cards calculation
