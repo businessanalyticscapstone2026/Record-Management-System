@@ -1,6 +1,51 @@
 // Use this deployment for all staff API requests.
 const STAFF_API_BASE = window.location.origin;
 
+// Keep Staff API requests authenticated even if app.js fails to load.
+// app.js normally exposes these helpers, but staff.js must remain resilient
+// to a transient script/CDN connection failure.
+if (typeof window.getAuthHeaders !== 'function') {
+  window.getAuthHeaders = function getStaffAuthHeadersFallback() {
+    const candidates = [];
+
+    try {
+      const sessionRaw = window.sessionStorage.getItem('senioridAuth');
+      if (sessionRaw) {
+        const session = JSON.parse(sessionRaw);
+        if (session?.token) candidates.push(session.token);
+      }
+    } catch (_err) { }
+
+    try {
+      const localRaw = window.localStorage.getItem('senioridAuth');
+      if (localRaw) {
+        const session = JSON.parse(localRaw);
+        if (session?.token) candidates.push(session.token);
+      }
+    } catch (_err) { }
+
+    try {
+      const legacyToken = window.localStorage.getItem('authToken');
+      if (legacyToken) candidates.push(legacyToken);
+    } catch (_err) { }
+
+    const token = candidates.find(value =>
+      typeof value === 'string' &&
+      value.trim() &&
+      value.trim() !== 'null' &&
+      value.trim() !== 'undefined'
+    );
+
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token.trim()}` } : {})
+    };
+  };
+}
+
+// Wake the Record Management backend early without blocking page rendering.
+
+
 // Wake the Record Management backend early without blocking page rendering.
 fetch(`${STAFF_API_BASE}/health`, {
   method: "GET",
