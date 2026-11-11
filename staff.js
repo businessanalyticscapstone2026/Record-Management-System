@@ -3777,7 +3777,7 @@ function renderLiveApplicants(applications) {
   const sidebarBadge = document.getElementById('applicants-sidebar-count');
   if (sidebarBadge) sidebarBadge.textContent = profiles.length.toLocaleString();
   if (!profiles.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
     if (typeof Skeleton !== 'undefined') Skeleton.clearBusy('applicants-tbody');
     const footer = document.querySelector('#mod-applicants .table-footer__info');
     if (footer) footer.textContent = 'Showing 0 of 0 applicants';
