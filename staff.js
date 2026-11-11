@@ -247,6 +247,12 @@ function updateBatchState() {
   const label = document.getElementById('batch-ops-label');
   const exportButton = document.querySelector('#batch-ops-menu [onclick="runBatchAction(\'export\')"]');
   const approveButton = document.querySelector('#batch-ops-menu [onclick="runBatchAction(\'approve\')"]');
+  const completeButton = document.getElementById('batch-complete-selected');
+  const readySelectedCount = Array.from(STAFF_SELECTED_APP_IDS).filter(id => {
+    const app = LIVE_APPLICATIONS.find(item => String(item.application_id || item.id) === id);
+    return app && normalizeApplicationStatus(app.status) === 'ready';
+  }).length;
+  if (completeButton) completeButton.disabled = readySelectedCount === 0;
   if (trigger) trigger.disabled = selectedCount === 0;
   if (label) label.textContent = selectedCount
     ? 'Batch Operations (' + selectedCount.toLocaleString() + ')'
@@ -2511,6 +2517,9 @@ function renderLiveApplicants(applications) {
     return;
   }
 
+  const registeredApplications = Array.isArray(applications)
+    ? applications.filter(application => String(application.status || '').trim().toLowerCase() === 'completed')
+    : [];
   const totalBadge =
     document.getElementById(
       'applicants-total-badge'
@@ -2518,16 +2527,14 @@ function renderLiveApplicants(applications) {
 
   if (totalBadge) {
     totalBadge.textContent =
-      `${applications.length.toLocaleString()} Total`;
+      `${registeredApplications.length.toLocaleString()} Registered Profiles`;
   }
 
 
-  if (
-    !Array.isArray(
-      applications
-    ) ||
-    applications.length === 0
-  ) {
+  const sidebarBadge = document.getElementById('applicants-sidebar-count');
+  if (sidebarBadge) sidebarBadge.textContent = registeredApplications.length.toLocaleString();
+
+  if (registeredApplications.length === 0) {
 
     tbody.innerHTML = `
       <tr>
@@ -2557,7 +2564,7 @@ function renderLiveApplicants(applications) {
 
 
   tbody.innerHTML =
-    applications.map(
+    registeredApplications.map(
       application => {
 
         const appId =
@@ -3720,11 +3727,9 @@ function renderLiveApplicants(applications) {
   const profiles = STAFF_APPLICANT_PROFILES;
   const badge = document.getElementById('applicants-total-badge');
   if (badge) badge.textContent = profiles.length.toLocaleString() + ' Registered Profiles';
-  // The sidebar badge remains the count of ongoing applications (all except Completed and Rejected).
+  // The Applicants navigation badge reflects registered senior profiles only.
   const sidebarBadge = document.getElementById('applicants-sidebar-count');
-  const ongoingApplicationCount = allProfiles.reduce((count, profile) =>
-    count + profile.ongoingApplications.length, 0);
-  if (sidebarBadge) sidebarBadge.textContent = ongoingApplicationCount.toLocaleString();
+  if (sidebarBadge) sidebarBadge.textContent = profiles.length.toLocaleString();
   if (!profiles.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
     if (typeof Skeleton !== 'undefined') Skeleton.clearBusy('applicants-tbody');
@@ -4444,11 +4449,29 @@ async function approveSelectedApplications() {
   renderLiveApplications(LIVE_APPLICATIONS);
 }
 
+async function completeSelectedApplications() {
+  const selectedIds = new Set(getSelectedApplicationIds().map(String));
+  const selected = LIVE_APPLICATIONS.filter(app =>
+    selectedIds.has(String(app.application_id || app.id)) &&
+    normalizeApplicationStatus(app.status) === 'ready'
+  );
+  if (!selected.length) {
+    showToast('Select at least one application marked Ready for Release.', 'info');
+    return;
+  }
+  const ids = selected.map(app => String(app.application_id || app.id));
+  const previousStatuses = Object.fromEntries(ids.map(id => [id, 'Ready for Release']));
+  if (typeof openPickupRecipientDialog === 'function') {
+    openPickupRecipientDialog(ids, previousStatuses);
+  }
+}
+
 async function runBatchAction(action) {
   document.getElementById('batch-ops-wrap')?.classList.remove('open');
   document.getElementById('batch-ops-trigger')?.setAttribute('aria-expanded', 'false');
   if (action === 'export') exportSelectedApplications();
   else if (action === 'approve') await approveSelectedApplications();
+  else if (action === 'complete') await completeSelectedApplications();
 }
 
 window.toggleBatchMenu = toggleBatchMenu;
@@ -4654,8 +4677,8 @@ function updateApplicantSummaryCards(applications) {
     'applicants-verified-count': ongoingProfiles.length,
     'applicants-unverified-count': newThisMonth,
     'applicants-issued-count': duplicateProfiles,
-    'applicants-sidebar-count': ongoingApplicationCount,
-    'applicants-total-badge': ongoingProfiles.length.toLocaleString() + ' Ongoing Profiles'
+    'applicants-sidebar-count': totalRegistered,
+    'applicants-total-badge': totalRegistered.toLocaleString() + ' Registered Profiles'
   };
   Object.entries(counts).forEach(([id, value]) => {
     const el = document.getElementById(id);

@@ -761,6 +761,95 @@ function toggleStatusSelect(btn, event) {
   }
 }
 
+let PENDING_PICKUP_COMPLETION = null;
+
+function openPickupRecipientDialog(applicationIds, previousStatuses = {}) {
+  const ids = [...new Set((Array.isArray(applicationIds) ? applicationIds : [applicationIds])
+    .map(value => String(value || '').trim()).filter(Boolean))];
+  if (!ids.length) return;
+
+  PENDING_PICKUP_COMPLETION = { ids, previousStatuses: previousStatuses || {} };
+  const modal = document.getElementById('pickup-recipient-modal');
+  const select = document.getElementById('pickup-recipient-type');
+  const nameInput = document.getElementById('pickup-recipient-name');
+  const error = document.getElementById('pickup-recipient-error');
+  if (!modal || !select || !nameInput) {
+    showToast('Pickup recipient form is unavailable. Please refresh the page.', 'error');
+    PENDING_PICKUP_COMPLETION = null;
+    return;
+  }
+  select.value = 'applicant';
+  nameInput.value = '';
+  if (error) error.textContent = '';
+  updatePickupRecipientFields();
+  const count = document.getElementById('pickup-recipient-count');
+  if (count) count.textContent = ids.length > 1
+    ? `This pickup recipient will be applied to all ${ids.length} selected applicants.`
+    : 'Record who collected this Senior Citizen ID.';
+  modal.classList.add('show');
+}
+
+function updatePickupRecipientFields() {
+  const select = document.getElementById('pickup-recipient-type');
+  const field = document.getElementById('pickup-recipient-name-field');
+  const input = document.getElementById('pickup-recipient-name');
+  const isAuthorized = select?.value === 'authorized_personnel';
+  if (field) field.hidden = !isAuthorized;
+  if (input) input.required = Boolean(isAuthorized);
+}
+
+function closePickupRecipientDialog() {
+  document.getElementById('pickup-recipient-modal')?.classList.remove('show');
+  PENDING_PICKUP_COMPLETION = null;
+}
+
+async function confirmPickupRecipient() {
+  const pending = PENDING_PICKUP_COMPLETION;
+  const select = document.getElementById('pickup-recipient-type');
+  const nameInput = document.getElementById('pickup-recipient-name');
+  const error = document.getElementById('pickup-recipient-error');
+  if (!pending || !select || !nameInput) return;
+
+  const type = select.value;
+  const name = nameInput.value.trim();
+  if (!['applicant', 'barangay_president', 'authorized_personnel'].includes(type)) {
+    if (error) error.textContent = 'Please select who collected the ID.';
+    return;
+  }
+  if (type === 'authorized_personnel' && !name) {
+    if (error) error.textContent = 'Please enter the authorized personnel name.';
+    nameInput.focus();
+    return;
+  }
+
+  const recipient = {
+    pickup_recipient_type: type,
+    pickup_recipient_name: type === 'authorized_personnel' ? name : null
+  };
+  const selectedIds = pending.ids.slice();
+  const requests = selectedIds.map(id => {
+    const previous = pending.previousStatuses[id] || 'Ready for Release';
+    return updateTableStatus(id, 'Completed', previous, recipient);
+  });
+  closePickupRecipientDialog();
+  const results = await Promise.all(requests);
+  const succeeded = results.filter(Boolean).length;
+  const failed = results.length - succeeded;
+  if (selectedIds.length > 1 && typeof showToast === 'function') {
+    showToast(
+      failed
+        ? `Pickup details saved for ${succeeded} of ${selectedIds.length} applicants; ${failed} failed.`
+        : `Pickup details saved for all ${succeeded} selected applicants.`,
+      failed ? 'error' : 'success'
+    );
+  }
+}
+
+window.openPickupRecipientDialog = openPickupRecipientDialog;
+window.closePickupRecipientDialog = closePickupRecipientDialog;
+window.confirmPickupRecipient = confirmPickupRecipient;
+window.updatePickupRecipientFields = updatePickupRecipientFields;
+
 function selectStatusOption(btn, event) {
   if (event && event.__statusHandled) return;
 
@@ -792,6 +881,17 @@ function selectStatusOption(btn, event) {
   // transition using APP_DB/LIVE_APPLICATIONS, because these page-level caches
   // can be stale until the application detail modal refreshes the record.
 
+
+  if (!root.dataset.requestId && status === 'Completed') {
+    if (previousStatus !== 'Ready for Release') {
+      closeAllStatusMenus();
+      showToast('The application must be Ready for Release before recording ID pickup.', 'info');
+      return;
+    }
+    closeAllStatusMenus();
+    openPickupRecipientDialog([appId], { [appId]: previousStatus });
+    return;
+  }
 
   root
     .querySelectorAll('.status-select__option')
@@ -3640,6 +3740,16 @@ function updateStatus(newStatus) {
     if (sel) sel.value = currentStatus;
     return;
   }
+  if (newStatus === 'Completed') {
+    if (currentStatus !== 'Ready for Release') {
+      showToast('The application must be Ready for Release before recording ID pickup.', 'info');
+      const sel = document.getElementById('status-select');
+      if (sel) sel.value = currentStatus;
+      return;
+    }
+    openPickupRecipientDialog([CURRENT_APP_ID], { [CURRENT_APP_ID]: currentStatus });
+    return;
+  }
   if (APP_DB[CURRENT_APP_ID]) {
     APP_DB[CURRENT_APP_ID].status = newStatus;
   }
@@ -3668,7 +3778,8 @@ function updateStatus(newStatus) {
 async function updateTableStatus(
   appId,
   newStatus,
-  previousStatus = 'Pending'
+  previousStatus = 'Pending',
+  pickupRecipient = null
 ) {
   const app =
     APP_DB[appId] ||
@@ -3758,7 +3869,8 @@ async function updateTableStatus(
           headers: getAuthHeaders(),
 
           body: JSON.stringify({
-            status: newStatus
+            status: newStatus,
+            ...(newStatus === 'Completed' && pickupRecipient ? pickupRecipient : {})
           })
         }
       );
@@ -3784,6 +3896,10 @@ async function updateTableStatus(
 
     app.status =
       savedStatus;
+    if (savedStatus === 'Completed' && result.pickupRecipientSync?.recipient) {
+      app.pickup_recipient_type = result.pickupRecipientSync.recipient.pickup_recipient_type;
+      app.pickup_recipient_name = result.pickupRecipientSync.recipient.pickup_recipient_name;
+    }
 
     APP_DB[appId] = app;
 
@@ -3797,6 +3913,10 @@ async function updateTableStatus(
         liveApplication.status = savedStatus;
         liveApplication.status_updated_at =
           result.statusHistory?.[0]?.updated_at || new Date().toISOString();
+        if (savedStatus === 'Completed' && result.pickupRecipientSync?.recipient) {
+          liveApplication.pickup_recipient_type = result.pickupRecipientSync.recipient.pickup_recipient_type;
+          liveApplication.pickup_recipient_name = result.pickupRecipientSync.recipient.pickup_recipient_name;
+        }
 
         // The backend automatically activates membership when an application
         // becomes Completed. Reflect that returned value without a page refresh.
@@ -3895,6 +4015,7 @@ async function updateTableStatus(
         applicantsStatusFilter.value
       );
     }
+    return true;
 
   } catch (error) {
 
@@ -3972,6 +4093,7 @@ async function updateTableStatus(
       (error.message || ''),
       'error'
     );
+    return false;
   }
 }
 
@@ -4985,6 +5107,47 @@ async function downloadDigitalIssuanceDocs() {
   }
 }
 
+function syncStaffApplicationStatusFromServer(applicationId, status) {
+  if (!applicationId || !status) return;
+  const id = String(applicationId);
+  const now = new Date().toISOString();
+
+  if (typeof APP_DB !== 'undefined') {
+    const app = APP_DB[id] || { id };
+    app.status = status;
+    APP_DB[id] = app;
+  }
+
+  if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
+    const live = LIVE_APPLICATIONS.find(item =>
+      String(item.application_id || item.id) === id
+    );
+    if (live) {
+      live.status = status;
+      live.status_updated_at = now;
+    }
+    if (typeof updateApplicantSummaryCards === 'function') updateApplicantSummaryCards(LIVE_APPLICATIONS);
+    if (typeof updateApplicationSummaryCards === 'function') updateApplicationSummaryCards(LIVE_APPLICATIONS);
+    if (typeof renderLiveApplicants === 'function') renderLiveApplicants(LIVE_APPLICATIONS);
+    if (typeof renderLiveApplications === 'function') renderLiveApplications(LIVE_APPLICATIONS);
+    if (typeof renderRecentSubmissions === 'function') renderRecentSubmissions(LIVE_APPLICATIONS);
+  }
+
+  if (typeof syncApplicationsTableBadge === 'function') syncApplicationsTableBadge(id, status);
+  if (typeof syncRecentSubmissionsStatus === 'function') syncRecentSubmissionsStatus(id, status);
+  if (typeof updateStatusTabCounts === 'function') updateStatusTabCounts();
+  if (typeof applyApplicationsModuleFilters === 'function') applyApplicationsModuleFilters();
+
+  if (String(CURRENT_APP_ID || '') === id) {
+    if (typeof renderWorkflow === 'function') renderWorkflow(status);
+    const app = typeof APP_DB !== 'undefined' ? APP_DB[id] : null;
+    const modalSub = document.getElementById('modal-sub');
+    if (modalSub && app) {
+      modalSub.textContent = `${app.id || id} · Barangay: ${app.barangay || app.barangay_district || '—'} · Status: ${status}`;
+    }
+  }
+}
+
 /* Rule-based validation */
 
 let CURRENT_VALIDATION_RESULT = null;
@@ -5367,6 +5530,10 @@ async function runValidation() {
         result.message ||
         'Failed to save validation result.'
       );
+    }
+
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
     }
 
     // Keep the saved result in the current application
@@ -5950,6 +6117,10 @@ async function setDocStatus(doc, state, options = {}) {
   }
 
     // Keep the saved authentication in the current application object
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
+    }
+
     if (APP_DB[CURRENT_APP_ID]) {
       if (!Array.isArray(
         APP_DB[CURRENT_APP_ID]
@@ -6229,6 +6400,10 @@ async function saveDocumentAuthentication(
       );
     }
 
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
+    }
+
     if (APP_DB[CURRENT_APP_ID]) {
       if (!Array.isArray(
         APP_DB[CURRENT_APP_ID]
@@ -6340,6 +6515,10 @@ async function approveAllDocs() {
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.message || 'Failed to approve all documents.');
+    }
+
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
     }
 
     const savedRecords = Array.isArray(result.documentAuthentications)

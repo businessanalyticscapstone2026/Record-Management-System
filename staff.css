@@ -3981,3 +3981,11 @@ body>.status-select__menu {
   font-size: .78rem;
   font-weight: 700;
 }
+
+
+/* Pickup recipient confirmation */
+.pickup-recipient-modal .modal { width: min(480px, calc(100vw - 28px)); }
+.pickup-recipient-count { margin: 0 0 16px; color: var(--text-muted, #64748b); font-size: .88rem; line-height: 1.5; }
+.pickup-recipient-name-field { margin-top: 14px; }
+.pickup-recipient-name-field[hidden] { display: none !important; }
+.pickup-recipient-error { min-height: 18px; margin-top: 8px; color: #dc2626; font-size: .8rem; }
