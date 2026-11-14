@@ -2270,23 +2270,11 @@ const updateApplicationStatus = async (req, res) => {
       idMakerSync.message = "Issuance form data was queued for ID Maker.";
     }
 
-    // A Completed status represents an actual pickup. Confirm the queue row
-    // exists before changing application history.
-    if (status === "Completed") {
-      const { data: pickupQueueRow, error: pickupQueueLookupError } = await supabase
-        .from("id_maker_queue")
-        .select("application_id")
-        .eq("application_id", applicationId)
-        .maybeSingle();
-
-      if (pickupQueueLookupError) throw pickupQueueLookupError;
-      if (!pickupQueueRow) {
-        return res.status(409).json({
-          success: false,
-          message: "No ID Maker queue record was found for this application. Confirm that the ID is ready for release before completing pickup.",
-        });
-      }
-    }
+    // Completion is governed by the application's status history above:
+    // only applications already marked Ready for Release may be completed.
+    // The pickup recipient is saved in application_status_history below.
+    // Do not require an id_maker_queue row here; legacy or manually issued
+    // IDs may not have a corresponding queue record.
 
     // Write the new status only after any required ID Maker queue entry
     // and applicant remark have been saved successfully.
