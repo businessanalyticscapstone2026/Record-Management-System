@@ -85,6 +85,17 @@ async function validateResidency(req, res) {
       });
     }
 
+    const expectedShape = {
+      insights: {
+        residency: JSON.stringify({
+          decision: "resident|non_resident|manual_review",
+          matchedBarangay: "canonical name or null",
+          confidence: 0.0,
+          explanation: "one short sentence"
+        })
+      }
+    };
+
     const prompt = [
       "You are an address-locality assistant for OSCA Bauan, Batangas.",
       "Determine whether the supplied barangay name is one of the official 40 barangays of Bauan, Batangas.",
@@ -93,7 +104,7 @@ async function validateResidency(req, res) {
       "If a clear match exists, decision must be resident and matchedBarangay must be the exact canonical list name.",
       "If the input clearly names a different municipality or barangay and is not a Bauan barangay, decision may be non_resident.",
       "If uncertain, return manual_review. Never use confidence alone to approve.",
-      "Return JSON only using this exact wrapper: {\\"insights\\":{\\"residency\\":\\"{\\\\\\"decision\\\\\\":\\\\\\"resident|non_resident|manual_review\\\\\\",\\\\\\"matchedBarangay\\\\\\":\\\\\\"canonical name or null\\\\\\",\\\\\\"confidence\\\\\\":0.0,\\\\\\"explanation\\\\\\":\\\\\\"one short sentence\\\\\\"}\\"}}. The residency value must be a JSON-encoded string."
+      `Return JSON only using this exact wrapper: ${JSON.stringify(expectedShape)}. The residency value must be a JSON-encoded string.`
     ].join(" ");
 
     const payload = {
