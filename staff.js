@@ -3488,7 +3488,7 @@ function buildApplicantProfiles(applications) {
       profile.applications.find(hasPickupRecipient) ||
       profile.latestApplication;
     const pickupType = String(pickupApplication?.pickup_recipient_type || '')
-      .trim().toLowerCase().replace(/[\\s-]+/g, '_');
+      .trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     const pickupName = String(pickupApplication?.pickup_recipient_name || '').trim();
     const invalidPickupNames = new Set([
       'registered', 'non-registered', 'active', 'deceased',
