@@ -3020,12 +3020,6 @@ function syncApplicationsToAppDB(applications) {
         application.contactNumber ||
         '',
 
-      idOsca:
-        application.osca_id_number ||
-        application.oscaIdNumber ||
-        application.idOsca ||
-        '',
-
       idSss:
         application.sss_id_number ||
         application.sssIdNumber ||
@@ -3230,7 +3224,6 @@ async function openApplicationDetail(appId) {
           occupation: a.occupation || '',
           contactNumber: a.contact_number || '',
 
-          idOsca: a.osca_id_number || '',
           idSss: a.sss_id_number || '',
           idPhilhealth: a.philhealth_id_number || '',
           idGsis: a.gsis_id_number || '',

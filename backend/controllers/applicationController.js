@@ -2698,7 +2698,7 @@ const importApplicantRecords = async (req, res) => {
     if (rows.length > 100) return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
 
     const existingRows = await fetchAllRows("applications",
-      "application_id, osca_id_number, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
+      "application_id, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
     const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
     const currentYear = new Date().getFullYear();
     const legacyReferencePattern = new RegExp("^LEGACY-" + currentYear + "-(\\d+)$", "i");
@@ -2715,7 +2715,6 @@ const importApplicantRecords = async (req, res) => {
     }).filter(Boolean));
 
     const importedIdentityKeys = new Set();
-    const importedOfficialIds = new Set();
     const result = { success: true, received: rows.length, imported: 0, skippedDuplicates: 0,
       skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [], warnings: [] };
 
@@ -2734,26 +2733,21 @@ const importApplicantRecords = async (req, res) => {
       }
       const identityKey = [normalizeText(firstName), normalizeText(surname), dateOfBirth, normalizeText(barangay)].join("|");
       const providedId = String(source.application_id || "").trim();
-      const suppliedOsCaId = String(source.osca_id_number || "").trim();
       if ((providedId && existingIds.has(providedId.toLowerCase())) ||
-          (suppliedOsCaId && (existingRows || []).some(row =>
-            String(row.osca_id_number || "").trim().toLowerCase() === suppliedOsCaId.toLowerCase())) ||
           identityKeys.has(identityKey) || importedIdentityKeys.has(identityKey)) {
         result.skippedDuplicates += 1;
         continue;
       }
 
-      // application_id is the system's internal key. Only the dedicated
-      // osca_id_number source field represents an officially issued OSCA ID.
-      const externalOsCaId = suppliedOsCaId;
+      // application_id remains the system's unique internal identifier.
+      // Since OSCA ID Number is no longer stored, every imported record receives
+      // a separate legacy_reference for historical document-folder matching.
       const internalApplicationId = providedId.length > 0 && providedId.length <= 10 ? providedId : null;
-      let legacyReference = null;
-      if (!externalOsCaId) {
-        do {
-          legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
-        } while (existingLegacyReferences.has(legacyReference));
-        existingLegacyReferences.add(legacyReference);
-      }
+      let legacyReference;
+      do {
+        legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
+      } while (existingLegacyReferences.has(legacyReference));
+      existingLegacyReferences.add(legacyReference);
       const createdAt = safeDateTime(source.registration_date);
       const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
       const applicationRecord = {
@@ -2764,7 +2758,7 @@ const importApplicantRecords = async (req, res) => {
         house_street: source.house_street || null, barangay_district: barangay || null,
         educational_attainment: source.educational_attainment || null, religion: source.religion || null,
         religion_specify: source.religion_specify || null, occupation: source.occupation || null,
-        osca_id_number: externalOsCaId || null, legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
+        legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
         philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
         tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
         membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
@@ -2829,13 +2823,11 @@ const importApplicantRecords = async (req, res) => {
         }
 
         existingIds.add(String(id).toLowerCase());
-        if (externalOsCaId) importedOfficialIds.add(externalOsCaId.toLowerCase());
         identityKeys.add(identityKey);
         importedIdentityKeys.add(identityKey);
         result.importedApplicants.push({
           sourceRow: index + 1,
           application_id: id,
-          osca_id_number: externalOsCaId || null,
           legacy_reference: legacyReference
         });
         result.imported += 1;
@@ -2879,7 +2871,7 @@ const importApplicantRecords = async (req, res) => {
 
 /* ============================================================
    IMPORT HISTORICAL APPLICANT DOCUMENTS FROM A ZIP ARCHIVE
-   ZIP folder names must be official OSCA IDs or LEGACY references.
+   ZIP folder names must be generated LEGACY references.
    Files are stored under the internal application_id to preserve
    the existing private Storage path and cleanup conventions.
    ============================================================ */
@@ -2960,12 +2952,12 @@ const importApplicantDocuments = async (req, res) => {
     }
 
     const { data: applicants, error: applicantError } = await supabase.from("applications")
-      .select("application_id, osca_id_number, legacy_reference");
+      .select("application_id, legacy_reference");
     if (applicantError) throw applicantError;
 
     const referenceMap = new Map();
     (applicants || []).forEach(applicant => {
-      [applicant.osca_id_number, applicant.legacy_reference].forEach(value => {
+      [applicant.legacy_reference].forEach(value => {
         const key = String(value || "").trim().toLowerCase();
         if (!key) return;
         if (!referenceMap.has(key)) referenceMap.set(key, []);
@@ -2976,7 +2968,7 @@ const importApplicantDocuments = async (req, res) => {
     for (const [folderName, files] of applicantFolders.entries()) {
       const matches = referenceMap.get(folderName.toLowerCase()) || [];
       if (matches.length !== 1) {
-        result.unmatchedFolders.push({ folder: folderName, reason: matches.length ? "Reference matches more than one applicant; no files were assigned." : "No applicant has this OSCA ID or legacy reference." });
+        result.unmatchedFolders.push({ folder: folderName, reason: matches.length ? "Reference matches more than one applicant; no files were assigned." : "No applicant has this legacy reference." });
         continue;
       }
 
