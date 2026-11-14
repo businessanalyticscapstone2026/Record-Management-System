@@ -147,81 +147,48 @@
           <div class="stat-card">
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-clock ic-warn"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">On schedule</div>
-              </div>
+              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Waiting</div></div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Queued</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Waiting for Production</div>
+              <div class="stat-card__sub">Waiting for production</div>
             </div>
           </div>
           <div class="stat-card">
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-document ic-blue"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">In progress</div>
-              </div>
+              <div class="stat-card__meta"><div class="stat-card__trend trend-good">In progress</div></div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">In Production</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Currently Being Processed</div>
+              <div class="stat-card__sub">Being prepared and printed</div>
             </div>
           </div>
           <div class="stat-card stat-card--success">
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check-double ic-green"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">On track</div>
-              </div>
-            </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Printed</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Successfully Printed</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-card__top">
-              <div class="stat-card__icon-wrap iwrap-purple"><i class="fi fi-rr-id-card-clip-alt ic-purple"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">On the way</div>
-              </div>
-            </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">In Transit</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Ready for Release</div>
-            </div>
-          </div>
-          <div class="stat-card stat-card--success">
-            <div class="stat-card__top">
-              <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check ic-green"></i></div>
               <div class="stat-card__meta"><div class="stat-card__trend trend-good">Done</div></div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Completed</div>
               <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Ready for Release in Staff</div>
+              <div class="stat-card__sub">Ready for release to staff</div>
             </div>
           </div>
           <div class="stat-card stat-card--danger">
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-red"><i class="fi fi-rr-x ic-red"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">Active</div>
-              </div>
+              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Active</div></div>
             </div>
             <div class="stat-card__body">
               <div class="stat-card__label">Total Queue</div>
               <div class="stat-card__value">0</div>
-                <div class="stat-card__sub">All Active Records</div>
+              <div class="stat-card__sub">All queued ID requests</div>
             </div>
           </div>
         </div>
-
 
         <div class="data-table-card">
           <div class="table-header main-queue-header">
@@ -357,9 +324,7 @@
                   <option value="">Select new status</option>
                   <option value="Queued">Queued</option>
                   <option value="In Production">In Production</option>
-                  <option value="Printed">Printed</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Completed">Completed</option>
+                  <option value="Completed">Completed — Ready for Release</option>
                 </select>
               </label>
               <button type="button" class="btn btn--primary" id="bulk-update-button" onclick="bulkUpdateQueueStatus()">Update Selected</button>
