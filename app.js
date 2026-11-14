@@ -5325,7 +5325,8 @@ async function runValidation() {
   notes.push(
     'Residency: ' + String(residencyResult.status || 'manual_review') +
     (residencyResult.matchedBarangay ? ' (' + residencyResult.matchedBarangay + ')' : '') +
-    '. ' + String(residencyResult.explanation || 'Manual OSCA verification is required.')
+    ' [provider: ' + String(residencyResult.provider || 'unavailable') + ']. ' +
+    String(residencyResult.explanation || 'Manual OSCA verification is required.')
   );
 
 
