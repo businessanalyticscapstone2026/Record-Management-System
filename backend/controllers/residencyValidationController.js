@@ -93,7 +93,7 @@ async function validateResidency(req, res) {
       "If a clear match exists, decision must be resident and matchedBarangay must be the exact canonical list name.",
       "If the input clearly names a different municipality or barangay and is not a Bauan barangay, decision may be non_resident.",
       "If uncertain, return manual_review. Never use confidence alone to approve.",
-      "Return JSON only with keys decision (resident|non_resident|manual_review), matchedBarangay (canonical name or null), confidence (0 to 1), explanation (one short sentence)."
+      "Return JSON only using this exact wrapper: {\\"insights\\":{\\"residency\\":\\"{\\\\\\"decision\\\\\\":\\\\\\"resident|non_resident|manual_review\\\\\\",\\\\\\"matchedBarangay\\\\\\":\\\\\\"canonical name or null\\\\\\",\\\\\\"confidence\\\\\\":0.0,\\\\\\"explanation\\\\\\":\\\\\\"one short sentence\\\\\\"}\\"}}. The residency value must be a JSON-encoded string."
     ].join(" ");
 
     const payload = {
