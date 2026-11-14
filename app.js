@@ -6177,7 +6177,7 @@ async function setDocStatus(doc, state, options = {}) {
 
         if (!cachedRequestForApplication) {
           const requestsResponse = await fetch(
-            `${RMS_API_BASE}/api/replacements`,
+            'https://management-backend-3cij.onrender.com/api/replacements',
             { headers: getAuthHeaders(), cache: 'no-store' }
           );
           const requestsResult = await requestsResponse.json();
@@ -6197,7 +6197,7 @@ async function setDocStatus(doc, state, options = {}) {
 
         if (linkedRequest) {
           const replacementResponse = await fetch(
-            `${RMS_API_BASE}/api/replacements/${encodeURIComponent(linkedRequest.id)}/decision`,
+            `https://management-backend-3cij.onrender.com/api/replacements/${encodeURIComponent(linkedRequest.id)}/decision`,
             {
               method: 'PUT',
               headers: getAuthHeaders(),
