@@ -4,9 +4,11 @@
   "description": "This is a comprehensive Admin Portal for the OSCA (Office of the Senior Citizens Affairs) Senior Citizen ID System with AI analytics capabilities. The portal provides administrative control over the entire system with compliance to RA 10173 (Data Privacy Act).",
   "main": "admin.js",
   "scripts": {
-    "start": "node local-server.js --port=5500",
-    "dev": "node local-server.js --port=5500",
-    "test": "node --test backend/tests/*.test.js"
+    "start": "node local-dev.js",
+    "dev": "node local-dev.js",
+    "test": "node --test backend/tests/*.test.js",
+    "start:frontend": "node local-server.js --port=5500",
+    "start:backend": "node backend/server.js"
   },
   "keywords": [],
   "author": "",

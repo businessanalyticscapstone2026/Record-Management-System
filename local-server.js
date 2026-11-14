@@ -7,6 +7,8 @@ const DEFAULT_PORT = 5500;
 const cliPortArg = process.argv.find(arg => arg.startsWith('--port='));
 const cliPort = cliPortArg ? Number(cliPortArg.split('=')[1]) : NaN;
 const port = Number.isInteger(cliPort) && cliPort > 0 && cliPort <= 65535 ? cliPort : DEFAULT_PORT;
+const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
+const backendPort = Number(process.env.BACKEND_PORT) || 5000;
 const host = '0.0.0.0';
 
 const types = {
@@ -21,7 +23,35 @@ const types = {
 };
 
 const server = http.createServer((req, res) => {
-  const requestPath = decodeURIComponent(req.url.split('?')[0]);
+  const requestPath = decodeURIComponent((req.url || '/').split('?')[0]);
+
+  // Keep browser requests same-origin and forward API/health traffic to the
+  // Express API, matching the routing behavior of the hosted Vercel app.
+  if (/^\/(?:api(?:\/|$)|healthz?$)/.test(requestPath)) {
+    const proxyRequest = http.request({
+      hostname: backendHost,
+      port: backendPort,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: `${backendHost}:${backendPort}` }
+    }, proxyResponse => {
+      res.writeHead(proxyResponse.statusCode || 502, proxyResponse.headers);
+      proxyResponse.pipe(res);
+    });
+
+    proxyRequest.on('error', error => {
+      if (res.headersSent) return res.destroy(error);
+      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        message: `Local API is unavailable at http://${backendHost}:${backendPort}. Start the backend with npm run start:backend or npm start.`
+      }));
+    });
+
+    req.pipe(proxyRequest);
+    return;
+  }
+
   const safePath = requestPath === '/' ? '/login.html' : requestPath;
   const filePath = path.normalize(path.join(root, safePath));
 
@@ -33,11 +63,9 @@ const server = http.createServer((req, res) => {
 
   const extension = path.extname(filePath).toLowerCase();
   const contentType = types[extension] || 'application/octet-stream';
-  const isStaticAsset = ['.html', '.js', '.css', '.svg', '.jpg', '.jpeg', '.png', '.ico'].includes(extension);
-
   res.writeHead(200, {
     'Content-Type': contentType,
-    'Cache-Control': isStaticAsset ? 'no-store, no-cache, must-revalidate, max-age=0' : 'no-store, no-cache, must-revalidate, max-age=0',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
     Pragma: 'no-cache',
     Expires: '0'
   });
@@ -45,7 +73,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`AdminStaffPortal running at http://localhost:${port}/login.html`);
-  console.log(`Also available at http://127.0.0.1:${port}/login.html`);
+  console.log(`Record Management frontend running at http://localhost:${port}/login.html`);
+  console.log(`API proxy: http://localhost:${port}/api -> http://${backendHost}:${backendPort}/api`);
   console.log('Press Ctrl+C in this terminal to stop it.');
 });
