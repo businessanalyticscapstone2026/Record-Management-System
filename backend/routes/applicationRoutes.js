@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const { authenticateToken, requireRoles } = require("../middleware/authMiddleware");
+const { validateResidency } = require("../controllers/residencyValidationController");
 
 const {
   getApplications,
@@ -44,6 +45,7 @@ router.put(
 
 router.put("/:applicationId/documents/approve-all", authenticateToken, requireRoles("admin", "staff"), approveAllDocumentAuthentications);
 
+router.post("/:applicationId/residency-validation", authenticateToken, requireRoles("admin", "staff"), validateResidency);
 router.put("/:applicationId/validation", authenticateToken, requireRoles("admin", "staff"), saveApplicationValidation);
 
 module.exports = router;
