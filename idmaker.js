@@ -76,7 +76,8 @@ const ID_MAKER_API =
 ========================================================= */
 const QUEUE_STALE_MS = 48 * 60 * 60 * 1000;
 const QUEUE_NO_BARANGAY = '__none__';
-const QUEUE_STAGES = ['Queued', 'In Production', 'Printed', 'In Transit', 'Completed'];
+// Only three statuses require action from the ID Maker.
+const QUEUE_STAGES = ['Queued', 'In Production', 'Completed'];
 const QUEUE_STATUS_COLORS = {
   'Queued': '#94A3B8',
   'In Production': '#3B82F6',
@@ -219,7 +220,11 @@ async function loadIdMakerQueueFromDatabase(showMessage = false) {
           name: name || 'Name not on record',
           barangay: normalizeQueueBarangay(item.barangay) || '',
           controlNo: ctrl,
-          printStatus: item.printStatus || 'Queued',
+          // Legacy intermediate stages remain valid in stored records, but are
+          // grouped under In Production in the simplified ID Maker workflow.
+          printStatus: ['Printed', 'In Transit'].includes(item.printStatus)
+            ? 'In Production'
+            : (item.printStatus || 'Queued'),
           photo: item.photo || (typeof fallbackMedia === 'function' ? fallbackMedia(name || id) : ''),
           signature: item.signature || '',
           linkedToApplication: linked
@@ -1321,7 +1326,14 @@ function updateIdMakerKPIs() {
     if (app.printStatus in counts) counts[app.printStatus]++;
   });
 
-  // Order matches the cards: Queued, In Production, Printed, In Transit, Completed, Total
+  // Legacy Printed/In Transit records are grouped into In Production.
+  queue.forEach(app => {
+    if (app.printStatus === 'Printed' || app.printStatus === 'In Transit') {
+      counts['In Production']++;
+    }
+  });
+
+  // Order matches the simplified cards: Queued, In Production, Completed, Total.
   const values = [...QUEUE_STAGES.map(s => counts[s]), queue.length];
 
   document
