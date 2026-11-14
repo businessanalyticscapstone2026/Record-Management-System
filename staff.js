@@ -5497,7 +5497,6 @@ APPLICANT_IMPORT_FIELDS.push(
   { key: "religion", label: "Religion", aliases: ["religion", "religious affiliation"] },
   { key: "religion_specify", label: "Religion (specify)", aliases: ["religion specify", "other religion"] },
   { key: "occupation", label: "Occupation", aliases: ["occupation", "previous occupation", "work"] },
-  { key: "osca_id_number", label: "Official OSCA ID number", aliases: ["osca id", "osca id number", "osca number", "senior citizen id", "senior id", "id number", "id no", "registry number", "registry no", "control number"] },
   { key: "sss_id_number", label: "SSS ID number", aliases: ["sss id", "sss number"] },
   { key: "philhealth_id_number", label: "PhilHealth ID number", aliases: ["philhealth id", "philhealth number"] },
   { key: "gsis_id_number", label: "GSIS ID number", aliases: ["gsis id", "gsis number"] },
@@ -6362,7 +6361,7 @@ async function submitApplicantImport() {
         "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
         "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") + "</p>" +
         (totals.importedApplicants.length ? "<details class='applicant-import-reference-list'><summary>View generated applicant references (" + totals.importedApplicants.length + ")</summary><ul>" +
-          totals.importedApplicants.map(item => "<li>Source row " + Number(item.sourceRow || 0) + ": <strong>" + escapeApplicantImportHtml(item.osca_id_number || item.legacy_reference || item.application_id) + "</strong></li>").join("") +
+          totals.importedApplicants.map(item => "<li>Source row " + Number(item.sourceRow || 0) + ": <strong>" + escapeApplicantImportHtml(item.legacy_reference || item.application_id) + "</strong></li>").join("") +
           "</ul></details>" : "") +
         (totals.errors.length ? "<details><summary>View row issues (" + totals.errors.length + ")</summary><ul>" +
           totals.errors.map(error => "<li>Source row " + (error.row + 1) + ": " + escapeApplicantImportHtml(error.reason) + "</li>").join("") +
