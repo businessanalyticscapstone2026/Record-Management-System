@@ -371,6 +371,48 @@ const downloadIssuanceDocument = async (req, res) => {
       ],
     });
 
+    // APPLICANT PHOTO BOX
+    // Use a bordered table cell so the photo frame remains visible in Word.
+    const photoTable = new Table({
+      width: {
+        size: 1600,
+        type: WidthType.DXA,
+      },
+      columnWidths: [1600],
+      alignment: AlignmentType.CENTER,
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        bottom: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        left: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        right: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 1600, type: WidthType.DXA },
+              margins: { top: 0, bottom: 0, left: 0, right: 0 },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+                bottom: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+                left: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+                right: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+              },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: photoChildren,
+                  spacing: { before: 0, after: 0 },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
     // SIGNATURE TABLE
 
     const signatureTable =
@@ -640,20 +682,13 @@ const downloadIssuanceDocument = async (req, res) => {
                   }),
 
 
-                  // APPLICANT PHOTO
+                  // APPLICANT PHOTO WITH VISIBLE FRAME
+
+                  photoTable,
 
                   new Paragraph({
-
-                    alignment:
-                      AlignmentType.CENTER,
-
-                    children:
-                      photoChildren,
-
-                    spacing: {
-                      after: 180,
-                    },
-
+                    children: [new TextRun({ text: " " })],
+                    spacing: { after: 100 },
                   }),
 
 
@@ -776,15 +811,15 @@ const downloadIssuanceDocument = async (req, res) => {
     const buffer =
       await Packer.toBuffer(doc);
 
-    const safeId =
-      String(applicationId)
-        .replace(
-          /[^a-zA-Z0-9-_]/g,
-          "_"
-        );
+    const safeApplicantName = String(finalName || "Applicant")
+      .normalize("NFKD")
+      .replace(/[\\u0300-\\u036f]/g, "")
+      .replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g, "")
+      .replace(/\\s+/g, " ")
+      .trim()
+      .replace(/[. ]+$/g, "") || "Applicant";
 
-    const filename =
-      `Digital_Issuance_${safeId}.docx`;
+    const filename = `${safeApplicantName}.docx`;
 
     res.setHeader(
       "Content-Type",
