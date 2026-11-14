@@ -3474,11 +3474,15 @@ function buildApplicantProfiles(applications) {
     // Applicants module shows registered citizens only. Use their newest completed record.
     if (profile.isRegistered) profile.latestApplication = profile.completedApplications[0];
     profile.remarks = profile.latestApplication?.remarks || '';
-    // ID pickup recipient is stored on the linked id_maker_queue record and
-    // returned by the applications API. Use the latest completed application.
-    const pickupType = String(profile.latestApplication?.pickup_recipient_type || '')
+    // Pickup details may belong to an earlier completed application when
+    // a citizen has multiple linked requests. Use the newest completed record
+    // that actually contains a pickup recipient, not simply the newest request.
+    const pickupApplication = profile.completedApplications.find(application =>
+      String(application.pickup_recipient_type || '').trim()
+    ) || profile.latestApplication;
+    const pickupType = String(pickupApplication?.pickup_recipient_type || '')
       .trim().toLowerCase().replace(/[\\s-]+/g, '_');
-    const pickupName = String(profile.latestApplication?.pickup_recipient_name || '').trim();
+    const pickupName = String(pickupApplication?.pickup_recipient_name || '').trim();
     const invalidPickupNames = new Set([
       'registered', 'non-registered', 'active', 'deceased',
       'bedridden', 'unlocated', 'transferred'
