@@ -1939,6 +1939,28 @@ const updateDocumentAuthentication = async (req, res) => {
     let applicationStatus;
     let applicationStatusError;
     let replacementRequestStatus;
+
+    // Any re-upload request must return the application to Pending so the
+    // applicant can reopen the form and replace the requested document(s).
+    if (status === "reupload") {
+      const { data: latestStatusRecord, error: latestStatusError } = await supabase
+        .from("application_status_history")
+        .select("status")
+        .eq("application_id", applicationId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestStatusError) throw latestStatusError;
+      if ((latestStatusRecord?.status || "Pending") !== "Pending") {
+        const { error: pendingStatusError } = await supabase
+          .from("application_status_history")
+          .insert({ application_id: applicationId, status: "Pending", updated_at: now });
+        if (pendingStatusError) throw pendingStatusError;
+      }
+      applicationStatus = "Pending";
+    }
+
     if (status === "approved") {
       try {
         // Replacement requests keep their list/dashboard status in id_requests,
