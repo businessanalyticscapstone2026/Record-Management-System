@@ -5190,16 +5190,31 @@ async function runValidation() {
     age >= 60;
 
 
-  // Residency
+  // AI-assisted residency validation (server-side; locality fields only).
+  let residencyResult = {
+    status: 'manual_review',
+    resident: null,
+    matchedBarangay: null,
+    provider: 'unavailable',
+    explanation: 'Residency could not be checked. OSCA staff must verify the address.'
+  };
 
-  const barangay =
-    String(
-      app.barangay || ''
-    ).trim();
+  try {
+    const residencyResponse = await fetch(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(CURRENT_APP_ID)}/residency-validation`,
+      { method: 'POST', headers: getAuthHeaders() }
+    );
+    const residencyPayload = await residencyResponse.json();
+    if (!residencyResponse.ok || !residencyPayload.success || !residencyPayload.residency) {
+      throw new Error(residencyPayload.message || 'Residency validation failed.');
+    }
+    residencyResult = residencyPayload.residency;
+  } catch (residencyError) {
+    console.error('AI residency validation failed:', residencyError);
+    showToast('Residency check requires manual verification.', 'info');
+  }
 
-  const residencyOk =
-    barangay !== '' &&
-    barangay !== '—';
+  const residencyOk = residencyResult.status === 'resident';
 
 
   // Documents
@@ -5307,19 +5322,11 @@ async function runValidation() {
   }
 
 
-  if (residencyOk) {
-
-    notes.push(
-      'Residency information is valid.'
-    );
-
-  } else {
-
-    notes.push(
-      'Residency information needs checking.'
-    );
-
-  }
+  notes.push(
+    'Residency: ' + String(residencyResult.status || 'manual_review') +
+    (residencyResult.matchedBarangay ? ' (' + residencyResult.matchedBarangay + ')' : '') +
+    '. ' + String(residencyResult.explanation || 'Manual OSCA verification is required.')
+  );
 
 
   if (docsOk) {
@@ -5369,6 +5376,9 @@ async function runValidation() {
 
     residencyOk:
       residencyOk,
+
+    residencyResult:
+      residencyResult,
 
     docsOk:
       docsOk,
@@ -5426,10 +5436,8 @@ async function runValidation() {
     }"
       >
         • RESIDENCY:
-        ${residencyOk
-      ? 'Likely Valid'
-      : 'Needs Check'
-    }
+        ${residencyOk ? 'Resident – ' + (residencyResult.matchedBarangay || 'Bauan') : 'Manual Review'}
+      </span>
       </span>
 
 
