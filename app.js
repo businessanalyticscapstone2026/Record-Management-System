@@ -3407,6 +3407,7 @@ async function openApplicationDetail(appId) {
 
           confirmations: result.confirmations || null,
           documentAuthentications: result.documentAuthentications || [],
+          applicantEditLogs: result.applicantEditLogs || [],
           statusHistory: result.statusHistory || []
         };
 
@@ -3435,6 +3436,44 @@ async function openApplicationDetail(appId) {
 
   setText('modal-title', `Application Detail — ${app.name}`);
   setText('modal-sub', `${app.id} · Barangay: ${app.barangay} · Status: ${app.status}`);
+
+  // Show a clear staff-facing notice when the applicant has edited the record.
+  const modalBody = document.getElementById('modal-body-content');
+  if (modalBody) {
+    let editNotice = document.getElementById('applicant-edit-notice');
+    if (!editNotice) {
+      editNotice = document.createElement('section');
+      editNotice.id = 'applicant-edit-notice';
+      editNotice.style.cssText = 'margin:0 0 14px;padding:14px 16px;border:1px solid #f2c46d;border-radius:12px;background:#fff9e9;color:#754b08';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Applicant updated this application';
+      heading.style.display = 'block';
+      heading.style.marginBottom = '6px';
+      const list = document.createElement('ul');
+      list.id = 'applicant-edit-notice-list';
+      list.style.cssText = 'margin:0;padding-left:20px;font-size:12px;line-height:1.6';
+      editNotice.append(heading, list);
+      modalBody.insertBefore(editNotice, modalBody.children[1] || null);
+    }
+    const editLogs = Array.isArray(app.applicantEditLogs) ? app.applicantEditLogs : [];
+    const editList = editNotice.querySelector('#applicant-edit-notice-list');
+    if (editList) {
+      editList.replaceChildren();
+      editLogs.forEach(log => {
+        const item = document.createElement('li');
+        const detail = document.createElement('span');
+        detail.textContent = log.details || 'Applicant information was updated.';
+        item.appendChild(detail);
+        if (log.created_at) {
+          const date = document.createElement('small');
+          date.textContent = ' · ' + new Date(log.created_at).toLocaleString();
+          item.appendChild(date);
+        }
+        editList.appendChild(item);
+      });
+    }
+    editNotice.hidden = editLogs.length === 0;
+  }
 
   // Applicant summary header (accurate to the registration form)
   const detailPhoto = document.getElementById('detail-photo');
