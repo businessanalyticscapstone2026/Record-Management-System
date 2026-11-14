@@ -813,9 +813,9 @@ const downloadIssuanceDocument = async (req, res) => {
 
     const safeApplicantName = String(finalName || "Applicant")
       .normalize("NFKD")
-      .replace(/[\\u0300-\\u036f]/g, "")
-      .replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g, "")
-      .replace(/\\s+/g, " ")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "")
+      .replace(/\s+/g, " ")
       .trim()
       .replace(/[. ]+$/g, "") || "Applicant";
 
