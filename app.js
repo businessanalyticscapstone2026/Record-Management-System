@@ -6532,18 +6532,43 @@ async function approveAllDocs() {
       ? result.documentAuthentications
       : [];
     const savedByType = new Map(savedRecords.map(record => [record.document_type, record]));
+    const documentTypeMap = {
+      idFront: 'valid_id',
+      idBack: 'valid_id_back',
+      photo: 'latest_photo',
+      bc: 'birth_certificate',
+      cedula: 'community_tax_certificate',
+      signature: 'signature'
+    };
+    const failedDocuments = [];
+    let approvedCount = 0;
 
+    // The bulk endpoint has already persisted the approvals. Update the
+    // visible cards from its response instead of issuing six more PUT requests.
     for (const doc of docs) {
-      const approved = await setDocStatus(doc, 'ok', { silent: true });
-      if (approved) approvedCount++;
-      else failedDocuments.push(DOC_LABELS[doc]);
+      const saved = savedByType.get(documentTypeMap[doc]);
+      if (saved && saved.authentication_status === 'approved') {
+        DOC_STATUS[doc] = 'ok';
+        approvedCount++;
+        const statusElementId = 'doc-' + doc.replace(/([A-Z])/g, '-$1').toLowerCase() + '-status';
+        const statusElement = document.getElementById(statusElementId);
+        if (statusElement) {
+          statusElement.className = 'doc-card__status ok';
+          statusElement.textContent = 'Approved';
+        }
+      } else {
+        failedDocuments.push(DOC_LABELS[doc] || doc);
+      }
       if (button) button.textContent = `Approving ${approvedCount}/${docs.length}...`;
     }
 
+    if (APP_DB[CURRENT_APP_ID]) {
+      APP_DB[CURRENT_APP_ID].documentAuthentications = savedRecords;
+    }
     updateDocsSummary();
     if (failedDocuments.length) {
       showToast(
-        `${approvedCount} of ${docs.length} uploaded documents approved. Could not save: ${failedDocuments.join(', ')}.`,
+        `${approvedCount} of ${docs.length} uploaded documents approved. Could not confirm: ${failedDocuments.join(', ')}.`,
         'error'
       );
     } else {
