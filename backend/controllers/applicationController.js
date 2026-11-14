@@ -1443,6 +1443,19 @@ const getApplicationById = async (req, res) => {
       });
     }
 
+    const { data: applicantEditLogs, error: applicantEditLogsError } = await supabase
+      .from("audit_logs")
+      .select("id, action, details, created_at, username")
+      .eq("entity_type", "APPLICATION")
+      .eq("entity_id", String(applicationId))
+      .eq("action", "APPLICANT_APPLICATION_UPDATED")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (applicantEditLogsError) {
+      console.warn("Unable to load applicant edit notifications:", applicantEditLogsError);
+    }
+
     // APPLICATION FILES
     const applicationFiles = applicationFilesResult.data || null;
 
@@ -1506,6 +1519,8 @@ const getApplicationById = async (req, res) => {
       confirmations: confirmationsResult.data || null,
 
       documentAuthentications: documentAuthenticationsResult.data || [],
+
+      applicantEditLogs: applicantEditLogs || [],
 
       statusHistory: statusHistoryResult.data || [],
     });
