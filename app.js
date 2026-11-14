@@ -5099,6 +5099,42 @@ async function downloadDigitalIssuanceDocs() {
     const blob =
       await response.blob();
 
+    // Downloading the issuance form from the ID Maker portal starts production.
+    // Do not downgrade an item that has already been marked Completed.
+    if (DI_MODE === 'idmaker') {
+      const queueItem = (typeof ID_MAKER_QUEUE !== 'undefined' ? ID_MAKER_QUEUE : [])
+        .find(item => String(item.application_id || item.id) === String(appId));
+      const currentQueueStatus = String(queueItem?.printStatus || 'Queued').trim();
+
+      if (currentQueueStatus !== 'In Production' && currentQueueStatus !== 'Completed') {
+        const statusResponse = await fetch(
+          `${RMS_API_BASE}/api/id-maker-queue/bulk-status`,
+          {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              application_ids: [String(appId)],
+              print_status: 'In Production'
+            })
+          }
+        );
+        const statusResult = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || !statusResult.success) {
+          throw new Error(statusResult.message || 'The document was generated, but the queue status could not be updated to In Production. Please retry the download.');
+        }
+
+        if (queueItem) {
+          queueItem.printStatus = 'In Production';
+          queueItem.updatedAt = new Date().toISOString();
+        }
+        if (typeof updateIdMakerKPIs === 'function') updateIdMakerKPIs();
+        if (typeof renderQueueTable === 'function') renderQueueTable();
+        if (typeof syncStaffApplicationStatusFromServer === 'function') {
+          syncStaffApplicationStatusFromServer(appId, 'In Process');
+        }
+      }
+    }
+
     const url =
       URL.createObjectURL(blob);
 
@@ -5107,14 +5143,15 @@ async function downloadDigitalIssuanceDocs() {
 
     link.href = url;
 
-    link.download =
-      'Digital_Issuance_' +
-      String(appId)
-        .replace(
-          /[^a-zA-Z0-9-_]/g,
-          '_'
-        ) +
-      '.docx';
+    const safeApplicantName = String(name || 'Applicant')
+      .normalize('NFKD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g, '')
+      .replace(/\\s+/g, ' ')
+      .trim()
+      .replace(/[. ]+$/g, '') || 'Applicant';
+
+    link.download = safeApplicantName + '.docx';
 
     document.body.appendChild(link);
 
