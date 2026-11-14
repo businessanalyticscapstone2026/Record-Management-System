@@ -3416,7 +3416,7 @@ function getProfileIdentityKey(application, fallbackIndex) {
   const dob = dobDate && !Number.isNaN(dobDate.getTime())
     ? dobDate.toISOString().slice(0, 10) : normalizeProfileIdentity(dobValue);
   if (name && dob) return 'person:' + name + '|' + dob;
-  const seniorId = application.osca_id_number || application.senior_citizen_id || application.id_number;
+  const seniorId = application.senior_citizen_id || application.id_number;
   if (seniorId) return 'id:' + normalizeProfileIdentity(seniorId);
   return 'application:' + String(application.application_id || application.id || fallbackIndex);
 }
@@ -3462,8 +3462,8 @@ function buildApplicantProfiles(applications) {
       }
     }
     profile.age = profile.latestApplication.age ?? calculatedAge ?? '—';
-    const idRecord = profile.applications.find(a => a.application_id || a.id || a.osca_id_number || a.senior_citizen_id || a.id_number);
-    profile.seniorId = idRecord && (idRecord.application_id || idRecord.id || idRecord.osca_id_number || idRecord.senior_citizen_id || idRecord.id_number) || '';
+    const idRecord = profile.applications.find(a => a.application_id || a.id || a.senior_citizen_id || a.id_number);
+    profile.seniorId = idRecord && (idRecord.application_id || idRecord.id || idRecord.senior_citizen_id || idRecord.id_number) || '';
     profile.completedApplications = profile.applications.filter(a => normalizeApplicationStatus(a.status) === 'completed');
     profile.ongoingApplications = profile.applications.filter(a =>
       !['completed', 'rejected'].includes(normalizeApplicationStatus(a.status)));
