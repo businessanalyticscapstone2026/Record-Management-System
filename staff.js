@@ -3477,9 +3477,16 @@ function buildApplicantProfiles(applications) {
     // Pickup details may belong to an earlier completed application when
     // a citizen has multiple linked requests. Use the newest completed record
     // that actually contains a pickup recipient, not simply the newest request.
-    const pickupApplication = profile.completedApplications.find(application =>
-      String(application.pickup_recipient_type || '').trim()
-    ) || profile.latestApplication;
+    const hasPickupRecipient = application =>
+      Boolean(String(application?.pickup_recipient_type || '').trim());
+
+    // Prefer recipient details on a completed request. Some older records
+    // stored the pickup recipient on a linked request whose current status
+    // is no longer Completed, so fall back to any linked request with data.
+    const pickupApplication =
+      profile.completedApplications.find(hasPickupRecipient) ||
+      profile.applications.find(hasPickupRecipient) ||
+      profile.latestApplication;
     const pickupType = String(pickupApplication?.pickup_recipient_type || '')
       .trim().toLowerCase().replace(/[\\s-]+/g, '_');
     const pickupName = String(pickupApplication?.pickup_recipient_name || '').trim();
