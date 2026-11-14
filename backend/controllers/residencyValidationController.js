@@ -124,7 +124,8 @@ async function validateResidency(req, res) {
     // Never accept a model-invented barangay. A resident result requires a
     // canonical official barangay match, independent of the model's confidence.
     const aiMatch = normalizeBarangay(ai?.matchedBarangay);
-    const aiConfidence = Number(ai?.confidence) || 0;\n    const confirmedMatch = exactMatch || (ai?.decision === "resident" && aiMatch && aiConfidence >= 0.85 ? aiMatch : null);
+    const aiConfidence = Number(ai?.confidence) || 0;
+    const confirmedMatch = exactMatch || (ai?.decision === "resident" && aiMatch && aiConfidence >= 0.85 ? aiMatch : null);
 
     if (confirmedMatch) {
       residency = {
