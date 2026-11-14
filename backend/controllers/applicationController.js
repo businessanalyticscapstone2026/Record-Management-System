@@ -1123,6 +1123,22 @@ const getApplications = async (req, res) => {
     const latestStatusByApplication =
       new Map();
 
+    // Keep the latest non-empty pickup details independently of the latest
+    // status row, which may have NULL recipient fields.
+    const pickupRecipientByApplication = new Map();
+    for (const history of statusHistory) {
+      if (
+        history &&
+        history.application_id &&
+        history.pickup_recipient_type &&
+        !pickupRecipientByApplication.has(history.application_id)
+      ) {
+        pickupRecipientByApplication.set(history.application_id, {
+          pickup_recipient_type: history.pickup_recipient_type,
+          pickup_recipient_name: history.pickup_recipient_name || null,
+        });
+      }
+    }
 
     for (
       const history of statusHistory
@@ -1261,8 +1277,12 @@ const getApplications = async (req, res) => {
               status_updated_at:
                 statusUpdatedAt,
 
-              pickup_recipient_type: latestStatus?.pickup_recipient_type || null,
-              pickup_recipient_name: latestStatus?.pickup_recipient_name || null,
+              pickup_recipient_type:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type ||
+                latestStatus?.pickup_recipient_type || null,
+              pickup_recipient_name:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name ||
+                latestStatus?.pickup_recipient_name || null,
 
               documentAuthentications:
                 applicationDocumentAuthentications,
@@ -1298,8 +1318,12 @@ const getApplications = async (req, res) => {
             status_updated_at:
               statusUpdatedAt,
 
-            pickup_recipient_type: latestStatus?.pickup_recipient_type || null,
-              pickup_recipient_name: latestStatus?.pickup_recipient_name || null,
+            pickup_recipient_type:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type ||
+                latestStatus?.pickup_recipient_type || null,
+              pickup_recipient_name:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name ||
+                latestStatus?.pickup_recipient_name || null,
 
             documentAuthentications:
               applicationDocumentAuthentications,
