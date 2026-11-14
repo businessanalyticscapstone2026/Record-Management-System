@@ -5438,7 +5438,6 @@ async function runValidation() {
         • RESIDENCY:
         ${residencyOk ? 'Resident – ' + (residencyResult.matchedBarangay || 'Bauan') : 'Manual Review'}
       </span>
-      </span>
 
 
       <span
