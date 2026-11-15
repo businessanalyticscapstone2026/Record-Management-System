@@ -3596,6 +3596,14 @@ async function openApplicationDetail(appId) {
     setText('info-problems-other', '—');
   }
 
+  // ── Applicant assistance details ──
+  const assistance = app.confirmations || {};
+  const wasAssisted = assistance.assisted_certified === true ||
+    assistance.assisted_certified === 'true' ||
+    Boolean(String(assistance.assisted_by || '').trim());
+  setText('info-assisted-by', wasAssisted ? (assistance.assisted_by || 'Not provided') : 'Not assisted');
+  setText('info-assisted-relation', wasAssisted ? (assistance.relation || 'Not provided') : '—');
+
   // ── Documents ──
   loadSavedDocStatuses(app);
   populateDocPreviews(app);
