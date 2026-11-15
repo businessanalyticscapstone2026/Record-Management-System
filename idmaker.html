@@ -404,7 +404,7 @@
           <div>
 
             <div class="an-card__title" title="Count of all ID Maker queue records in each current status.">
-              Production Queue Status <span class="analytics-info" role="img" title="Queued: waiting for production. In Production: being produced. Printed: printing is complete. In Transit: on the way. Completed: release or delivery is marked complete." aria-label="Definitions for queue stages"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
+              Production Queue Status <span class="analytics-info" role="img" title="Queued: waiting for production. In Production: being prepared and printed, including legacy Printed and In Transit records. Completed: ready for release to staff." aria-label="Definitions for queue stages"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
             </div>
 
             <div class="an-card__sub">
@@ -483,29 +483,8 @@
             </div>
 
 
-            <div class="analytics-stage-count" style="--stage-color:#EF4444">
-              <strong title="Printing is complete."><i class="analytics-stage-dot"></i>Printed</strong>
-
-              <br>
-
-              <span class="analytics-stage-value" id="idm-completed-count">0</span>
-              <span class="analytics-stage-share" id="idm-printed-share">0% of total</span>
-
-            </div>
-
-
-            <div class="analytics-stage-count" style="--stage-color:#DC2626">
-              <strong title="On the way to its destination."><i class="analytics-stage-dot"></i>In Transit</strong>
-
-              <br>
-
-              <span class="analytics-stage-value" id="idm-transit-count">0</span>
-              <span class="analytics-stage-share" id="idm-transit-share">0% of total</span>
-
-            </div>
-
-            <div class="analytics-stage-count" style="--stage-color:#991B1B">
-              <strong title="Release or delivery is marked complete."><i class="analytics-stage-dot"></i>Completed</strong>
+            <div class="analytics-stage-count" style="--stage-color:#22C55E">
+              <strong title="Production is complete and the ID is ready for release to staff."><i class="analytics-stage-dot"></i>Completed</strong>
 
               <br>
 
