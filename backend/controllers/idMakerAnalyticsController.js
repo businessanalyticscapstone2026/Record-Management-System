@@ -35,7 +35,7 @@ function containsPersonalDataKey(value) {
 }
 
 const ALLOWED_CARD_FIELDS = {
-  production: ["hasData", "previousPeriodComparison", "total", "active", "queued", "inProduction", "printed", "inTransit", "completed", "queuedPercent", "productionPercent", "printedPercent", "transitPercent", "completedPercent", "queuedElevatedThresholdPercent", "statusLabel", "expectedLead", "fallback"],
+  production: ["hasData", "previousPeriodComparison", "total", "active", "queued", "inProduction", "completed", "queuedPercent", "productionPercent", "completedPercent", "queuedElevatedThresholdPercent", "statusLabel", "expectedLead", "fallback"],
   barangay: ["hasData", "previousPeriodComparison", "total", "ranking", "topThreePercent", "elevatedThresholdPercent", "statusLabel", "expectedLead", "fallback"],
   aging: ["hasData", "previousPeriodComparison", "active", "within24", "within24Percent", "from24To48", "from24To48Percent", "over48", "over48Percent", "oldestAge", "unknownTimestamps", "thresholdsHours", "elevatedThresholdPercent", "highThresholdPercent", "statusLabel", "expectedLead", "fallback"],
   monthly: ["hasData", "months", "latestMonth", "latestCount", "previousMonth", "previousCount", "comparison", "previousPeriodComparison", "completedTotal", "monthCount", "averagePerMonth", "completedWithoutTimestamp", "elevatedWhenLatestBelowPrevious", "statusLabel", "expectedLead", "fallback"],
@@ -96,7 +96,7 @@ function fallbackInsight(cardKey, stats = {}) {
 
   const n = (key) => Number.isFinite(stats[key]) ? stats[key].toLocaleString() : "0";
   const text = {
-    production: `The queue has ${n("queued")} queued records out of ${n("total")} total, while ${n("inProduction")} are in production and ${n("printed")} are printed. Prioritize checking queued records that have not entered production and confirm that each stage is receiving timely status updates.`,
+    production: `The queue has ${n("queued")} queued records out of ${n("total")} total, while ${n("inProduction")} are in production and ${n("completed")} are completed and ready for release to staff. Prioritize checking queued records that have not entered production and confirm that each stage is receiving timely status updates.`,
     barangay: `${n("total")} records are represented across the leading barangay groups. Check the ranking for areas carrying the largest share of the workload and coordinate production batches so heavily represented barangays do not remain unattended.`,
     aging: `${n("over48")} of ${n("active")} active records have exceeded 48 hours, compared with ${n("within24")} within 24 hours and ${n("from24To48")} between 24 and 48 hours. Review the oldest overdue records first and verify the last queue update before moving them to the next stage.`,
     monthly: `${n("completedTotal")} IDs were completed across ${n("monthCount")} months. Compare the latest month with the previous month when both are available; if output has fallen, review production capacity and identify which stage needs follow-up.`,
