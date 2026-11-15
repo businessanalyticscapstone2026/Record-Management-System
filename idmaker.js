@@ -61,11 +61,9 @@ const ID_MAKER_ANALYTICS_CONFIG = Object.freeze({
 });
 
 const ID_MAKER_ANALYTICS_STAGES = [
-  { key: 'Queued', label: 'Queued', color: '#FECACA', icon: 'fi-rr-clock', title: 'Application is waiting to enter production.' },
-  { key: 'In Production', label: 'In Production', color: '#F87171', icon: 'fi-rr-document', title: 'ID is currently being produced.' },
-  { key: 'Printed', label: 'Printed', color: '#EF4444', icon: 'fi-rr-print', title: 'ID has been printed.' },
-  { key: 'In Transit', label: 'In Transit', color: '#DC2626', icon: 'fi-rr-truck-side', title: 'ID is on the way to its destination.' },
-  { key: 'Completed', label: 'Completed', color: '#991B1B', icon: 'fi-rr-check', title: 'ID delivery or release is marked complete.' },
+  { key: 'Queued', label: 'Queued', color: '#FECACA', icon: 'fi-rr-clock', title: 'ID is waiting to enter production.' },
+  { key: 'In Production', label: 'In Production', color: '#F87171', icon: 'fi-rr-document', title: 'ID is being prepared and printed. Legacy Printed and In Transit records are included here.' },
+  { key: 'Completed', label: 'Completed', color: '#22C55E', icon: 'fi-rr-check', title: 'ID production is complete and ready for release to staff.' },
 ];
 
 const ID_MAKER_API =
@@ -964,7 +962,7 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
 
   const productionPct = percentages.Queued;
   const productionExpectedLead = `**${productionPct}% of total applications (${stageCounts.Queued} of ${total}) are currently queued.**`;
-  const productionFallback = `${productionExpectedLead} ${stageCounts['In Production']} are in production, ${stageCounts.Printed} printed, ${stageCounts['In Transit']} in transit, and ${stageCounts.Completed} completed.`;
+  const productionFallback = `${productionExpectedLead} ${stageCounts['In Production']} are in production and ${stageCounts.Completed} are completed and ready for release to staff.`;
   const top = topThreeBarangays[0];
   const barangayExpectedLead = top
     ? `**${top.name} has the highest workload with ${top.count} applications (${top.percent}% of records with barangay data).**`
@@ -1013,13 +1011,9 @@ function computeIdMakerAnalyticsStats(records, now = new Date()) {
         active,
         queued: stageCounts.Queued,
         inProduction: stageCounts['In Production'],
-        printed: stageCounts.Printed,
-        inTransit: stageCounts['In Transit'],
         completed: stageCounts.Completed,
         queuedPercent: percentages.Queued,
         productionPercent: percentages['In Production'],
-        printedPercent: percentages.Printed,
-        transitPercent: percentages['In Transit'],
         completedPercent: percentages.Completed,
         queuedElevatedThresholdPercent: ID_MAKER_ANALYTICS_CONFIG.productionElevatedQueuedShare * 100,
         statusLabel: productionState,
@@ -1743,15 +1737,11 @@ function initIdMakerStatusChart() {
     const countId = {
       'Queued': 'idm-awaiting-count',
       'In Production': 'idm-production-count',
-      'Printed': 'idm-completed-count',
-      'In Transit': 'idm-transit-count',
       'Completed': 'idm-done-count',
     }[stage.key];
     const shareId = {
       'Queued': 'idm-awaiting-share',
       'In Production': 'idm-production-share',
-      'Printed': 'idm-printed-share',
-      'In Transit': 'idm-transit-share',
       'Completed': 'idm-done-share',
     }[stage.key];
     setText(countId, stats.stageCounts[stage.key]);
