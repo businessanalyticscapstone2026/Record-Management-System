@@ -4271,8 +4271,10 @@ async function _populateDigitalIssuance(appId) {
           app.surname ||
           '',
 
+        // Build the complete address from the saved street/purok and barangay fields.
+        // Do not overwrite the previously formatted address with house_street alone.
         address:
-          liveApplication.house_street ||
+          formatApplicantAddress(liveApplication) ||
           app.address ||
           '',
 
@@ -7969,7 +7971,7 @@ function updatePreview() {
   }
 
   if (addrEl) {
-    addrEl.value = app.address || '';
+    addrEl.value = formatApplicantAddress(app) || app.address || '';
   }
 
   if (dobEl) {
@@ -8050,7 +8052,7 @@ function updateIssuancePreview(app) {
   }
 
   if (pAddr) {
-    pAddr.textContent = app.address || '________________';
+    pAddr.textContent = formatApplicantAddress(app) || app.address || '________________';
   }
 
   if (pDob) {
