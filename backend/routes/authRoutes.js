@@ -676,7 +676,8 @@ router.get(
     try {
       let { data: users, error } = await supabase
         .from("user_accounts")
-        .select("id, username, full_name, email, role, account_status, approval_status, created_at")
+        .select("id, username, full_name, email, role, account_status, approval_status, created_at, deleted_at")
+        .is("deleted_at", null)
         .order("id", { ascending: true });
 
       // Backward compatibility: keep existing personnel visible in Admin
@@ -691,7 +692,8 @@ router.get(
         console.warn("Account approval migration is not applied; loading legacy user account fields.");
         const fallback = await supabase
           .from("user_accounts")
-          .select("id, username, full_name, email, role, account_status")
+          .select("id, username, full_name, email, role, account_status, deleted_at")
+          .is("deleted_at", null)
           .order("id", { ascending: true });
         users = fallback.data;
         error = fallback.error;
@@ -1243,6 +1245,86 @@ router.put(
         message:
           "Something went wrong while updating account status.",
       });
+    }
+  }
+);
+
+
+/* =========================================================
+   SOFT DELETE USER ACCOUNT
+   DELETE /api/auth/users/:id
+
+   ADMIN ONLY
+   ========================================================= */
+router.delete(
+  "/users/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const userId = String(req.params.id || "").trim();
+
+      if (!userId) {
+        return res.status(400).json({ success: false, message: "A valid user account ID is required." });
+      }
+
+      if (String(req.user.id) === userId) {
+        return res.status(403).json({ success: false, message: "You cannot delete your own currently logged-in account." });
+      }
+
+      const { data: targetUser, error: lookupError } = await supabase
+        .from("user_accounts")
+        .select("id, username, full_name, role, account_status, deleted_at")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (lookupError) {
+        console.error("Delete user lookup error:", lookupError);
+        return res.status(500).json({ success: false, message: "Unable to verify the user account before deletion. Confirm migration 004 has been applied." });
+      }
+
+      if (!targetUser || targetUser.deleted_at) {
+        return res.status(404).json({ success: false, message: "User account not found or already deleted." });
+      }
+
+      const deletedAt = new Date().toISOString();
+      const { data: deletedUser, error: deleteError } = await supabase
+        .from("user_accounts")
+        .update({ account_status: "Inactive", deleted_at: deletedAt })
+        .eq("id", userId)
+        .is("deleted_at", null)
+        .select("id, username, full_name")
+        .maybeSingle();
+
+      if (deleteError) {
+        console.error("Soft delete user error:", deleteError);
+        return res.status(500).json({ success: false, message: "Unable to delete the user account." });
+      }
+
+      if (!deletedUser) {
+        return res.status(409).json({ success: false, message: "This user account has already been deleted." });
+      }
+
+      await createAuditLog({
+        userId: req.user.id,
+        username: req.user.username,
+        role: req.user.role,
+        action: "USER_DELETED",
+        entityType: "USER",
+        entityId: String(deletedUser.id),
+        details: `Soft-deleted user account: ${deletedUser.username} (ID: ${deletedUser.id}). Account access was revoked; historical records were preserved.`,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      return res.json({
+        success: true,
+        message: `User account for ${deletedUser.full_name || deletedUser.username} was deleted successfully.`,
+        deleted_at: deletedAt,
+      });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      return res.status(500).json({ success: false, message: "Something went wrong while deleting the user account." });
     }
   }
 );
