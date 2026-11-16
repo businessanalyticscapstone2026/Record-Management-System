@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=44" />
-  <link rel="stylesheet" href="idmaker.css?v=56" />
+  <link rel="stylesheet" href="idmaker.css?v=57" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -143,50 +143,50 @@
         </div>
 
         <!-- ID Maker KPI strip -->
-        <div class="admin-kpi-strip">
+        <div class="admin-kpi-strip idmaker-kpi-strip">
           <div class="stat-card">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-clock ic-warn"></i></div>
-              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Waiting</div></div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">Queued</div>
+                <div class="stat-card__value" id="idm-queued-count">0</div>
+                <div class="stat-card__sub">Waiting for production</div>
+              </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Queued</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Waiting for production</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">Waiting</div></div>
           </div>
           <div class="stat-card">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-document ic-blue"></i></div>
-              <div class="stat-card__meta"><div class="stat-card__trend trend-good">In progress</div></div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">In Production</div>
+                <div class="stat-card__value" id="idm-production-count">0</div>
+                <div class="stat-card__sub">Being prepared and printed</div>
+              </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">In Production</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Being prepared and printed</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">In progress</div></div>
           </div>
           <div class="stat-card stat-card--success">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check-double ic-green"></i></div>
-              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Done</div></div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">Completed</div>
+                <div class="stat-card__value" id="idm-done-count">0</div>
+                <div class="stat-card__sub">Ready for release to staff</div>
+              </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Completed</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Ready for release to staff</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">Done</div></div>
           </div>
           <div class="stat-card stat-card--danger">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-red"><i class="fi fi-rr-x ic-red"></i></div>
-              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Active</div></div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">Total Queue</div>
+                <div class="stat-card__value" id="idm-total-count">0</div>
+                <div class="stat-card__sub">All queued ID requests</div>
+              </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Total Queue</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">All queued ID requests</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">Active</div></div>
           </div>
         </div>
 
