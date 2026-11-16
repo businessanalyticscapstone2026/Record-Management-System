@@ -2834,9 +2834,28 @@ const importApplicantRecords = async (req, res) => {
       existingLegacyReferences.add(legacyReference);
       const createdAt = safeDateTime(source.registration_date);
       const importedRemark = String(source.remarks || "").trim();
-      const allowedImportedRemarks = ["Bedridden", "Deceased", "Unlocated", "Transferred", "Registered", "Non-registered"];
-      const normalizedImportedRemark = allowedImportedRemarks.find(value => normalizeText(value) === normalizeText(importedRemark)) || null;
-      const isDeceased = normalizeText(importedRemark) === "deceased" || normalizeText(source.membership_status || "") === "deceased";
+      const normalizedRemarkKey = normalizeText(importedRemark);
+      const importedRemarkAliases = {
+        bedridden: "Bedridden",
+        "bed ridden": "Bedridden",
+        deceased: "Deceased",
+        dead: "Deceased",
+        unlocated: "Unlocated",
+        "not located": "Unlocated",
+        transferred: "Transferred",
+        "transferred out": "Transferred",
+        registered: "Registered",
+        active: "Registered",
+        "non registered": "Non-registered",
+        "not registered": "Non-registered"
+      };
+      // Keep source remarks even when they are not one of the standard options.
+      // This prevents historical information from being silently discarded.
+      const normalizedImportedRemark = importedRemark
+        ? (importedRemarkAliases[normalizedRemarkKey] || importedRemark)
+        : null;
+      const isDeceased = normalizedRemarkKey === "deceased" || normalizedRemarkKey === "dead" ||
+        normalizeText(source.membership_status || "") === "deceased";
       const membershipStatus = isDeceased ? "Deceased" : "Active";
       const applicationRecord = {
         ...(internalApplicationId ? { application_id: internalApplicationId } : {}),
