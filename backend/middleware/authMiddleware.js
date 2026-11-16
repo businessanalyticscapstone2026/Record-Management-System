@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const supabase = require("../config/supabase");
 
 function normalizeRole(role) {
   const value = String(role || "")
@@ -13,7 +14,7 @@ function normalizeRole(role) {
   return null;
 }
 
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -26,6 +27,30 @@ function authenticateToken(req, res, next) {
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Re-check the account on every authenticated request so disabling or
+    // soft-deleting an account immediately revokes already-issued JWT access.
+    const { data: account, error } = await supabase
+      .from("user_accounts")
+      .select("id, account_status, deleted_at")
+      .eq("id", decoded.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Authentication account-status lookup error:", error);
+      return res.status(503).json({
+        success: false,
+        message: "Unable to verify account access. Please try again.",
+      });
+    }
+
+    if (!account || account.deleted_at || account.account_status !== "Active") {
+      return res.status(401).json({
+        success: false,
+        message: "This account is inactive or has been deleted. Please contact an administrator.",
+      });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {

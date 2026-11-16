@@ -2398,6 +2398,20 @@ function renderUserMgmtTable() {
 
             </button>
 
+            <button
+              class="icon-btn danger"
+              title="Delete Account"
+              aria-label="Delete Account"
+              onclick="deleteMgmtUser('${escHtml(u.key)}')"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18"/>
+                <path d="M8 6V4h8v2"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v5M14 11v5"/>
+              </svg>
+            </button>
+
           </div>
 
         </td>
@@ -3308,6 +3322,43 @@ async function toggleMgmtUserStatus(
 
   });
 
+}
+
+
+async function deleteMgmtUser(key) {
+  const user = ADMIN_USER_ACCOUNTS.find(account => account.key === String(key));
+  if (!user) {
+    showToast('User account could not be found.', 'error');
+    return;
+  }
+
+  openConfirmModal({
+    title: 'Delete this user account?',
+    desc: `You are about to delete the account for ${user.fullName} (${user.username}).`,
+    alertTitle: 'This account will immediately lose access to the system.',
+    alertDesc: 'The account will be soft-deleted and removed from the Personnel Accounts list. Historical audit logs and related records will be preserved. This action cannot be undone from the User Accounts page.',
+    confirmLabel: 'Delete User',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        const response = await fetch(`${ADMIN_USERS_API}/${encodeURIComponent(user.id)}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to delete user account.');
+        }
+
+        showToast(result.message || `${user.fullName} was deleted successfully.`, 'success');
+        await loadAdminUsers();
+        await loadAdminAuditLogs();
+      } catch (error) {
+        console.error('[Admin Users] Delete account failed:', error);
+        showToast(error.message || 'Unable to delete user account.', 'error');
+      }
+    }
+  });
 }
 
 
