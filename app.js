@@ -6856,7 +6856,12 @@ function staffExportXml(value) {
 }
 
 function staffPdfText(value) {
-  return String(value ?? '').normalize('NFKD').replace(/[^\x20-\x7E]/g, '?').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  return String(value ?? '').normalize('NFKD')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 }
 
 function saveStaffExport(blob, filename) {
@@ -6883,7 +6888,7 @@ function buildAnalyticsExportReport() {
   const weeklyCounts = new Map();
   const processingDays = [];
   let overdueCount = 0;
-  const monthly = Array.from({ length: 12 }, () => ({ submitted: 0, approved: 0, rejected: 0, issued: 0, processingTotal: 0, processingCount: 0 }));
+  const monthly = Array.from({ length: 12 }, () => ({ submitted: 0, approved: 0, rejected: 0, issued: 0, processingTotal: 0, pdfProcessingTotal: 0, processingCount: 0 }));
   const ageCounts = [0, 0, 0, 0, 0, 0];
   const currentYear = now.getFullYear();
 
@@ -6936,8 +6941,9 @@ function buildAnalyticsExportReport() {
         if (status === 'rejected') month.rejected++;
         if (status === 'issued' || status === 'completed') month.issued++;
         if (['approved', 'ready', 'issued', 'completed', 'rejected'].includes(status)) {
-          const days = Math.max(0, Math.round((currentStatusDate.getTime() - submitted.getTime()) / 86400000));
-          month.processingTotal += days;
+          const exactDays = Math.max(0, (currentStatusDate.getTime() - submitted.getTime()) / 86400000);
+          month.processingTotal += Math.round(exactDays);
+          month.pdfProcessingTotal += exactDays;
           month.processingCount++;
         }
       }
@@ -7036,6 +7042,11 @@ function buildAnalyticsExportReport() {
     ]),
     issuanceRows,
     turnaroundRows,
+    pdfMonthlyTurnaroundRows: monthly.map((month, index) => [
+      new Date(currentYear, index, 1),
+      month.processingCount ? Number((month.pdfProcessingTotal / month.processingCount).toFixed(1)) : null,
+      month.processingCount
+    ]),
     notes: [
       'Reporting period applies to applications by submission date (created_at, submitted_at, or application_date). Last 7/30 days are inclusive through the report date; quarter is quarter-to-date; year is year-to-date; All time includes all loaded application records.',
       'Pending review combines Pending and Under Review. Overdue counts include currently open Pending or Under Review applications more than 5 days old as of the report generation time.',
@@ -7238,184 +7249,296 @@ function analyticsReportExcel(report) {
 }
 
 function analyticsReportPdf(report) {
-  const pageWidth = 612;
-  const contentLeft = 40;
-  const contentWidth = 532;
-  const bottomLimit = 54;
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const left = 42;
+  const width = 511;
+  const blue = '0.12 0.31 0.47';
+  const paleBlue = '0.91 0.95 0.98';
+  const gray = '0.36 0.40 0.44';
+  const lineGray = '0.84 0.87 0.90';
   const pages = [[]];
   let pageIndex = 0;
-  let cursorY = 690;
-  const sheets = analyticsReportSheets(report).filter(sheet => sheet.name !== 'Report Details');
-  const wrapText = (value, maxCharacters) => {
+  let y = 716;
+  const maxPageY = 716;
+  const minPageY = 48;
+  const commands = () => pages[pageIndex];
+  const text = (value, x, baseline, size = 9, bold = false, color = '0.18 0.21 0.24', align = 'left') => {
+    const safe = staffPdfText(value);
+    const estimated = safe.length * size * (bold ? 0.54 : 0.50);
+    const tx = align === 'right' ? x - estimated : align === 'center' ? x - estimated / 2 : x;
+    commands().push('BT', `${bold ? '/F2' : '/F1'} ${size} Tf`, `${color} rg`, `${tx.toFixed(2)} ${baseline.toFixed(2)} Td`, `(${safe}) Tj`, 'ET');
+  };
+  const rect = (x, top, w, h, fill, stroke = null) => {
+    commands().push('q', `${fill} rg`, `${x} ${top - h} ${w} ${h} re f`);
+    if (stroke) commands().push(`${stroke} RG`, '0.5 w', `${x} ${top - h} ${w} ${h} re S`);
+    commands().push('Q');
+  };
+  const wrap = (value, maxWidth, size = 9) => {
     const words = staffPdfText(value).split(/\s+/).filter(Boolean);
+    const maxChars = Math.max(12, Math.floor(maxWidth / (size * 0.55)));
     const lines = [];
     let line = '';
     words.forEach(word => {
-      while (word.length > maxCharacters) {
-        if (line) {
-          lines.push(line);
-          line = '';
-        }
-        lines.push(word.slice(0, maxCharacters));
-        word = word.slice(maxCharacters);
+      while (word.length > maxChars) {
+        if (line) { lines.push(line); line = ''; }
+        lines.push(word.slice(0, maxChars));
+        word = word.slice(maxChars);
       }
-      if (!word) return;
-      if (line && `${line} ${word}`.length > maxCharacters) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = line ? `${line} ${word}` : word;
-      }
+      if (line && `${line} ${word}`.length > maxChars) { lines.push(line); line = word; }
+      else line = line ? `${line} ${word}` : word;
     });
-    if (line || !lines.length) lines.push(line);
+    if (line) lines.push(line);
     return lines;
   };
-  const displayValue = (value, format) => {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return format === 'month'
-        ? value.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })
-        : value.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      if (format === 'percent') return `${Math.round(value * 100)}%`;
-      if (format === 'decimal') return value.toFixed(1);
-      return value.toLocaleString('en-PH');
-    }
-    return String(value ?? '');
-  };
-  const startNewPage = () => {
-    pages.push([]);
-    pageIndex++;
-    cursorY = 690;
-  };
-  const addSectionHeading = title => {
-    pages[pageIndex].push(
-      'q', '0.91 0.94 0.98 rg', `40 ${cursorY - 16} ${contentWidth} 18 re f`, 'Q',
-      'BT', '/F2 11 Tf', '0.10 0.18 0.33 rg', '48', String(cursorY - 12), 'Td',
-      `(${staffPdfText(title)}) Tj`, 'ET'
-    );
-    cursorY -= 23;
-  };
-  const addTableHeading = sheet => {
-    let x = contentLeft;
-    sheet.header.forEach((value, columnIndex) => {
-      const width = sheet.pdfWidths[columnIndex];
-      pages[pageIndex].push(
-        'q', '0.10 0.18 0.33 rg', `${x} ${cursorY - 18} ${width} 19 re f`, 'Q',
-        'BT', '/F2 9 Tf', '1 1 1 rg', `${x + 6}`, String(cursorY - 12), 'Td',
-        `(${staffPdfText(value)}) Tj`, 'ET'
-      );
-      x += width;
+  const paragraph = (value, x, top, maxWidth, size = 9) => {
+    const lines = wrap(value, maxWidth, size);
+    const step = size + 4;
+    lines.forEach((line, index) => {
+      const spaces = (line.match(/ /g) || []).length;
+      const naturalWidth = line.length * size * 0.50;
+      const extra = index < lines.length - 1 && spaces ? Math.min(1.5, Math.max(0, (maxWidth - naturalWidth) / spaces)) : 0;
+      commands().push('BT', `/F1 ${size} Tf`, `${gray} rg`, `${extra.toFixed(2)} Tw`, `${x} ${(top - index * step).toFixed(2)} Td`, `(${line}) Tj`, '0 Tw', 'ET');
     });
-    cursorY -= 20;
+    return top - lines.length * step;
   };
-  const startSection = sheet => {
-    addSectionHeading(sheet.name.toUpperCase());
-    addTableHeading(sheet);
+  const beginPage = (title = '', firstPage = false) => {
+    if (!firstPage) pages.push([]);
+    pageIndex = pages.length - 1;
+    // Government-blue masthead with a simple vector seal mark.
+    rect(0, pageHeight, pageWidth, 105, blue);
+    commands().push('q', '1 1 1 RG', '1.4 w', '81 793 m', '81 803 73 811 62 811 c', '51 811 43 803 43 793 c', '43 783 51 775 62 775 c', '73 775 81 783 81 793 c S', '76 793 m', '76 797 70 802 62 802 c', '54 802 48 797 48 793 c', '48 789 54 784 62 784 c', '70 784 76 789 76 793 c S', 'Q');
+    text('OSCA', 62, 790, 8, true, '1 1 1', 'center');
+    text('Office of the Senior Citizen Affairs (OSCA)', 112, 800, 12, true, '1 1 1');
+    text('Staff Analytics Report', 112, 779, 18, true, '1 1 1');
+    text(`Period: ${report.rangeLabel}`, 112, 760, 9, false, '1 1 1');
+    text(`Generated: ${report.generated}`, 112, 746, 9, false, '1 1 1');
+    if (title) text(title.toUpperCase(), left, 718, 9, true, blue);
+    y = title ? 700 : maxPageY;
   };
-
-  sheets.forEach(sheet => {
-    if (sheet.name === 'Status Breakdown') {
-      startNewPage();
-      addSectionHeading('SUPPORTING APPENDIX');
-    }
-    if (cursorY - 45 < bottomLimit) startNewPage();
-    startSection(sheet);
-    const rows = sheet.rows.length ? sheet.rows : [['No records for this period', ...Array(Math.max(0, sheet.header.length - 1)).fill('')]];
-    rows.forEach((row, rowIndex) => {
-      const cellLines = row.map((value, columnIndex) => {
-        const format = sheet.rowFormats?.[rowIndex]?.[columnIndex] || sheet.formats?.[columnIndex];
-        const text = displayValue(value, format);
-        return wrapText(text, Math.max(8, Math.floor((sheet.pdfWidths[columnIndex] - 12) / 4.6)));
-      });
-      const rowHeight = Math.max(20, Math.max(...cellLines.map(lines => lines.length)) * 11 + 8);
-      if (cursorY - rowHeight < bottomLimit) {
-        startNewPage();
-        startSection(sheet);
-      }
-      const top = cursorY;
-      const isAttentionRow = sheet.name === 'Executive Summary' && row[0] === 'Management attention';
-      const rowFill = isAttentionRow ? '1 0.97 0.87 rg' : rowIndex % 2 ? '0.96 0.97 0.98 rg' : '1 1 1 rg';
-      pages[pageIndex].push('q', rowFill, `${contentLeft} ${top - rowHeight} ${contentWidth} ${rowHeight} re f`, 'Q');
-      let x = contentLeft;
-      cellLines.forEach((lines, columnIndex) => {
-        const width = sheet.pdfWidths[columnIndex];
-        lines.forEach((line, lineIndex) => {
-          pages[pageIndex].push(
-            'BT', `${isAttentionRow ? '/F2' : '/F1'} 9 Tf`, isAttentionRow ? '0.35 0.25 0.05 rg' : '0.12 0.16 0.22 rg', `${x + 6}`, String(top - 13 - lineIndex * 11), 'Td',
-            `(${line}) Tj`, 'ET'
-          );
-        });
-        pages[pageIndex].push('q', '0.84 0.87 0.90 RG', '0.5 w', `${x + width} ${top - rowHeight} m`, `${x + width} ${top} l`, 'S', 'Q');
-        x += width;
-      });
-      pages[pageIndex].push('q', '0.84 0.87 0.90 RG', '0.5 w', `${contentLeft} ${top - rowHeight} m`, `${contentLeft + contentWidth} ${top - rowHeight} l`, 'S', 'Q');
-      cursorY -= rowHeight;
+  const newPage = (title, summary = '') => {
+    beginPage(title);
+    if (summary) y = paragraph(summary, left, y, width, 9) - 6;
+  };
+  const sectionTitle = (title, summary, minHeight = 80) => {
+    if (y - minHeight < minPageY) newPage(title);
+    text(title, left, y, 12, true, blue);
+    y -= 16;
+    y = paragraph(summary, left, y, width, 9) - 6;
+  };
+  const drawBars = (rows, options = {}) => {
+    const labelWidth = options.labelWidth || 142;
+    const barWidth = width - labelWidth - 52;
+    const max = Math.max(1, ...rows.map(row => Number(row[1]) || 0));
+    rows.forEach(([label, value], index) => {
+      if (y - 18 < minPageY) newPage(options.continuationTitle || 'Details', options.summary || '');
+      const count = Number.parseFloat(value) || 0;
+      const countLabel = rows[index][2] ?? count.toLocaleString('en-PH');
+      const rowTop = y;
+      text(label, left, rowTop - 11, 9, false, '0.18 0.21 0.24');
+      rect(left + labelWidth, rowTop - 2, barWidth, 9, paleBlue);
+      if (count) rect(left + labelWidth, rowTop - 2, Math.max(1, barWidth * count / max), 9, blue);
+      text(countLabel, left + width, rowTop - 11, 9, true, '0.18 0.21 0.24', 'right');
+      y -= 20;
     });
-    cursorY -= 12;
-
-    if (sheet.name === 'Executive Summary') {
-      addSectionHeading('APPLICATION STATUS SNAPSHOT');
-      const maxCount = Math.max(1, ...report.statusChartRows.map(([, count]) => count));
-      const colorByLabel = {
-        'Pending review': '0.96 0.62 0.10',
-        'In Process': '0.23 0.51 0.96',
-        'Approved / ID-ready': '0.06 0.62 0.43',
-        'IDs issued / completed': '0.05 0.48 0.34',
-        Rejected: '0.88 0.25 0.25'
-      };
-      report.statusChartRows.forEach(([label, count]) => {
-        const y = cursorY - 10;
-        const barWidth = count ? Math.max(2, 245 * count / maxCount) : 0;
-        pages[pageIndex].push(
-          'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '48', String(y), 'Td',
-          `(${staffPdfText(label)}) Tj`, 'ET',
-          'q', '0.91 0.94 0.97 rg', `185 ${y - 2} 250 10 re f`, 'Q'
-        );
-        if (barWidth) pages[pageIndex].push('q', `${colorByLabel[label] || '0.23 0.51 0.96'} rg`, `185 ${y - 2} ${barWidth} 10 re f`, 'Q');
-        pages[pageIndex].push(
-          'BT', '/F2 9 Tf', '0.12 0.16 0.22 rg', '448', String(y), 'Td',
-          `(${count.toLocaleString('en-PH')}) Tj`, 'ET'
-        );
-        cursorY -= 19;
+    y -= 3;
+  };
+  const drawTable = (headers, rows, columnWidths, opts = {}) => {
+    let rowIndex = 0;
+    const drawHead = () => {
+      let x = left;
+      headers.forEach((header, index) => {
+        rect(x, y, columnWidths[index], 21, paleBlue, lineGray);
+        text(header, opts.right?.includes(index) ? x + columnWidths[index] - 6 : x + 6, y - 14, 8.5, true, blue, opts.right?.includes(index) ? 'right' : 'left');
+        x += columnWidths[index];
       });
-      cursorY -= 5;
-    }
+      y -= 21;
+    };
+    drawHead();
+    rows.forEach(row => {
+      const lines = row.map((cell, index) => wrap(cell, columnWidths[index] - 12, 8.5));
+      const rowHeight = Math.max(22, ...lines.map(cellLines => cellLines.length * 10 + 10));
+      if (y - rowHeight < minPageY) { newPage(opts.title || 'Details', opts.summary || ''); drawHead(); }
+      let x = left;
+      row.forEach((cell, index) => {
+        rect(x, y, columnWidths[index], rowHeight, rowIndex % 2 ? '0.97 0.98 0.99' : '1 1 1', lineGray);
+        lines[index].forEach((line, lineIndex) => text(line, opts.right?.includes(index) ? x + columnWidths[index] - 6 : x + 6, y - 14 - lineIndex * 10, 9, false, '0.18 0.21 0.24', opts.right?.includes(index) ? 'right' : 'left'));
+        x += columnWidths[index];
+      });
+      y -= rowHeight;
+      rowIndex++;
+    });
+    y -= 12;
+  };
+  const fmtDate = (date, options) => date.toLocaleDateString('en-PH', options);
+  const countWord = (count, singular, plural = `${singular}s`) => `${Number(count).toLocaleString('en-PH')} ${Number(count) === 1 ? singular : plural}`;
+  const sum = rows => rows.reduce((total, row) => total + (Number(row[1]) || 0), 0);
+  const statuses = report.statusChartRows.filter(([, count]) => count > 0);
+  const statusTotal = sum(report.statusChartRows);
+  const issued = Number(report.summary.find(([label]) => label === 'IDs issued or completed')?.[1]) || 0;
+  const pending = Number(report.summary.find(([label]) => label === 'Pending review')?.[1]) || 0;
+  const overdue = Number(report.summary.find(([label]) => label.startsWith('Overdue'))?.[1]) || 0;
+  const avgMetric = report.summary.find(([label]) => label.startsWith('Average days'))?.[1];
+  const avgLabel = typeof avgMetric === 'number' ? avgMetric.toFixed(1) : 'n/a';
+
+  beginPage('', true);
+  // KPI cards
+  const kpis = [
+    ['Received', report.recordCount.toLocaleString('en-PH')],
+    ['Pending review', pending.toLocaleString('en-PH')],
+    ['Overdue (>5 days)', overdue.toLocaleString('en-PH')],
+    ['IDs issued', issued.toLocaleString('en-PH')],
+    ['Avg. days to update', avgLabel]
+  ];
+  const gap = 7;
+  const cardWidth = (width - gap * 4) / 5;
+  kpis.forEach(([label, value], index) => {
+    const x = left + index * (cardWidth + gap);
+    rect(x, y, cardWidth, 48, '0.97 0.98 0.99', lineGray);
+    text(value, x + cardWidth / 2, y - 22, 15, true, blue, 'center');
+    text(label, x + cardWidth / 2, y - 39, 7.5, false, gray, 'center');
   });
+  y -= 61;
+  const banner = overdue
+    ? `${countWord(overdue, 'application')} overdue.`
+    : pending
+      ? `${countWord(pending, 'application')} pending review; none are overdue.`
+      : 'All clear: no applications are pending or overdue.';
+  rect(left, y, width, 27, paleBlue);
+  text(banner, left + 10, y - 18, 10, true, blue);
+  y -= 46;
 
-  const objects = [];
+  const statusSummary = statusTotal
+    ? `${countWord(statusTotal, 'application')} in this period. ${issued ? `${countWord(issued, 'application')} ${issued === 1 ? 'has' : 'have'} an issued or completed ID.` : 'No IDs have been issued or completed.'} ${pending ? `${countWord(pending, 'application')} ${pending === 1 ? 'is' : 'are'} pending review.` : 'None are pending review.'}`
+    : 'No applications were received in this period.';
+  if (!statusTotal) {
+    text('APPLICATION STATUS', left, y, 12, true, blue); y -= 18;
+    text('No applications in this period.', left, y, 9, false, gray); y -= 28;
+  } else {
+    sectionTitle('Application status', statusSummary, 155);
+    drawBars(statuses, { labelWidth: 155, continuationTitle: 'Application status', summary: statusSummary });
+  }
+
+  const selectedRange = document.getElementById('report-range')?.value || 'all';
+  const weeklyMode = ['7', '30'].includes(String(selectedRange));
+  let submissionRows;
+  let submissionLabel;
+  if (weeklyMode) {
+    submissionRows = report.weeklyRows.filter(([, count]) => count > 0)
+      .map(([week, count]) => [`Week of ${fmtDate(week, { month: 'short', day: 'numeric' })}`, count]);
+    submissionLabel = 'Weekly submissions';
+  } else {
+    submissionRows = report.applicationFlowRows
+      .filter(([month, submitted]) => month <= new Date(report.generatedAt.getFullYear(), report.generatedAt.getMonth(), 1) && submitted > 0)
+      .map(([month, submitted]) => [fmtDate(month, { month: 'short', year: 'numeric' }), submitted]);
+    submissionLabel = 'Submissions by month';
+  }
+  const submissionTotal = sum(submissionRows);
+  if (!submissionTotal) {
+    text(submissionLabel.toUpperCase(), left, y, 12, true, blue); y -= 18;
+    text('No submissions in this period.', left, y, 9, false, gray); y -= 25;
+  } else {
+    const topWeek = [...submissionRows].sort((a, b) => b[1] - a[1])[0];
+    let submissionSummary;
+    if (weeklyMode && submissionRows.length === 1) {
+      submissionSummary = `${countWord(submissionTotal, 'application')} received in ${submissionRows[0][0].toLowerCase()}. No applications were received in the other weeks.`;
+    } else if (weeklyMode && submissionRows.length === 2) {
+      const orderedWeeks = report.weeklyRows.filter(([, count]) => count > 0).sort((a, b) => a[0] - b[0]);
+      const firstWeekUtc = Date.UTC(orderedWeeks[0][0].getFullYear(), orderedWeeks[0][0].getMonth(), orderedWeeks[0][0].getDate());
+      const secondWeekUtc = Date.UTC(orderedWeeks[1][0].getFullYear(), orderedWeeks[1][0].getMonth(), orderedWeeks[1][0].getDate());
+      const gapWeeks = Math.round((secondWeekUtc - firstWeekUtc) / 604800000) > 1;
+      submissionSummary = `${countWord(submissionTotal, 'application')} received: ${countWord(orderedWeeks[0][1], 'application')} in the week of ${fmtDate(orderedWeeks[0][0], { month: 'short', day: 'numeric' })} and ${countWord(orderedWeeks[1][1], 'application')} in the week of ${fmtDate(orderedWeeks[1][0], { month: 'short', day: 'numeric' })}.${gapWeeks ? ' No applications were received in the weeks between.' : ' Both weeks are shown in the chart.'}`;
+    } else {
+      submissionSummary = `${countWord(submissionTotal, 'application')} received ${weeklyMode ? 'across the weeks shown' : 'across the months shown'}. ${topWeek[0]} had the most, with ${countWord(topWeek[1], 'application')}.`;
+    }
+    sectionTitle(submissionLabel, submissionSummary, 100);
+    drawBars(submissionRows, { labelWidth: 145, continuationTitle: submissionLabel, summary: submissionSummary });
+  }
+
+  // Detailed page starts as its own page. Additional pages are added only when a section needs the room.
+  newPage('Details');
+  const barangayRows = report.barangayRows.filter(row => row[1] > 0);
+  if (!barangayRows.length) {
+    text('Barangay workload', left, y, 12, true, blue); y -= 18;
+    text('No applications in this period.', left, y, 9, false, gray); y -= 25;
+  } else {
+    const totalApplications = barangayRows.reduce((n, row) => n + row[1], 0);
+    const barangaySummary = barangayRows.length === 1
+      ? `${countWord(totalApplications, 'application')} came from ${barangayRows[0][0]}. ${barangayRows[0][2]} completed and ${barangayRows[0][3]} pending review.`
+      : `${countWord(totalApplications, 'application')} came from ${barangayRows.length} barangays. ${countWord(barangayRows.reduce((n, row) => n + row[2], 0), 'application')} are completed and ${barangayRows.reduce((n, row) => n + row[3], 0)} are pending review.`;
+    sectionTitle('Barangay workload', barangaySummary, 75);
+    drawTable(['Barangay', 'Applications', 'Completed', 'Pending'], barangayRows.map(row => [row[0], row[1], row[2], row[3]]), [223, 96, 96, 96], { right: [1, 2, 3], title: 'Barangay workload', summary: barangaySummary });
+  }
+
+  const ageRows = report.ageRows.filter(([, count]) => count > 0);
+  const knownAges = ageRows.reduce((n, row) => n + row[1], 0);
+  if (!knownAges) {
+    text('Age distribution', left, y, 12, true, blue); y -= 18;
+    text('No applicants with a known age in this period.', left, y, 9, false, gray); y -= 25;
+  } else {
+    const topAges = ageRows.slice().sort((a, b) => b[1] - a[1]).slice(0, 2);
+    const ageSummary = `${countWord(knownAges, 'applicant')} with a known age. ${topAges.map(([group, count]) => `${countWord(count, 'applicant')} aged ${group}`).join(' and ')}${ageRows.length > 2 ? `; ${knownAges - topAges.reduce((n, row) => n + row[1], 0)} in other age groups` : ''}.`;
+    sectionTitle('Age distribution', ageSummary, 90);
+    drawBars(ageRows.map(([group, count]) => [`Age ${group}`, count, `${count} (${(count / knownAges * 100).toFixed(1)}%)`]), { labelWidth: 100, continuationTitle: 'Age distribution', summary: ageSummary });
+  }
+
+  const currentMonth = report.generatedAt.getMonth();
+  const monthlyRows = report.applicationFlowRows.map(([month, submitted, approved], index) => ({
+    month, submitted, approved,
+    average: report.pdfMonthlyTurnaroundRows[index]?.[1],
+    qualifying: report.pdfMonthlyTurnaroundRows[index]?.[2]
+  })).filter(row => row.month.getFullYear() < report.generatedAt.getFullYear() || row.month.getMonth() <= currentMonth)
+    .filter(row => row.submitted > 0 || row.approved > 0 || row.qualifying > 0);
+  if (!monthlyRows.length) {
+    text('Monthly trend', left, y, 12, true, blue); y -= 18;
+    text('No monthly submissions or status updates in this period.', left, y, 9, false, gray); y -= 25;
+  } else {
+    const submittedTotal = monthlyRows.reduce((n, row) => n + row.submitted, 0);
+    const approvedTotal = monthlyRows.reduce((n, row) => n + row.approved, 0);
+    const avgMonths = monthlyRows.filter(row => row.qualifying > 0);
+    const monthlySummary = `${countWord(submittedTotal, 'application')} submitted in the months shown; ${countWord(approvedTotal, 'application')} approved by status update date. ${avgMonths.length ? `Monthly averages use ${avgMonths.reduce((n, row) => n + row.qualifying, 0)} qualifying records.` : 'No qualifying turnaround records.'}`;
+    sectionTitle('Monthly trend', monthlySummary, 80);
+    drawTable(['Month', 'Submitted', 'Approved*', 'Avg. days'], monthlyRows.map(row => [fmtDate(row.month, { month: 'short', year: 'numeric' }), row.submitted, row.approved, row.qualifying ? Number(row.average).toFixed(1) : 'n/a']), [180, 100, 110, 117], { right: [1, 2, 3], title: 'Monthly trend', summary: monthlySummary });
+    text('*Approved count is grouped by status update date.', left, y, 8, false, gray);
+    y -= 20;
+  }
+
+  const replacementRows = report.replacementRows;
+  const replacementTotal = replacementRows.reduce((n, row) => n + row[1], 0);
+  if (!replacementTotal) {
+    text('Replacement requests: none', left, y, 10, true, blue);
+    y -= 22;
+  } else {
+    const nonzero = replacementRows.filter(([, count]) => count > 0);
+    const replacementSummary = `${countWord(replacementTotal, 'replacement request')} across all currently loaded requests. Counts are not filtered by the application reporting period.`;
+    sectionTitle('Replacement requests', replacementSummary, 65);
+    drawTable(['Status', 'Requests'], nonzero, [390, 121], { right: [1], title: 'Replacement requests', summary: replacementSummary });
+  }
+
   const pageIds = pages.map((_, index) => 3 + index * 2);
   const regularFontId = 3 + pages.length * 2;
   const boldFontId = regularFontId + 1;
+  const objects = [];
   objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
   objects[2] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
   pages.forEach((pageLines, index) => {
     const pageId = pageIds[index];
     const contentId = pageId + 1;
-    const commands = [
-      'q', '0.10 0.18 0.33 rg', '36 758 540 70 re f', 'Q',
-      'BT', '/F2 10 Tf', '1 1 1 rg', '50 805 Td', `(OFFICE OF THE SENIOR CITIZEN AFFAIRS - OSCA) Tj`, 'ET',
-      'BT', '/F2 17 Tf', '1 1 1 rg', '50 778 Td', `(${staffPdfText(report.reportTitle.toUpperCase())} REPORT) Tj`, 'ET',
-      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '42 740 Td', `(Report ID: ${staffPdfText(report.reportId)}) Tj`, 'ET',
-      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '42 727 Td', `(Reporting period: ${staffPdfText(report.rangeLabel)}) Tj`, 'ET',
-      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '42 714 Td', `(Generated: ${staffPdfText(report.generated)}) Tj`, 'ET',
-      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '330 740 Td', `(Analytics scope: ${staffPdfText(report.scopeLabel)}) Tj`, 'ET',
-      'BT', '/F1 9 Tf', '0.12 0.16 0.22 rg', '330 727 Td', `(Generated by role: ${staffPdfText(report.generatedBy)}) Tj`, 'ET'
+    const footer = [
+      'q', `${lineGray} RG`, '0.5 w', `${left} 38 m`, `${pageWidth - left} 38 l`, 'S', 'Q',
+      'BT', '/F1 7.5 Tf', `${gray} rg`, `${left} 25 Td`, `(Report ID: ${staffPdfText(report.reportId)} | Scope: ${staffPdfText(report.scopeLabel)}) Tj`, 'ET',
+      'BT', '/F1 7.5 Tf', `${gray} rg`, `${left} 13 Td`, '(Official use. Aggregate statistics; no applicant identifiers.) Tj', 'ET',
+      'BT', '/F1 7.5 Tf', `${gray} rg`, '553 25 Td', `(Page ${index + 1} of ${pages.length}) Tj`, 'ET'
     ];
-    commands.push(...pageLines);
-    commands.push('BT', '/F1 8 Tf', '0.35 0.40 0.48 rg', '42 24 Td', '(Official use - aggregate statistics; applicant identifiers are excluded.) Tj', 'ET', 'BT', '/F1 8 Tf', '0.35 0.40 0.48 rg', '505 24 Td', `(Page ${index + 1} of ${pages.length}) Tj`, 'ET');
-    const stream = commands.join('\n');
-    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} 842] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    const stream = [...pageLines, ...footer].join('\n');
+    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
     objects[contentId] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });
   objects[regularFontId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
   objects[boldFontId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
   let pdf = '%PDF-1.4\n';
   const offsets = [0];
-  for (let id = 1; id < objects.length; id++) {
-    offsets[id] = pdf.length;
-    pdf += `${id} 0 obj\n${objects[id]}\nendobj\n`;
-  }
+  for (let id = 1; id < objects.length; id++) { offsets[id] = pdf.length; pdf += `${id} 0 obj\n${objects[id]}\nendobj\n`; }
   const xrefOffset = pdf.length;
   pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
   for (let id = 1; id < objects.length; id++) pdf += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
