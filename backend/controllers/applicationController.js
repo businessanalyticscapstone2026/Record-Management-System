@@ -2833,7 +2833,11 @@ const importApplicantRecords = async (req, res) => {
       } while (existingLegacyReferences.has(legacyReference));
       existingLegacyReferences.add(legacyReference);
       const createdAt = safeDateTime(source.registration_date);
-      const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
+      const importedRemark = String(source.remarks || "").trim();
+      const allowedImportedRemarks = ["Bedridden", "Deceased", "Unlocated", "Transferred", "Registered", "Non-registered"];
+      const normalizedImportedRemark = allowedImportedRemarks.find(value => normalizeText(value) === normalizeText(importedRemark)) || null;
+      const isDeceased = normalizeText(importedRemark) === "deceased" || normalizeText(source.membership_status || "") === "deceased";
+      const membershipStatus = isDeceased ? "Deceased" : "Active";
       const applicationRecord = {
         ...(internalApplicationId ? { application_id: internalApplicationId } : {}),
         first_name: firstName, middle_name: middleName || null, surname,
@@ -2845,7 +2849,7 @@ const importApplicantRecords = async (req, res) => {
         legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
         philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
         tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
-        membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
+        remarks: normalizedImportedRemark, membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
       };
 
       const insertedTables = [];
