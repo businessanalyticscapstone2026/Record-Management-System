@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=45" />
-  <link rel="stylesheet" href="staff.css?v=68" />
+  <link rel="stylesheet" href="staff.css?v=69" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -2498,7 +2498,7 @@
         <div>
           <span class="applicant-import-eyebrow">REGISTERED SENIOR CITIZEN RECORDS</span>
           <h2 id="applicant-import-title">Import Applicant Records</h2>
-          <p>Bring existing OSCA records into the system from a CSV file or searchable PDF.</p>
+          <p>Import existing OSCA records from a standard CSV/PDF or the original multi-sheet barangay Excel workbook.</p>
         </div>
         <button class="applicant-import-close" type="button" aria-label="Close import" onclick="closeApplicantImportModal()">×</button>
       </header>
@@ -2511,13 +2511,14 @@
             <li>If no old OSCA/Application ID is supplied, the system creates a LEGACY reference for record tracking; it is not an officially issued senior citizen ID.</li>
             <li>Column names do not need to match. Review and adjust the field mapping before importing. A single Full Name column is split automatically as First / Middle / Surname for review.</li>
             <li>Searchable PDFs are read directly. Scanned PDFs use in-browser OCR; carefully review the extracted values before importing.</li>
+            <li>OSCA legacy Excel workbooks are read sheet by sheet. The barangay is taken from row 3 (or the worksheet name), and applicant data is read from row 7 onward.</li>
           </ul>
         </div>
         <label class="applicant-import-dropzone" id="applicant-import-dropzone" for="applicant-import-file">
           <span class="applicant-import-file-icon">↑</span>
-          <strong>Choose a CSV or PDF file</strong>
-          <span>or drag and drop it here · maximum 15 MB</span>
-          <input id="applicant-import-file" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
+          <strong>Choose an OSCA Excel workbook, CSV, or PDF</strong>
+          <span>Excel workbooks with multiple barangay worksheets are supported · maximum 15 MB</span>
+          <input id="applicant-import-file" type="file" accept=".xlsx,.xls,.csv,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/pdf" />
         </label>
         <div class="applicant-import-file-meta" id="applicant-import-file-meta" hidden></div>
         <div class="applicant-import-error" id="applicant-import-error" role="alert" hidden></div>
@@ -2574,7 +2575,7 @@
   <script src="theme.js?v=1"></script>
   <script src="app.js?v=pickup-history-1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="staff.js?v=remarks-7"></script>
+  <script src="staff.js?v=osca-legacy-import-1"></script>
 </body>
 
 </html>
