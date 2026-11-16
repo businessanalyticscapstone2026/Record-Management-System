@@ -4090,3 +4090,37 @@ body > .remarks-select__menu {
   line-height: 1.5;
 }
 .applicant-import-legacy-note strong { display: block; margin-bottom: 3px; }
+
+
+/* Legacy applicant import review */
+.applicant-import-review {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border, #dfe5ee);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.applicant-import-review-help {
+  margin: 6px 0 12px;
+  color: var(--text-muted, #65748a);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.applicant-import-review .applicant-import-preview-table {
+  min-width: 760px;
+}
+.applicant-import-review .applicant-import-preview-table input {
+  width: 100%;
+  min-width: 125px;
+  max-width: 190px;
+  box-sizing: border-box;
+  padding: 7px 8px;
+  border: 1px solid var(--border, #d5dce7);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--text, #243044);
+  font: inherit;
+}
+.applicant-import-review .applicant-import-preview-table input[type="date"] {
+  min-width: 145px;
+}
