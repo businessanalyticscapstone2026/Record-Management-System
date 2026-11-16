@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>(function(){try{var t=localStorage.getItem('senioridTheme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light');document.documentElement.style.colorScheme=t==='dark'?'dark':'light';}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
@@ -23,7 +24,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=44" />
-  <link rel="stylesheet" href="idmaker.css?v=56" />
+  <link rel="stylesheet" href="idmaker.css?v=57" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -142,85 +143,52 @@
         </div>
 
         <!-- ID Maker KPI strip -->
-        <div class="admin-kpi-strip">
+        <div class="admin-kpi-strip idmaker-kpi-strip">
           <div class="stat-card">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-warn"><i class="fi fi-rr-clock ic-warn"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">On schedule</div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">Queued</div>
+                <div class="stat-card__value" id="idm-queued-count">0</div>
+                <div class="stat-card__sub">Waiting for production</div>
               </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Queued</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Waiting for Production</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">Waiting</div></div>
           </div>
           <div class="stat-card">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-blue"><i class="fi fi-rr-document ic-blue"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">In progress</div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">In Production</div>
+                <div class="stat-card__value" id="idm-production-count">0</div>
+                <div class="stat-card__sub">Being prepared and printed</div>
               </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">In Production</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Currently Being Processed</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">In progress</div></div>
           </div>
           <div class="stat-card stat-card--success">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check-double ic-green"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">On track</div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">Completed</div>
+                <div class="stat-card__value" id="idm-done-count">0</div>
+                <div class="stat-card__sub">Ready for release to staff</div>
               </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Printed</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Successfully Printed</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-card__top">
-              <div class="stat-card__icon-wrap iwrap-purple"><i class="fi fi-rr-id-card-clip-alt ic-purple"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">On the way</div>
-              </div>
-            </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">In Transit</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Ready for Release</div>
-            </div>
-          </div>
-          <div class="stat-card stat-card--success">
-            <div class="stat-card__top">
-              <div class="stat-card__icon-wrap iwrap-green"><i class="fi fi-rr-check ic-green"></i></div>
-              <div class="stat-card__meta"><div class="stat-card__trend trend-good">Done</div></div>
-            </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Completed</div>
-              <div class="stat-card__value">0</div>
-              <div class="stat-card__sub">Ready for Release in Staff</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">Done</div></div>
           </div>
           <div class="stat-card stat-card--danger">
-            <div class="stat-card__top">
+            <div class="stat-card__main">
               <div class="stat-card__icon-wrap iwrap-red"><i class="fi fi-rr-x ic-red"></i></div>
-              <div class="stat-card__meta">
-                <div class="stat-card__trend trend-good">Active</div>
+              <div class="stat-card__body">
+                <div class="stat-card__label">Total Queue</div>
+                <div class="stat-card__value" id="idm-total-count">0</div>
+                <div class="stat-card__sub">All queued ID requests</div>
               </div>
             </div>
-            <div class="stat-card__body">
-              <div class="stat-card__label">Total Queue</div>
-              <div class="stat-card__value">0</div>
-                <div class="stat-card__sub">All Active Records</div>
-            </div>
+            <div class="stat-card__meta"><div class="stat-card__trend trend-good">Active</div></div>
           </div>
         </div>
-
 
         <div class="data-table-card">
           <div class="table-header main-queue-header">
@@ -356,9 +324,7 @@
                   <option value="">Select new status</option>
                   <option value="Queued">Queued</option>
                   <option value="In Production">In Production</option>
-                  <option value="Printed">Printed</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Completed">Completed</option>
+                  <option value="Completed">Completed — Ready for Release</option>
                 </select>
               </label>
               <button type="button" class="btn btn--primary" id="bulk-update-button" onclick="bulkUpdateQueueStatus()">Update Selected</button>
@@ -438,7 +404,7 @@
           <div>
 
             <div class="an-card__title" title="Count of all ID Maker queue records in each current status.">
-              Production Queue Status <span class="analytics-info" role="img" title="Queued: waiting for production. In Production: being produced. Printed: printing is complete. In Transit: on the way. Completed: release or delivery is marked complete." aria-label="Definitions for queue stages"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
+              Production Queue Status <span class="analytics-info" role="img" title="Queued: waiting for production. In Production: being prepared and printed, including legacy Printed and In Transit records. Completed: ready for release to staff." aria-label="Definitions for queue stages"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5m0-8h.01"/></svg></span>
             </div>
 
             <div class="an-card__sub">
@@ -517,29 +483,8 @@
             </div>
 
 
-            <div class="analytics-stage-count" style="--stage-color:#EF4444">
-              <strong title="Printing is complete."><i class="analytics-stage-dot"></i>Printed</strong>
-
-              <br>
-
-              <span class="analytics-stage-value" id="idm-completed-count">0</span>
-              <span class="analytics-stage-share" id="idm-printed-share">0% of total</span>
-
-            </div>
-
-
-            <div class="analytics-stage-count" style="--stage-color:#DC2626">
-              <strong title="On the way to its destination."><i class="analytics-stage-dot"></i>In Transit</strong>
-
-              <br>
-
-              <span class="analytics-stage-value" id="idm-transit-count">0</span>
-              <span class="analytics-stage-share" id="idm-transit-share">0% of total</span>
-
-            </div>
-
-            <div class="analytics-stage-count" style="--stage-color:#991B1B">
-              <strong title="Release or delivery is marked complete."><i class="analytics-stage-dot"></i>Completed</strong>
+            <div class="analytics-stage-count" style="--stage-color:#22C55E">
+              <strong title="Production is complete and the ID is ready for release to staff."><i class="analytics-stage-dot"></i>Completed</strong>
 
               <br>
 
@@ -1232,7 +1177,7 @@
   <div class="toast-container" id="toast-container"></div>
 
 <script src="theme.js?v=1"></script>
-<script src="app.js?v=50"></script>
+<script src="app.js?v=51"></script>
   <script src="idmaker.js?v=multi-provider-ai-24"></script>
 </body>
 

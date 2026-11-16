@@ -1,6 +1,51 @@
 // Use this deployment for all staff API requests.
 const STAFF_API_BASE = window.location.origin;
 
+// Keep Staff API requests authenticated even if app.js fails to load.
+// app.js normally exposes these helpers, but staff.js must remain resilient
+// to a transient script/CDN connection failure.
+if (typeof window.getAuthHeaders !== 'function') {
+  window.getAuthHeaders = function getStaffAuthHeadersFallback() {
+    const candidates = [];
+
+    try {
+      const sessionRaw = window.sessionStorage.getItem('senioridAuth');
+      if (sessionRaw) {
+        const session = JSON.parse(sessionRaw);
+        if (session?.token) candidates.push(session.token);
+      }
+    } catch (_err) { }
+
+    try {
+      const localRaw = window.localStorage.getItem('senioridAuth');
+      if (localRaw) {
+        const session = JSON.parse(localRaw);
+        if (session?.token) candidates.push(session.token);
+      }
+    } catch (_err) { }
+
+    try {
+      const legacyToken = window.localStorage.getItem('authToken');
+      if (legacyToken) candidates.push(legacyToken);
+    } catch (_err) { }
+
+    const token = candidates.find(value =>
+      typeof value === 'string' &&
+      value.trim() &&
+      value.trim() !== 'null' &&
+      value.trim() !== 'undefined'
+    );
+
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token.trim()}` } : {})
+    };
+  };
+}
+
+// Wake the Record Management backend early without blocking page rendering.
+
+
 // Wake the Record Management backend early without blocking page rendering.
 fetch(`${STAFF_API_BASE}/health`, {
   method: "GET",
@@ -247,6 +292,12 @@ function updateBatchState() {
   const label = document.getElementById('batch-ops-label');
   const exportButton = document.querySelector('#batch-ops-menu [onclick="runBatchAction(\'export\')"]');
   const approveButton = document.querySelector('#batch-ops-menu [onclick="runBatchAction(\'approve\')"]');
+  const completeButton = document.getElementById('batch-complete-selected');
+  const readySelectedCount = Array.from(STAFF_SELECTED_APP_IDS).filter(id => {
+    const app = LIVE_APPLICATIONS.find(item => String(item.application_id || item.id) === id);
+    return app && normalizeApplicationStatus(app.status) === 'ready';
+  }).length;
+  if (completeButton) completeButton.disabled = readySelectedCount === 0;
   if (trigger) trigger.disabled = selectedCount === 0;
   if (label) label.textContent = selectedCount
     ? 'Batch Operations (' + selectedCount.toLocaleString() + ')'
@@ -2500,279 +2551,6 @@ window.setRole =
 
 // RENDER LIVE APPLICANTS
 
-function renderLiveApplicants(applications) {
-
-  const tbody =
-    document.getElementById(
-      'applicants-tbody'
-    );
-
-  if (!tbody) {
-    return;
-  }
-
-  const totalBadge =
-    document.getElementById(
-      'applicants-total-badge'
-    );
-
-  if (totalBadge) {
-    totalBadge.textContent =
-      `${applications.length.toLocaleString()} Total`;
-  }
-
-
-  if (
-    !Array.isArray(
-      applications
-    ) ||
-    applications.length === 0
-  ) {
-
-    tbody.innerHTML = `
-      <tr>
-        <td
-          colspan="9"
-          style="
-            text-align:center;
-            padding:32px;
-            color:var(--text-muted);
-          "
-        >
-          No applicants found.
-        </td>
-      </tr>
-    `;
-
-    const footer = document.querySelector(
-      '#mod-applicants .table-footer__info'
-    );
-
-    if (footer) {
-      footer.textContent = 'Showing 0 of 0 registered seniors';
-    }
-
-    return;
-  }
-
-
-  tbody.innerHTML =
-    applications.map(
-      application => {
-
-        const appId =
-          application.application_id ||
-          application.id ||
-          '';
-
-
-        const fullName = [
-          application.first_name,
-          application.middle_name,
-          application.surname
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .trim() ||
-          'Unnamed Applicant';
-
-
-        const initials =
-          fullName
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map(
-              part =>
-                part
-                  .charAt(0)
-                  .toUpperCase()
-            )
-            .join('');
-
-
-        const barangay =
-          application.barangay_district ||
-          application.barangay ||
-          '—';
-
-
-        const age =
-          application.age ??
-          '—';
-
-
-        const occupation =
-          application.occupation ||
-          '—';
-
-
-        const status =
-          application.status ||
-          'Pending';
-
-
-        let docsHtml =
-          '<span class="docs-pill">—</span>';
-
-
-        if (
-          typeof buildDocsStatusPill ===
-          'function'
-        ) {
-
-          try {
-
-            docsHtml =
-              buildDocsStatusPill(
-                application
-              );
-
-          } catch (error) {
-
-            console.warn(
-              'Unable to build document status:',
-              error
-            );
-
-          }
-
-        }
-
-
-        let statusHtml =
-          `<span class="status-select__label">
-            ${escapeApplicationHtml(status)}
-          </span>`;
-
-
-        if (
-          typeof buildStatusSelect ===
-          'function'
-        ) {
-
-          try {
-
-            statusHtml =
-              buildStatusSelect(
-                appId,
-                status
-              );
-
-          } catch (error) {
-
-            console.warn(
-              'Unable to build applicant status:',
-              error
-            );
-
-          }
-
-        }
-
-
-        return `
-          <tr
-            data-app-id="${escapeApplicationHtml(appId)}"
-          >
-
-            <td>
-              <div class="applicant-cell">
-
-                <div class="applicant-avatar" style="background:linear-gradient(135deg,#FDE68A,#D97706)">
-                  ${escapeApplicationHtml(initials)}
-                </div>
-
-                <div class="applicant-info">
-
-                  <span class="applicant-name">
-                    ${escapeApplicationHtml(fullName)}
-                  </span>
-
-                  <span class="applicant-id">
-                    ${escapeApplicationHtml(
-          application.sex || 'Applicant'
-        )}
-                    ·
-                    ${escapeApplicationHtml(
-          String(age)
-        )}
-                    yrs
-                  </span>
-
-                </div>
-
-              </div>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(appId)}
-              </span>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(barangay)}
-              </span>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(
-          String(age)
-        )}
-              </span>
-            </td>
-
-
-            <td>
-              <span class="cell-text">
-                ${escapeApplicationHtml(
-          occupation
-        )}
-              </span>
-            </td>
-
-
-            <td>
-              ${renderApplicationTypePill(application)}
-            </td>
-
-
-            <td>
-              ${docsHtml}
-            </td>
-
-
-            <td>
-              ${statusHtml}
-            </td>
-
-
-            <td style="text-align:right">${buildViewAction(appId)}</td>
-
-          </tr>
-        `;
-
-      }
-    )
-      .join('');
-
-  const footer = document.querySelector(
-    '#mod-applicants .table-footer__info'
-  );
-
-  if (footer) {
-    footer.textContent =
-      `Showing ${applications.length.toLocaleString()} of ${applications.length.toLocaleString()} applicants`;
-  }
-
-}
-
 // Applicant summary cards calculation
 
 
@@ -3653,7 +3431,7 @@ function getProfileIdentityKey(application, fallbackIndex) {
   const dob = dobDate && !Number.isNaN(dobDate.getTime())
     ? dobDate.toISOString().slice(0, 10) : normalizeProfileIdentity(dobValue);
   if (name && dob) return 'person:' + name + '|' + dob;
-  const seniorId = application.osca_id_number || application.senior_citizen_id || application.id_number;
+  const seniorId = application.senior_citizen_id || application.id_number;
   if (seniorId) return 'id:' + normalizeProfileIdentity(seniorId);
   return 'application:' + String(application.application_id || application.id || fallbackIndex);
 }
@@ -3699,8 +3477,8 @@ function buildApplicantProfiles(applications) {
       }
     }
     profile.age = profile.latestApplication.age ?? calculatedAge ?? '—';
-    const idRecord = profile.applications.find(a => a.application_id || a.id || a.osca_id_number || a.senior_citizen_id || a.id_number);
-    profile.seniorId = idRecord && (idRecord.application_id || idRecord.id || idRecord.osca_id_number || idRecord.senior_citizen_id || idRecord.id_number) || '';
+    const idRecord = profile.applications.find(a => a.application_id || a.id || a.senior_citizen_id || a.id_number);
+    profile.seniorId = idRecord && (idRecord.application_id || idRecord.id || idRecord.senior_citizen_id || idRecord.id_number) || '';
     profile.completedApplications = profile.applications.filter(a => normalizeApplicationStatus(a.status) === 'completed');
     profile.ongoingApplications = profile.applications.filter(a =>
       !['completed', 'rejected'].includes(normalizeApplicationStatus(a.status)));
@@ -3716,6 +3494,47 @@ function buildApplicantProfiles(applications) {
     profile.registeredAt = registeredDates[0] || null;
     // Applicants module shows registered citizens only. Use their newest completed record.
     if (profile.isRegistered) profile.latestApplication = profile.completedApplications[0];
+    profile.remarks = profile.latestApplication?.remarks || '';
+    // Pickup details may belong to an earlier completed application when
+    // a citizen has multiple linked requests. Use the newest completed record
+    // that actually contains a pickup recipient, not simply the newest request.
+    const hasPickupRecipient = application =>
+      Boolean(String(application?.pickup_recipient_type || '').trim());
+
+    // Prefer recipient details on a completed request. Some older records
+    // stored the pickup recipient on a linked request whose current status
+    // is no longer Completed, so fall back to any linked request with data.
+    const pickupApplication =
+      profile.completedApplications.find(hasPickupRecipient) ||
+      profile.applications.find(hasPickupRecipient) ||
+      profile.latestApplication;
+    const pickupType = String(pickupApplication?.pickup_recipient_type || '')
+      .trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    const pickupName = String(pickupApplication?.pickup_recipient_name || '').trim();
+    const invalidPickupNames = new Set([
+      'registered', 'non-registered', 'active', 'deceased',
+      'bedridden', 'unlocated', 'transferred'
+    ]);
+    if (['applicant', 'senior_citizen', 'the_applicant'].includes(pickupType)) {
+      profile.idClaimedBy = 'Applicant';
+    } else if ([
+      'barangay_president',
+      'senior_barangay_president',
+      'senior_barangay_captain',
+      'barangay_captain'
+    ].includes(pickupType)) {
+      profile.idClaimedBy = 'Senior Barangay President';
+    } else if (['authorized_personnel', 'authorized_staff', 'authorized_person'].includes(pickupType)) {
+      profile.idClaimedBy = pickupName && !invalidPickupNames.has(pickupName.toLowerCase())
+        ? pickupName
+        : 'Authorized Personnel (name not recorded)';
+    } else {
+      // A Completed legacy profile confirms that the ID was already claimed,
+      // but older OSCA source records did not capture the claimant's identity.
+      profile.idClaimedBy = profile.isRegistered
+        ? 'Legacy Record'
+        : 'Not yet claimed';
+    }
     profile.isActive = profile.ongoingApplications.length > 0;
     profile.hasDuplicateFlag = profile.applications.some(isProfileDuplicateFlagged);
     profile.status = profile.isRegistered ? 'Registered' : 'Rejected';
@@ -3741,13 +3560,11 @@ function renderLiveApplicants(applications) {
   const profiles = STAFF_APPLICANT_PROFILES;
   const badge = document.getElementById('applicants-total-badge');
   if (badge) badge.textContent = profiles.length.toLocaleString() + ' Registered Profiles';
-  // The sidebar badge remains the count of ongoing applications (all except Completed and Rejected).
+  // The Applicants navigation badge reflects registered senior profiles only.
   const sidebarBadge = document.getElementById('applicants-sidebar-count');
-  const ongoingApplicationCount = allProfiles.reduce((count, profile) =>
-    count + profile.ongoingApplications.length, 0);
-  if (sidebarBadge) sidebarBadge.textContent = ongoingApplicationCount.toLocaleString();
+  if (sidebarBadge) sidebarBadge.textContent = profiles.length.toLocaleString();
   if (!profiles.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No registered senior citizens found.</td></tr>';
     if (typeof Skeleton !== 'undefined') Skeleton.clearBusy('applicants-tbody');
     const footer = document.querySelector('#mod-applicants .table-footer__info');
     if (footer) footer.textContent = 'Showing 0 of 0 applicants';
@@ -3758,8 +3575,9 @@ function renderLiveApplicants(applications) {
     const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('');
     const status = String(profile.status || 'Pending');
     const ids = profile.applications.map(a => a.application_id || a.id || '').join(' ');
-    const searchText = [profile.name, profile.seniorId, profile.barangay, ids].join(' ').toLowerCase();
-    return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}" data-deceased="${profile.isDeceased ? 'true' : 'false'}"
+    const remarks = String(profile.remarks || '').trim();
+    const searchText = [profile.name, profile.seniorId, profile.barangay, profile.idClaimedBy, remarks, ids].join(' ').toLowerCase();
+    return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}"
       data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-name="${escapeApplicationHtml(profile.name || '')}"
       data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
       <td><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info">
@@ -3768,6 +3586,7 @@ function renderLiveApplicants(applications) {
       <td><span class="cell-text">${escapeApplicationHtml(profile.barangay || '—')}</span></td>
       <td><span class="cell-text">${escapeApplicationHtml(String(profile.age))}</span></td>
       <td><span class="cell-text">${profile.registeredAt ? escapeApplicationHtml(formatStaffDate(profile.registeredAt)) : '—'}</span></td>
+      <td><span class="id-claimed-by">${escapeApplicationHtml(profile.idClaimedBy || 'Not yet claimed')}</span></td>
       <td><span class="badge ${getProfileStatusClass(status)}"><span class="status-select__label">${escapeApplicationHtml(status)}</span></span></td>
       <td style="text-align:right"><button type="button" class="row-action always-visible" onclick="openApplicantProfile(${index})">View Profile</button></td>
     </tr>`;
@@ -4350,7 +4169,7 @@ function renderLiveApplications(applications) {
   const tbody = document.getElementById('applications-tbody');
   if (!tbody) return;
   if (!Array.isArray(applications) || !applications.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted)">No applications found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">No applications found.</td></tr>';
     if (typeof Skeleton !== 'undefined') Skeleton.clearBusy('applications-tbody');
     const shown = document.getElementById('apps-shown');
     const total = document.getElementById('apps-total');
@@ -4366,11 +4185,8 @@ function renderLiveApplications(applications) {
     const status = application.status || 'Pending';
     const docs = typeof buildDocsStatusPill === 'function' ? buildDocsStatusPill(application) : '—';
     const statusHtml = typeof buildStatusSelect === 'function' ? buildStatusSelect(id, status) : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
-    const membershipStatus = application.membership_status || '';
-    const membershipHtml =
-      String(status).trim().toLowerCase() === 'completed'
-        ? buildMembershipSelect(id, membershipStatus)
-        : '<span class="cell-text">—</span>';
+    const remarks = String(application.remarks || '').trim();
+    const remarksHtml = buildApplicationRemarksSelect(id, remarks);
 
     const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('');
     const barangay = application.barangay_district || application.barangay || '';
@@ -4379,7 +4195,7 @@ function renderLiveApplications(applications) {
       <td style="width:36px;text-align:center"><input type="checkbox" class="row-check" data-app-id="${escapeApplicationHtml(id)}" aria-label="Select ${escapeApplicationHtml(name)}" ${STAFF_SELECTED_APP_IDS.has(String(id)) ? 'checked' : ''}  /></td>
       <td data-label="Applicant"><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info"><span class="applicant-name">${escapeApplicationHtml(name)}</span><span class="applicant-id">${escapeApplicationHtml(id)}</span></div></div></td>
       <td data-label="Submitted"><span class="cell-text">${escapeApplicationHtml(formatStaffDate(getApplicationSubmittedDate(application)))}</span></td>
-      <td data-label="Documents">${docs}</td><td data-label="Stage">${statusHtml}</td><td data-label="Membership">${membershipHtml}</td>
+      <td data-label="Documents">${docs}</td><td data-label="Stage">${statusHtml}</td><td data-label="Remarks">${remarksHtml}</td>
       <td data-label="Days Pending" style="text-align:center"><span class="cell-text">${days === null ? '—' : Math.floor(days).toLocaleString()}</span></td>
       <td style="text-align:center"><button type="button" class="row-action-eye" onclick="event.stopPropagation();openApplicationDetail('${escapeApplicationHtml(id)}')" title="View applicant" aria-label="View applicant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="10" r="3"/></svg></button></td></tr>`;
   }).join('');
@@ -4403,6 +4219,172 @@ function renderLiveApplications(applications) {
   if (urgentDescription) urgentDescription.textContent = urgentCount ? 'These applications have been pending for more than 5 days and need immediate attention.' : 'Applications pending for more than 5 days will appear here.';
   updateBatchState();
 }
+
+const APPLICATION_REMARKS_CONFIG = {
+  'Bedridden': { icon: 'bed', color: '#7C3AED', path: '<path d="M3 5v14M3 13h18v6M3 9h4a4 4 0 0 1 4 4M11 13h10V9a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v4Z"/>' },
+  'Deceased': { icon: 'cross', color: '#64748B', path: '<path d="M10 2v16M2 10h16"/>' },
+  'Unlocated': { icon: 'search', color: '#D97706', path: '<circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 5 5"/>' },
+  'Transferred': { icon: 'transfer', color: '#2563EB', path: '<path d="M3 6h12m-4-4 4 4-4 4M17 14H5m4-4-4 4 4 4"/>' },
+  'Registered': { icon: 'check', color: '#059669', path: '<path d="m3 10 5 5L17 5"/>' },
+  'Non-registered': { icon: 'x', color: '#DC2626', path: '<path d="m4 4 12 12M16 4 4 16"/>' }
+};
+
+function buildApplicationRemarksSelect(applicationId, currentRemarks) {
+  const options = Object.keys(APPLICATION_REMARKS_CONFIG).map(label => {
+    const config = APPLICATION_REMARKS_CONFIG[label];
+    const active = label === currentRemarks ? ' active' : '';
+    return `<button type="button" class="status-select__option${active}" data-remark="${label}" data-color="${config.color}" data-icon="${config.icon}" onclick="selectApplicationRemarkOption(this,event)">
+      <span class="status-select__option-icon" style="color:${config.color}">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${config.path}</svg>
+      </span>
+      <span>${label}</span>
+    </button>`;
+  }).join('');
+  const remarkValue = String(currentRemarks || '').trim();
+  const selected = APPLICATION_REMARKS_CONFIG[remarkValue];
+  // Historical workbooks may contain free-text remarks outside the standard
+  // dropdown values. Display the original text instead of showing a blank prompt.
+  const label = selected ? remarkValue : (remarkValue || 'Select remark');
+  const color = selected ? selected.color : '#64748B';
+  const path = selected ? selected.path : '<circle cx="10" cy="10" r="6"/><path d="M10 7v3m0 3h.01"/>';
+  return `<div class="status-select remarks-select" data-app-id="${escapeApplicationHtml(applicationId)}" data-previous-value="${escapeApplicationHtml(currentRemarks)}">
+    <button type="button" class="status-select__trigger" onclick="toggleApplicationRemarksSelect(this,event)" aria-label="Remarks: ${escapeApplicationHtml(label)}">
+      <span class="status-select__icon" style="color:${color}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span>
+      <span class="status-select__label">${escapeApplicationHtml(label)}</span>
+      <svg class="status-select__arrow" viewBox="0 0 12 12" fill="currentColor"><path d="M3 4l3 3 3-3"/></svg>
+    </button>
+    <div class="status-select__menu remarks-select__menu">${options}</div>
+  </div>`;
+}
+
+function toggleApplicationRemarksSelect(button, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const root = button.closest('.remarks-select');
+  const menu = root?.querySelector('.remarks-select__menu');
+  if (!root || !menu) return;
+  const wasOpen = menu.classList.contains('show');
+  if (typeof closeAllStatusMenus === 'function') closeAllStatusMenus(menu);
+  if (wasOpen) {
+    menu.classList.remove('show');
+    menu.style.left = '';
+    menu.style.top = '';
+    menu.style.width = '';
+    if (menu.parentElement !== root) root.appendChild(menu);
+    return;
+  }
+  menu.__statusRoot = root;
+  menu.__remarksRoot = root;
+  menu.dataset.statusOwnerId = root.dataset.appId || '';
+  document.body.appendChild(menu);
+  menu.classList.add('show');
+  if (typeof positionStatusMenu === 'function') positionStatusMenu(button, menu);
+}
+
+async function selectApplicationRemarkOption(button, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const menu = button.closest('.remarks-select__menu');
+  const root = button.closest('.remarks-select') || menu?.__remarksRoot || menu?.__statusRoot;
+  if (!root) return;
+  const value = button.dataset.remark;
+  const config = APPLICATION_REMARKS_CONFIG[value];
+  if (!config) return;
+
+  const label = root.querySelector('.status-select__label');
+  const icon = root.querySelector('.status-select__icon');
+  const trigger = root.querySelector('.status-select__trigger');
+  const previous = root.dataset.previousValue || '';
+  const previousConfig = APPLICATION_REMARKS_CONFIG[previous];
+  if (label) label.textContent = value;
+  if (icon) {
+    icon.style.color = config.color;
+    icon.innerHTML = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${config.path}</svg>`;
+  }
+  if (trigger) trigger.setAttribute('aria-label', `Remarks: ${value}`);
+  menu?.querySelectorAll('.status-select__option').forEach(option => option.classList.toggle('active', option === button));
+  if (menu) {
+    menu.classList.remove('show');
+    menu.style.left = '';
+    menu.style.top = '';
+    menu.style.width = '';
+    if (menu.parentElement !== root) root.appendChild(menu);
+  }
+  await updateApplicationRemarks(root.dataset.appId, value, root, previous);
+}
+
+async function updateApplicationRemarks(applicationId, remarksValue, root, previousRemarks = '') {
+  if (!applicationId || !root) return;
+  const newRemarks = String(remarksValue || '').trim();
+  const config = APPLICATION_REMARKS_CONFIG[newRemarks];
+  const label = root.querySelector('.status-select__label');
+  const icon = root.querySelector('.status-select__icon');
+  const trigger = root.querySelector('.status-select__trigger');
+  const previousConfig = APPLICATION_REMARKS_CONFIG[previousRemarks];
+  const setValue = (value, cfg) => {
+    if (label) label.textContent = value || 'Select remark';
+    if (icon) {
+      icon.style.color = cfg?.color || '#94A3B8';
+      icon.innerHTML = cfg
+        ? `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${cfg.path}</svg>`
+        : '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/></svg>';
+    }
+    if (trigger) trigger.setAttribute('aria-label', `Remarks: ${value || 'Select remark'}`);
+  };
+  if (!config) { setValue(previousRemarks, previousConfig); return; }
+  root.dataset.saving = 'true';
+  if (trigger) trigger.disabled = true;
+  try {
+    const response = await fetch(
+      `${STAFF_API_BASE}/api/applications/${encodeURIComponent(applicationId)}/remarks`,
+      {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ remarks: newRemarks })
+      }
+    );
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to update applicant remarks.');
+    }
+
+    const savedRemarks = result.remarks || newRemarks;
+    root.dataset.previousValue = savedRemarks;
+    setValue(savedRemarks, APPLICATION_REMARKS_CONFIG[savedRemarks]);
+
+    if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
+      const application = LIVE_APPLICATIONS.find(item =>
+        String(item.application_id || item.id) === String(applicationId)
+      );
+      if (application) application.remarks = savedRemarks;
+    }
+    if (typeof APP_DB !== 'undefined' && APP_DB[applicationId]) {
+      APP_DB[applicationId].remarks = savedRemarks;
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(`Remarks updated to ${savedRemarks}.`, 'success');
+    }
+  } catch (error) {
+    console.error('Error updating applicant remarks:', error);
+    setValue(previousRemarks, previousConfig);
+    if (typeof showToast === 'function') {
+      showToast(error.message || 'Unable to update applicant remarks.', 'error');
+    } else {
+      alert(error.message || 'Unable to update applicant remarks.');
+    }
+  } finally {
+    delete root.dataset.saving;
+    if (trigger) trigger.disabled = false;
+  }
+}
+window.updateApplicationRemarks = updateApplicationRemarks;
+window.toggleApplicationRemarksSelect = toggleApplicationRemarksSelect;
+window.selectApplicationRemarkOption = selectApplicationRemarkOption;
 
 function getSelectedApplicationIds() {
   return [...document.querySelectorAll('#applications-tbody .row-check:checked')]
@@ -4480,11 +4462,29 @@ async function approveSelectedApplications() {
   renderLiveApplications(LIVE_APPLICATIONS);
 }
 
+async function completeSelectedApplications() {
+  const selectedIds = new Set(getSelectedApplicationIds().map(String));
+  const selected = LIVE_APPLICATIONS.filter(app =>
+    selectedIds.has(String(app.application_id || app.id)) &&
+    normalizeApplicationStatus(app.status) === 'ready'
+  );
+  if (!selected.length) {
+    showToast('Select at least one application marked Ready for Release.', 'info');
+    return;
+  }
+  const ids = selected.map(app => String(app.application_id || app.id));
+  const previousStatuses = Object.fromEntries(ids.map(id => [id, 'Ready for Release']));
+  if (typeof openPickupRecipientDialog === 'function') {
+    openPickupRecipientDialog(ids, previousStatuses);
+  }
+}
+
 async function runBatchAction(action) {
   document.getElementById('batch-ops-wrap')?.classList.remove('open');
   document.getElementById('batch-ops-trigger')?.setAttribute('aria-expanded', 'false');
   if (action === 'export') exportSelectedApplications();
   else if (action === 'approve') await approveSelectedApplications();
+  else if (action === 'complete') await completeSelectedApplications();
 }
 
 window.toggleBatchMenu = toggleBatchMenu;
@@ -4699,8 +4699,8 @@ function updateApplicantSummaryCards(applications) {
     'applicants-verified-count': ongoingProfiles.length,
     'applicants-unverified-count': newThisMonth,
     'applicants-issued-count': duplicateProfiles,
-    'applicants-sidebar-count': ongoingApplicationCount,
-    'applicants-total-badge': ongoingProfiles.length.toLocaleString() + ' Ongoing Profiles'
+    'applicants-sidebar-count': totalRegistered,
+    'applicants-total-badge': totalRegistered.toLocaleString() + ' Registered Profiles'
   };
   Object.entries(counts).forEach(([id, value]) => {
     const el = document.getElementById(id);
@@ -5007,7 +5007,11 @@ async function requestStaffAnalyticsInsights(applications) {
   displayStaffAnalyticsInsights(fallback);
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    // The backend may try Groq, OpenRouter, and Cloudflare sequentially.
+    // Their combined provider timeouts can exceed 20 seconds, so do not
+    // cancel the dashboard insight request before the fallback/provider
+    // chain has a reasonable chance to finish.
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     let response;
 
@@ -5543,7 +5547,7 @@ const APPLICANT_IMPORT_FIELDS = [
   { key: "house_street", label: "House / Street / Address", aliases: ["house street", "house number", "street", "street address", "address", "complete address", "residential address"] },
   { key: "barangay_district", label: "Barangay / District", aliases: ["barangay", "barangay district", "district", "baranggay", "brgy", "brgy district"] },
   { key: "contact_number", label: "Contact number", aliases: ["contact number", "contact no", "mobile number", "phone number", "telephone", "cellphone", "mobile", "phone"] },
-  { key: "membership_status", label: "Membership status (Active / Deceased)", aliases: ["membership status", "member status", "senior status"] },
+  { key: "remarks", label: "Remarks", aliases: ["remarks", "remark", "membership status", "member status", "senior status"] },
   { key: "registration_date", label: "Original registration date", aliases: ["registration date", "date registered", "date of registration", "date issued", "registered date", "date entered"] }
 ];
 
@@ -5556,7 +5560,6 @@ APPLICANT_IMPORT_FIELDS.push(
   { key: "religion", label: "Religion", aliases: ["religion", "religious affiliation"] },
   { key: "religion_specify", label: "Religion (specify)", aliases: ["religion specify", "other religion"] },
   { key: "occupation", label: "Occupation", aliases: ["occupation", "previous occupation", "work"] },
-  { key: "osca_id_number", label: "Official OSCA ID number", aliases: ["osca id", "osca id number", "osca number", "senior citizen id", "senior id", "id number", "id no", "registry number", "registry no", "control number"] },
   { key: "sss_id_number", label: "SSS ID number", aliases: ["sss id", "sss number"] },
   { key: "philhealth_id_number", label: "PhilHealth ID number", aliases: ["philhealth id", "philhealth number"] },
   { key: "gsis_id_number", label: "GSIS ID number", aliases: ["gsis id", "gsis number"] },
@@ -5687,6 +5690,7 @@ let APPLICANT_IMPORT_STATE = {
   headers: [],
   rows: [],
   mapping: {},
+  reviewEdits: {},
   imported: false,
   busy: false
 };
@@ -6049,9 +6053,19 @@ function getApplicantImportMappedRow(row) {
     if (["m", "male"].includes(sex)) mapped.sex = "Male";
     else if (["f", "female"].includes(sex)) mapped.sex = "Female";
   }
-  if (mapped.membership_status) {
-    const status = normalizeApplicantImportHeader(mapped.membership_status);
-    mapped.membership_status = status.includes("deceased") || status.includes("dead") ? "Deceased" : "Active";
+  if (mapped.remarks) {
+    const value = normalizeApplicantImportHeader(mapped.remarks);
+    const legacyRemarkMap = {
+      active: "Registered",
+      registered: "Registered",
+      deceased: "Deceased",
+      dead: "Deceased",
+      bedridden: "Bedridden",
+      unlocated: "Unlocated",
+      transferred: "Transferred",
+      "non registered": "Non-registered"
+    };
+    mapped.remarks = legacyRemarkMap[value] || String(mapped.remarks).trim();
   }
   return mapped;
 }
@@ -6071,20 +6085,60 @@ function isApplicantImportRepeatedHeader(row) {
     ["surname", "last name", "lastname", "family name"].includes(last);
 }
 
+function renderApplicantImportReviewRows(rows) {
+  const panel = document.getElementById("applicant-import-review");
+  const body = document.getElementById("applicant-import-review-body");
+  if (!panel || !body) return;
+  panel.hidden = rows.length === 0;
+  if (!rows.length) { body.innerHTML = ""; return; }
+  body.innerHTML = rows.map(row => {
+    const missing = [];
+    if (!row.first_name) missing.push("First name");
+    if (!row.surname) missing.push("Surname");
+    if (!row.date_of_birth || row._invalidDateOfBirth) missing.push("Date of birth");
+    const sourceIndex = row._sourceRow - 1;
+    return "<tr><td>" + row._sourceRow + "</td>" +
+      "<td>" + escapeApplicantImportHtml(row.barangay_district || "Not provided") + "</td>" +
+      "<td><input type='text' data-review-row='" + sourceIndex + "' data-review-field='first_name' value='" + escapeApplicantImportHtml(row.first_name || "") + "' placeholder='First name'></td>" +
+      "<td><input type='text' data-review-row='" + sourceIndex + "' data-review-field='surname' value='" + escapeApplicantImportHtml(row.surname || "") + "' placeholder='Surname'></td>" +
+      "<td><input type='date' data-review-row='" + sourceIndex + "' data-review-field='date_of_birth' value='" + escapeApplicantImportHtml(row.date_of_birth && !row._invalidDateOfBirth ? row.date_of_birth : "") + "'></td>" +
+      "<td>" + escapeApplicantImportHtml(missing.join(", ")) + "</td></tr>";
+  }).join("");
+  body.querySelectorAll("input[data-review-row]").forEach(input => {
+    input.addEventListener("change", () => {
+      const index = input.dataset.reviewRow;
+      const field = input.dataset.reviewField;
+      if (!APPLICANT_IMPORT_STATE.reviewEdits[index]) APPLICANT_IMPORT_STATE.reviewEdits[index] = {};
+      APPLICANT_IMPORT_STATE.reviewEdits[index][field] = input.value.trim();
+      if (field === "date_of_birth") {
+        APPLICANT_IMPORT_STATE.reviewEdits[index]._invalidDateOfBirth = !input.value;
+      }
+      renderApplicantImportPreview();
+    });
+  });
+}
+
 function renderApplicantImportPreview() {
   const preview = document.getElementById("applicant-import-preview");
   const summary = document.getElementById("applicant-import-summary");
   const submit = document.getElementById("applicant-import-submit");
   if (!preview) return;
 
-  const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
-  const validRows = mappedRows.filter(row =>
-    row.first_name && row.surname && row.date_of_birth &&
-    !row._invalidDateOfBirth &&
-    !row._invalidRegistrationDate &&
-    !isApplicantImportRepeatedHeader(row)
+  const mappedRows = APPLICANT_IMPORT_STATE.rows.map((row, index) => {
+    const mapped = getApplicantImportMappedRow(row);
+    const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
+    return { ...mapped, ...edits, _sourceRow: index + 1 };
+  });
+  const repeatedHeaderRows = mappedRows.filter(isApplicantImportRepeatedHeader).length;
+  const reviewRows = mappedRows.filter(row =>
+    !isApplicantImportRepeatedHeader(row) &&
+    (!row.first_name || !row.surname || !row.date_of_birth || row._invalidDateOfBirth)
   );
-  const invalid = mappedRows.length - validRows.length;
+  const validRows = mappedRows.filter(row =>
+    !isApplicantImportRepeatedHeader(row) &&
+    row.first_name && row.surname && row.date_of_birth &&
+    !row._invalidDateOfBirth
+  );
   const selectedFields = [];
   APPLICANT_IMPORT_FIELDS.forEach(field => {
     if (field.key && Object.values(APPLICANT_IMPORT_STATE.mapping).includes(field.key)) selectedFields.push(field);
@@ -6118,13 +6172,18 @@ function renderApplicantImportPreview() {
     ).join("") + "</tbody>";
 
   if (summary) {
-    summary.innerHTML =
+    const legacyNotice = summary.dataset.legacyWorkbook === "true"
+      ? '<div class="applicant-import-legacy-note"><strong>OSCA legacy workbook detected.</strong> Core profile fields will be imported. SC ID No., Date Issued, pension check columns, NCSC-RRN, and the exact Date Death value are not stored as separate RMS fields. A populated Date Death will set the imported remark to Deceased when no remark is already present. The source workbook remains unchanged.</div>'
+      : "";
+    summary.innerHTML = legacyNotice +
       '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " rows ready</span>" +
-      '<span class="applicant-import-summary-muted">' + invalid.toLocaleString() + " incomplete/repeated header rows excluded</span>" +
+      '<span class="applicant-import-summary-muted">' + reviewRows.length.toLocaleString() + " incomplete row(s) need review" +
+      (repeatedHeaderRows ? "; " + repeatedHeaderRows.toLocaleString() + " repeated header row(s) excluded" : "") + "</span>" +
       (possibleDuplicates
         ? '<span class="applicant-import-summary-duplicate">' + possibleDuplicates.toLocaleString() + " possible duplicate(s) will be checked again before saving</span>"
         : "");
   }
+  renderApplicantImportReviewRows(reviewRows);
   if (submit) submit.disabled = APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping() || validRows.length === 0;
 }
 
@@ -6178,7 +6237,7 @@ function setApplicantImportError(message) {
 }
 
 function resetApplicantImportModal() {
-  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, imported: false, busy: false };
+  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, reviewEdits: {}, imported: false, busy: false };
   const input = document.getElementById("applicant-import-file");
   if (input) input.value = "";
   const documentZip = document.getElementById("applicant-document-zip");
@@ -6188,13 +6247,13 @@ function resetApplicantImportModal() {
     if (element) element.hidden = true;
   });
   const summary = document.getElementById("applicant-import-summary");
-  if (summary) summary.textContent = "";
+  if (summary) { summary.textContent = ""; delete summary.dataset.legacyWorkbook; }
   const bar = document.getElementById("applicant-import-progress-bar");
   if (bar) bar.style.width = "0%";
   const dateFormat = document.getElementById("applicant-import-date-format");
   if (dateFormat) dateFormat.value = "auto";
   const submit = document.getElementById("applicant-import-submit");
-  if (submit) { submit.disabled = true; submit.textContent = "Import records"; }
+  if (submit) { submit.hidden = false; submit.disabled = true; submit.textContent = "Import records"; }
   setApplicantImportError("");
 }
 
@@ -6213,6 +6272,76 @@ function closeApplicantImportModal() {
   document.body.classList.remove("modal-open");
 }
 
+async function loadApplicantXlsxLibrary() {
+  if (window.XLSX) return window.XLSX;
+  if (window.__applicantXlsxPromise) return window.__applicantXlsxPromise;
+  window.__applicantXlsxPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.async = true;
+    script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error("The Excel workbook reader did not initialize."));
+    script.onerror = () => reject(new Error("Unable to load the Excel workbook reader. Check your internet connection and try again."));
+    document.head.appendChild(script);
+  });
+  return window.__applicantXlsxPromise;
+}
+function parseApplicantLegacyWorkbookMatrix(matrix, sheetName) {
+  const text = value => String(value ?? "").trim();
+  const metadataRow = matrix[2] || [];
+  const barangayText = metadataRow.map(text).find(value => /barangay\s*:/i.test(value)) || "";
+  const barangay = (barangayText.match(/barangay\s*:\s*(.+)/i) || [])[1]?.trim() || text(sheetName);
+  const rows = [];
+  const monthNumber = value => {
+    const raw = text(value);
+    if (!raw) return "";
+    if (/^\d{1,2}$/.test(raw)) {
+      const number = Number(raw);
+      return number >= 1 && number <= 12 ? String(number).padStart(2, "0") : "";
+    }
+    const parsed = new Date(raw + " 1, 2000");
+    return Number.isNaN(parsed.getTime()) ? "" : String(parsed.getMonth() + 1).padStart(2, "0");
+  };
+  const checked = value => ["1", "true", "yes", "y", "x", "✓", "✔", "m", "f"].includes(text(value).toLowerCase());
+  const headers = ["Last Name", "First Name", "Middle Name", "Civil Status", "Sex", "Date of Birth", "Age", "Barangay", "Contact Number", "Remarks"];
+  for (let rowIndex = 6; rowIndex < matrix.length; rowIndex += 1) {
+    const row = matrix[rowIndex] || [];
+    const lastName = text(row[1]), firstName = text(row[2]), middleName = text(row[3]);
+    if (!lastName && !firstName && !middleName) continue;
+    if (/last\s*name/i.test(lastName) || /first\s*name/i.test(firstName)) continue;
+    const maleMark = checked(row[5]), femaleMark = checked(row[6]);
+    let sex = "";
+    if (maleMark !== femaleMark) sex = maleMark ? "Male" : "Female";
+    else {
+      const directSex = text(row[5] || row[6]).toLowerCase();
+      if (["male", "m"].includes(directSex)) sex = "Male";
+      if (["female", "f"].includes(directSex)) sex = "Female";
+    }
+    let dateOfBirth = text(row[7]);
+    const month = monthNumber(row[8]), day = text(row[9]).replace(/\D/g, ""), year = text(row[10]).replace(/\D/g, "");
+    if (month && day && year && Number(day) >= 1 && Number(day) <= 31 && Number(year) >= 1900) {
+      dateOfBirth = year.padStart(4, "0") + "-" + month + "-" + day.padStart(2, "0");
+    }
+    const legacyRemark = text(row[20]) || (text(row[22]) ? "Deceased" : "");
+    rows.push([lastName, firstName, middleName, text(row[4]), sex, dateOfBirth, text(row[11]), barangay, text(row[19]), legacyRemark]);
+  }
+  return { headers, rows, barangay, sheetName };
+}
+async function parseApplicantLegacyWorkbook(file) {
+  const XLSX = await loadApplicantXlsxLibrary();
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+  const combined = [], sheets = [];
+  workbook.SheetNames.forEach(sheetName => {
+    const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: false, defval: "", blankrows: false });
+    const parsed = parseApplicantLegacyWorkbookMatrix(matrix, sheetName);
+    if (parsed.rows.length) {
+      combined.push(...parsed.rows);
+      sheets.push({ name: sheetName, barangay: parsed.barangay, rows: parsed.rows.length });
+    }
+  });
+  if (!combined.length) throw new Error("No applicant records were found. Expected headers in rows 4–6 and applicant records beginning on row 7.");
+  return { headers: ["Last Name", "First Name", "Middle Name", "Civil Status", "Sex", "Date of Birth", "Age", "Barangay", "Contact Number", "Remarks"], rows: combined, legacyWorkbook: true, sheets };
+}
+
 async function handleApplicantImportFile(file) {
   resetApplicantImportModal();
   if (!file) return;
@@ -6229,12 +6358,16 @@ async function handleApplicantImportFile(file) {
     }
     let parsed;
     const fileName = file.name.toLowerCase();
-    if (fileName.endsWith(".csv") || file.type === "text/csv") {
+    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls") ||
+        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        file.type === "application/vnd.ms-excel") {
+      parsed = await parseApplicantLegacyWorkbook(file);
+    } else if (fileName.endsWith(".csv") || file.type === "text/csv") {
       parsed = parseApplicantCsv(await file.text());
     } else if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
       parsed = await parseApplicantPdf(file);
     } else {
-      throw new Error("Please select a CSV or PDF file.");
+      throw new Error("Please select an OSCA Excel workbook (.xlsx/.xls), CSV, or PDF file.");
     }
     if (!parsed.headers.length || !parsed.rows.length) throw new Error("No table rows were found in the selected file.");
     if (parsed.headers.length > 40) throw new Error("The file contains more than 40 columns. Please simplify the source file before importing.");
@@ -6249,7 +6382,16 @@ async function handleApplicantImportFile(file) {
       APPLICANT_IMPORT_STATE.mapping[index] = guessed && !guessedFields.has(guessed) ? guessed : "";
       if (APPLICANT_IMPORT_STATE.mapping[index]) guessedFields.add(guessed);
     });
-    if (meta) meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " rows · " + parsed.headers.length + " columns";
+    if (meta) {
+      const sheetSummary = parsed.legacyWorkbook
+        ? " · " + parsed.sheets.length + " barangay sheet(s): " + parsed.sheets.map(sheet => sheet.name + " (" + sheet.rows + ")").join(", ")
+        : "";
+      meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " applicant rows · " + parsed.headers.length + " fields" + sheetSummary;
+    }
+    if (parsed.legacyWorkbook) {
+      const summary = document.getElementById("applicant-import-summary");
+      if (summary) summary.dataset.legacyWorkbook = "true";
+    }
     const section = document.getElementById("applicant-import-mapping");
     if (section) section.hidden = false;
     renderApplicantImportMapping();
@@ -6341,18 +6483,22 @@ async function submitApplicantImport() {
     }
     return (hash >>> 0).toString(36).toUpperCase();
   };
-  const mappedRows = APPLICANT_IMPORT_STATE.rows
-    .map((row, index) => {
-      const mapped = getApplicantImportMappedRow(row);
-      mapped._sourceRow = index + 1;
-      return mapped;
-    })
-    .filter(row =>
-      row.first_name && row.surname && row.date_of_birth &&
-      !row._invalidDateOfBirth &&
-      !row._invalidRegistrationDate &&
-      !isApplicantImportRepeatedHeader(row)
-    );
+  const allMappedRows = APPLICANT_IMPORT_STATE.rows.map((row, index) => {
+    const mapped = getApplicantImportMappedRow(row);
+    const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
+    Object.assign(mapped, edits);
+    mapped._sourceRow = index + 1;
+    return mapped;
+  });
+  const incompleteReviewCount = allMappedRows.filter(row =>
+    !isApplicantImportRepeatedHeader(row) &&
+    (!row.first_name || !row.surname || !row.date_of_birth || row._invalidDateOfBirth)
+  ).length;
+  const mappedRows = allMappedRows.filter(row =>
+    row.first_name && row.surname && row.date_of_birth &&
+    !row._invalidDateOfBirth &&
+    !isApplicantImportRepeatedHeader(row)
+  );
   if (!mappedRows.length) {
     setApplicantImportError("No valid rows remain. Map First name, Surname, and a valid Date of birth, then review the preview.");
     return;
@@ -6409,9 +6555,10 @@ async function submitApplicantImport() {
         "<span><b>" + totals.imported.toLocaleString() + "</b> Imported</span>" +
         "<span><b>" + totals.skippedDuplicates.toLocaleString() + "</b> Duplicates skipped</span>" +
         "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
-        "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") + "</p>" +
+        "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") +
+        (incompleteReviewCount ? " " + incompleteReviewCount.toLocaleString() + " incomplete row(s) remain in Legacy Import Review and were not imported. Complete their required fields and run the import again." : "") + "</p>" +
         (totals.importedApplicants.length ? "<details class='applicant-import-reference-list'><summary>View generated applicant references (" + totals.importedApplicants.length + ")</summary><ul>" +
-          totals.importedApplicants.map(item => "<li>Source row " + Number(item.sourceRow || 0) + ": <strong>" + escapeApplicantImportHtml(item.osca_id_number || item.legacy_reference || item.application_id) + "</strong></li>").join("") +
+          totals.importedApplicants.map(item => "<li>Source row " + Number(item.sourceRow || 0) + ": <strong>" + escapeApplicantImportHtml(item.legacy_reference || item.application_id) + "</strong></li>").join("") +
           "</ul></details>" : "") +
         (totals.errors.length ? "<details><summary>View row issues (" + totals.errors.length + ")</summary><ul>" +
           totals.errors.map(error => "<li>Source row " + (error.row + 1) + ": " + escapeApplicantImportHtml(error.reason) + "</li>").join("") +
@@ -6421,7 +6568,13 @@ async function submitApplicantImport() {
     APPLICANT_IMPORT_STATE.imported = true;
     const documentImportPanel = document.getElementById("applicant-document-import");
     if (documentImportPanel && totals.imported > 0) documentImportPanel.hidden = false;
-    if (submit) { submit.textContent = totals.imported === 0 && (totals.failed + totals.skippedInvalid) > 0 ? "Import failed" : (totals.failed + totals.skippedInvalid) > 0 ? "Import partially complete" : "Import complete"; submit.disabled = true; }
+    // The result panel is the completion notification; do not turn the
+    // action button into a status label after the import has finished.
+    if (submit) {
+      submit.hidden = true;
+      submit.disabled = true;
+      submit.textContent = "Import records";
+    }
     if (typeof loadApplicationsFromDatabase === "function") {
       try {
         await loadApplicationsFromDatabase();

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const { authenticateToken, requireRoles } = require("../middleware/authMiddleware");
+const { validateResidency } = require("../controllers/residencyValidationController");
 
 const {
   getApplications,
@@ -11,6 +12,7 @@ const {
   getIssuanceDetails,
   saveApplicationValidation,
   updateApplicationStatus,
+  updateApplicationRemarks,
   updateMembershipStatus,
   updateDocumentAuthentication,
   approveAllDocumentAuthentications,
@@ -34,6 +36,7 @@ router.get("/:applicationId", authenticateToken, requireRoles("admin", "staff"),
 router.post("/:applicationId/issuance-document", authenticateToken, requireRoles("admin", "staff", "idmaker"), downloadIssuanceDocument);
 
 router.put("/:applicationId/status", authenticateToken, requireRoles("admin", "staff", "idmaker"), updateApplicationStatus);
+router.put("/:applicationId/remarks", authenticateToken, requireRoles("admin", "staff"), updateApplicationRemarks);
 
 router.put("/:applicationId/membership-status", authenticateToken, requireRoles("admin", "staff"), updateMembershipStatus);
 
@@ -42,6 +45,7 @@ router.put(
 
 router.put("/:applicationId/documents/approve-all", authenticateToken, requireRoles("admin", "staff"), approveAllDocumentAuthentications);
 
+router.post("/:applicationId/residency-validation", authenticateToken, requireRoles("admin", "staff"), validateResidency);
 router.put("/:applicationId/validation", authenticateToken, requireRoles("admin", "staff"), saveApplicationValidation);
 
 module.exports = router;

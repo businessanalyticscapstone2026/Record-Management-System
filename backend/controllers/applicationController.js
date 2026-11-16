@@ -371,6 +371,48 @@ const downloadIssuanceDocument = async (req, res) => {
       ],
     });
 
+    // APPLICANT PHOTO BOX
+    // Use a bordered table cell so the photo frame remains visible in Word.
+    const photoTable = new Table({
+      width: {
+        size: 1600,
+        type: WidthType.DXA,
+      },
+      columnWidths: [1600],
+      alignment: AlignmentType.CENTER,
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        bottom: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        left: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        right: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 1600, type: WidthType.DXA },
+              margins: { top: 0, bottom: 0, left: 0, right: 0 },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+                bottom: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+                left: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+                right: { style: BorderStyle.SINGLE, size: 8, color: "222222" },
+              },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: photoChildren,
+                  spacing: { before: 0, after: 0 },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
     // SIGNATURE TABLE
 
     const signatureTable =
@@ -640,20 +682,13 @@ const downloadIssuanceDocument = async (req, res) => {
                   }),
 
 
-                  // APPLICANT PHOTO
+                  // APPLICANT PHOTO WITH VISIBLE FRAME
+
+                  photoTable,
 
                   new Paragraph({
-
-                    alignment:
-                      AlignmentType.CENTER,
-
-                    children:
-                      photoChildren,
-
-                    spacing: {
-                      after: 180,
-                    },
-
+                    children: [new TextRun({ text: " " })],
+                    spacing: { after: 100 },
                   }),
 
 
@@ -776,15 +811,15 @@ const downloadIssuanceDocument = async (req, res) => {
     const buffer =
       await Packer.toBuffer(doc);
 
-    const safeId =
-      String(applicationId)
-        .replace(
-          /[^a-zA-Z0-9-_]/g,
-          "_"
-        );
+    const safeApplicantName = String(finalName || "Applicant")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[. ]+$/g, "") || "Applicant";
 
-    const filename =
-      `Digital_Issuance_${safeId}.docx`;
+    const filename = `${safeApplicantName}.docx`;
 
     res.setHeader(
       "Content-Type",
@@ -1048,7 +1083,6 @@ const getApplications = async (req, res) => {
     const statusHistory =
       statusResults.flat();
 
-
     // ============================================================
     // 5B. LOAD DOCUMENT AUTHENTICATIONS IN PARALLEL
     // This lets the ID Issuance selector verify that every required
@@ -1089,6 +1123,22 @@ const getApplications = async (req, res) => {
     const latestStatusByApplication =
       new Map();
 
+    // Keep the latest non-empty pickup details independently of the latest
+    // status row, which may have NULL recipient fields.
+    const pickupRecipientByApplication = new Map();
+    for (const history of statusHistory) {
+      if (
+        history &&
+        history.application_id &&
+        history.pickup_recipient_type &&
+        !pickupRecipientByApplication.has(history.application_id)
+      ) {
+        pickupRecipientByApplication.set(history.application_id, {
+          pickup_recipient_type: history.pickup_recipient_type,
+          pickup_recipient_name: history.pickup_recipient_name || null,
+        });
+      }
+    }
 
     for (
       const history of statusHistory
@@ -1227,6 +1277,13 @@ const getApplications = async (req, res) => {
               status_updated_at:
                 statusUpdatedAt,
 
+              pickup_recipient_type:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type ||
+                latestStatus?.pickup_recipient_type || null,
+              pickup_recipient_name:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name ||
+                latestStatus?.pickup_recipient_name || null,
+
               documentAuthentications:
                 applicationDocumentAuthentications,
 
@@ -1260,6 +1317,13 @@ const getApplications = async (req, res) => {
 
             status_updated_at:
               statusUpdatedAt,
+
+            pickup_recipient_type:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_type ||
+                latestStatus?.pickup_recipient_type || null,
+              pickup_recipient_name:
+                pickupRecipientByApplication.get(applicationId)?.pickup_recipient_name ||
+                latestStatus?.pickup_recipient_name || null,
 
             documentAuthentications:
               applicationDocumentAuthentications,
@@ -1438,6 +1502,19 @@ const getApplicationById = async (req, res) => {
       });
     }
 
+    const { data: applicantEditLogs, error: applicantEditLogsError } = await supabase
+      .from("audit_logs")
+      .select("id, action, details, created_at, username")
+      .eq("entity_type", "APPLICATION")
+      .eq("entity_id", String(applicationId))
+      .eq("action", "APPLICANT_APPLICATION_UPDATED")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (applicantEditLogsError) {
+      console.warn("Unable to load applicant edit notifications:", applicantEditLogsError);
+    }
+
     // APPLICATION FILES
     const applicationFiles = applicationFilesResult.data || null;
 
@@ -1502,6 +1579,8 @@ const getApplicationById = async (req, res) => {
 
       documentAuthentications: documentAuthenticationsResult.data || [],
 
+      applicantEditLogs: applicantEditLogs || [],
+
       statusHistory: statusHistoryResult.data || [],
     });
   } catch (error) {
@@ -1560,6 +1639,50 @@ const getIssuanceDetails = async (req, res) => {
 };
 
 // SAVE APPLICATION VALIDATION
+// Promote a Pending application to Under Review after staff begins validation.
+const promotePendingApplicationToUnderReview = async (applicationId, now = new Date().toISOString()) => {
+  const { data: latestRecord, error: latestError } = await supabase
+    .from("application_status_history")
+    .select("status")
+    .eq("application_id", applicationId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestError) throw latestError;
+  const currentStatus = latestRecord?.status || "Pending";
+  if (currentStatus !== "Pending") return currentStatus;
+
+  if (latestRecord) {
+    const { data: updatedRows, error: updateError } = await supabase
+      .from("application_status_history")
+      .update({ status: "Under Review", updated_at: now })
+      .eq("application_id", applicationId)
+      .eq("status", "Pending")
+      .select("status");
+    if (updateError) throw updateError;
+    if (updatedRows?.length) return "Under Review";
+
+    const { data: latestAfterUpdate, error: latestAfterError } = await supabase
+      .from("application_status_history")
+      .select("status")
+      .eq("application_id", applicationId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestAfterError) throw latestAfterError;
+    return latestAfterUpdate?.status || currentStatus;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("application_status_history")
+    .insert({ application_id: applicationId, status: "Under Review", updated_at: now })
+    .select("status")
+    .single();
+  if (insertError) throw insertError;
+  return inserted.status;
+};
+
 const saveApplicationValidation = async (req, res) => {
   try {
     const applicationId = req.params.applicationId;
@@ -1597,6 +1720,11 @@ const saveApplicationValidation = async (req, res) => {
       throw error;
     }
 
+    const applicationStatus = await promotePendingApplicationToUnderReview(
+      applicationId,
+      data.validation_updated_at || new Date().toISOString()
+    );
+
     await createAuditLogFromRequest(req, {
       action: "APPLICATION_VALIDATION_UPDATED",
       entityType: "APPLICATION",
@@ -1608,8 +1736,8 @@ const saveApplicationValidation = async (req, res) => {
       success: true,
 
       message: "Validation result saved successfully.",
-
       application: data,
+      application_status: applicationStatus,
     });
   } catch (error) {
     console.error("Error saving validation:", error);
@@ -1713,6 +1841,8 @@ const approveAllDocumentAuthentications = async (req, res) => {
       throw new Error("Not all six document approvals were returned by the database.");
     }
 
+    const applicationStatus = await promotePendingApplicationToUnderReview(applicationId, now);
+
     await createAuditLogFromRequest(req, {
       action: "DOCUMENTS_BULK_APPROVED",
       entityType: "APPLICATION",
@@ -1724,6 +1854,7 @@ const approveAllDocumentAuthentications = async (req, res) => {
       success: true,
       message: "All six required documents were approved successfully.",
       documentAuthentications: savedRecords,
+      application_status: applicationStatus,
     });
   } catch (error) {
     console.error("Error bulk approving documents:", error);
@@ -1882,6 +2013,28 @@ const updateDocumentAuthentication = async (req, res) => {
     let applicationStatus;
     let applicationStatusError;
     let replacementRequestStatus;
+
+    // Any re-upload request must return the application to Pending so the
+    // applicant can reopen the form and replace the requested document(s).
+    if (status === "reupload") {
+      const { data: latestStatusRecord, error: latestStatusError } = await supabase
+        .from("application_status_history")
+        .select("status")
+        .eq("application_id", applicationId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestStatusError) throw latestStatusError;
+      if ((latestStatusRecord?.status || "Pending") !== "Pending") {
+        const { error: pendingStatusError } = await supabase
+          .from("application_status_history")
+          .insert({ application_id: applicationId, status: "Pending", updated_at: now });
+        if (pendingStatusError) throw pendingStatusError;
+      }
+      applicationStatus = "Pending";
+    }
+
     if (status === "approved") {
       try {
         // Replacement requests keep their list/dashboard status in id_requests,
@@ -2009,7 +2162,11 @@ const updateDocumentAuthentication = async (req, res) => {
 const updateApplicationStatus = async (req, res) => {
   try {
     const applicationId = req.params.applicationId;
-    const { status } = req.body;
+    const {
+      status,
+      pickup_recipient_type,
+      pickup_recipient_name,
+    } = req.body || {};
 
     const allowedStatuses = [
       "Pending",
@@ -2047,7 +2204,7 @@ const updateApplicationStatus = async (req, res) => {
       error: applicationError,
     } = await supabase
       .from("applications")
-      .select("application_id, contact_number, validation_status")
+      .select("application_id, contact_number, validation_status, remarks")
       .eq("application_id", applicationId)
       .maybeSingle();
 
@@ -2060,6 +2217,24 @@ const updateApplicationStatus = async (req, res) => {
         success: false,
         message: "Application not found.",
       });
+    }
+
+    const pickupRecipientType = String(pickup_recipient_type || "").trim().toLowerCase();
+    const pickupRecipientName = String(pickup_recipient_name || "").trim();
+    if (status === "Completed") {
+      const allowedPickupRecipients = ["applicant", "barangay_president", "authorized_personnel"];
+      if (!allowedPickupRecipients.includes(pickupRecipientType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Select who collected the Senior Citizen ID.",
+        });
+      }
+      if (pickupRecipientType === "authorized_personnel" && !pickupRecipientName) {
+        return res.status(400).json({
+          success: false,
+          message: "Enter the name of the authorized personnel.",
+        });
+      }
     }
 
     const now = new Date().toISOString();
@@ -2076,6 +2251,12 @@ const updateApplicationStatus = async (req, res) => {
 
     if (previousStatusError) throw previousStatusError;
     const currentStatus = previousStatusRecord?.status || "Pending";
+    if (status === "Completed" && !["Ready for Release", "Completed"].includes(currentStatus)) {
+      return res.status(409).json({
+        success: false,
+        message: "An application can only be marked Completed after its status is Ready for Release.",
+      });
+    }
     const shouldNotifyReady =
       status === "Ready for Release" &&
       currentStatus !== "Ready for Release";
@@ -2185,9 +2366,14 @@ const updateApplicationStatus = async (req, res) => {
       idMakerSync.message = "Issuance form data was queued for ID Maker.";
     }
 
+    // Completion is governed by the application's status history above:
+    // only applications already marked Ready for Release may be completed.
+    // The pickup recipient is saved in application_status_history below.
+    // Do not require an id_maker_queue row here; legacy or manually issued
+    // IDs may not have a corresponding queue record.
+
     // Write the new status only after any required ID Maker queue entry
-    // has been created successfully. If history persistence fails, remove
-    // the queue row created by this request so the two systems do not diverge.
+    // and applicant remark have been saved successfully.
     let statusRecord;
     try {
       const {
@@ -2201,28 +2387,40 @@ const updateApplicationStatus = async (req, res) => {
       if (findStatusError) throw findStatusError;
 
       if (existingRecords && existingRecords.length > 0) {
+        const statusUpdate = { status, updated_at: now };
+        if (status === "Completed") {
+          statusUpdate.pickup_recipient_type = pickupRecipientType;
+          statusUpdate.pickup_recipient_name =
+            pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null;
+        }
         const {
           data: updatedRecords,
           error: updateStatusError,
         } = await supabase
           .from("application_status_history")
-          .update({ status, updated_at: now })
+          .update(statusUpdate)
           .eq("application_id", applicationId)
           .select();
 
         if (updateStatusError) throw updateStatusError;
         statusRecord = updatedRecords?.[0] || null;
       } else {
+        const newStatusPayload = {
+          application_id: applicationId,
+          status,
+          updated_at: now,
+          pickup_recipient_type: status === "Completed" ? pickupRecipientType : null,
+          pickup_recipient_name:
+            status === "Completed" && pickupRecipientType === "authorized_personnel"
+              ? pickupRecipientName
+              : null,
+        };
         const {
           data: newStatusRecord,
           error: insertStatusError,
         } = await supabase
           .from("application_status_history")
-          .insert({
-            application_id: applicationId,
-            status,
-            updated_at: now,
-          })
+          .insert(newStatusPayload)
           .select()
           .single();
 
@@ -2242,32 +2440,19 @@ const updateApplicationStatus = async (req, res) => {
       throw statusWriteError;
     }
 
-    // Automatically activate membership when staff marks an application
-    // Completed. Membership can still later be changed to Deceased through
-    // the dedicated membership-status endpoint.
-    let membershipSync = { attempted: false, updated: false };
-    if (status === "Completed") {
-      membershipSync.attempted = true;
-      try {
-        const { data: updatedApplication, error: membershipUpdateError } = await supabase
-          .from("applications")
-          .update({ membership_status: "Active" })
-          .eq("application_id", applicationId)
-          .select("application_id, membership_status")
-          .maybeSingle();
-
-        if (membershipUpdateError) throw membershipUpdateError;
-        if (!updatedApplication) {
-          throw new Error("Application was not found while setting its membership status.");
+    // Pickup recipient details are saved with the Completed status in
+    // application_status_history, never in id_maker_queue.
+    const pickupRecipientSync = status === "Completed"
+      ? {
+          attempted: true,
+          updated: Boolean(statusRecord),
+          recipient: {
+            pickup_recipient_type: statusRecord?.pickup_recipient_type || pickupRecipientType,
+            pickup_recipient_name: statusRecord?.pickup_recipient_name ||
+              (pickupRecipientType === "authorized_personnel" ? pickupRecipientName : null),
+          },
         }
-
-        membershipSync.updated = true;
-        membershipSync.membership_status = updatedApplication.membership_status;
-      } catch (membershipError) {
-        membershipSync.error = membershipError.message;
-        console.error("[Membership] Failed to set membership Active for completed application:", membershipError);
-      }
-    }
+      : { attempted: false, updated: false };
 
     // Synchronize the existing ID Maker queue row whenever staff status is
     // Ready for Release. Keep this independent from SMS notification logic.
@@ -2358,7 +2543,9 @@ const updateApplicationStatus = async (req, res) => {
       action: "APPLICATION_STATUS_UPDATED",
       entityType: "APPLICATION",
       entityId: applicationId,
-      details: `Application status changed to "${status}".`,
+      details: status === "Completed"
+        ? `Application status changed to "Completed". ID picked up by ${pickupRecipientType === "authorized_personnel" ? pickupRecipientName + " (authorized personnel)" : pickupRecipientType === "barangay_president" ? "the senior barangay president" : "the applicant"}.`
+        : `Application status changed to "${status}".`,
     });
 
     return res.status(200).json({
@@ -2367,7 +2554,7 @@ const updateApplicationStatus = async (req, res) => {
       status: status,
       statusHistory: statusRecord,
       idMakerSync,
-      membershipSync,
+      pickupRecipientSync,
       smsNotification
     });
 
@@ -2386,6 +2573,61 @@ const updateApplicationStatus = async (req, res) => {
   }
 };
 
+
+const updateApplicationRemarks = async (req, res) => {
+  try {
+    const applicationId = String(req.params.applicationId || "").trim();
+    const remarks = String(req.body?.remarks || "").trim();
+    const allowedRemarks = [
+      "Bedridden",
+      "Deceased",
+      "Unlocated",
+      "Transferred",
+      "Registered",
+      "Non-registered",
+    ];
+
+    if (!applicationId) {
+      return res.status(400).json({ success: false, message: "Application ID is required." });
+    }
+    if (!allowedRemarks.includes(remarks)) {
+      return res.status(400).json({ success: false, message: "Select a valid applicant remark." });
+    }
+
+    const { data: updatedApplication, error } = await supabase
+      .from("applications")
+      .update({ remarks })
+      .eq("application_id", applicationId)
+      .select("application_id, remarks")
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!updatedApplication) {
+      return res.status(404).json({ success: false, message: "Application not found." });
+    }
+
+    await createAuditLogFromRequest(req, {
+      action: "APPLICATION_REMARKS_UPDATED",
+      entityType: "APPLICATION",
+      entityId: applicationId,
+      details: `Applicant remark changed to "${updatedApplication.remarks}".`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Applicant remark updated successfully.",
+      applicationId: updatedApplication.application_id,
+      remarks: updatedApplication.remarks,
+    });
+  } catch (error) {
+    console.error("Error updating applicant remarks:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update applicant remarks.",
+      error: error.message,
+    });
+  }
+};
 
 const updateMembershipStatus = async (req, res) => {
   try {
@@ -2540,7 +2782,7 @@ const importApplicantRecords = async (req, res) => {
     if (rows.length > 100) return res.status(413).json({ success: false, message: "Import batches are limited to 100 records. Please send smaller batches." });
 
     const existingRows = await fetchAllRows("applications",
-      "application_id, osca_id_number, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
+      "application_id, legacy_reference, first_name, middle_name, surname, date_of_birth, barangay_district", "created_at");
     const existingIds = new Set((existingRows || []).map(row => String(row.application_id || "").trim().toLowerCase()).filter(Boolean));
     const currentYear = new Date().getFullYear();
     const legacyReferencePattern = new RegExp("^LEGACY-" + currentYear + "-(\\d+)$", "i");
@@ -2557,7 +2799,6 @@ const importApplicantRecords = async (req, res) => {
     }).filter(Boolean));
 
     const importedIdentityKeys = new Set();
-    const importedOfficialIds = new Set();
     const result = { success: true, received: rows.length, imported: 0, skippedDuplicates: 0,
       skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [], warnings: [] };
 
@@ -2576,28 +2817,70 @@ const importApplicantRecords = async (req, res) => {
       }
       const identityKey = [normalizeText(firstName), normalizeText(surname), dateOfBirth, normalizeText(barangay)].join("|");
       const providedId = String(source.application_id || "").trim();
-      const suppliedOsCaId = String(source.osca_id_number || "").trim();
       if ((providedId && existingIds.has(providedId.toLowerCase())) ||
-          (suppliedOsCaId && (existingRows || []).some(row =>
-            String(row.osca_id_number || "").trim().toLowerCase() === suppliedOsCaId.toLowerCase())) ||
           identityKeys.has(identityKey) || importedIdentityKeys.has(identityKey)) {
         result.skippedDuplicates += 1;
         continue;
       }
 
-      // application_id is the system's internal key. Only the dedicated
-      // osca_id_number source field represents an officially issued OSCA ID.
-      const externalOsCaId = suppliedOsCaId;
+      // application_id remains the system's unique internal identifier.
+      // Since OSCA ID Number is no longer stored, every imported record receives
+      // a separate legacy_reference for historical document-folder matching.
       const internalApplicationId = providedId.length > 0 && providedId.length <= 10 ? providedId : null;
-      let legacyReference = null;
-      if (!externalOsCaId) {
-        do {
-          legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
-        } while (existingLegacyReferences.has(legacyReference));
-        existingLegacyReferences.add(legacyReference);
-      }
+      let legacyReference;
+      do {
+        legacyReference = "LEGACY-" + currentYear + "-" + String(nextLegacySequence++).padStart(5, "0");
+      } while (existingLegacyReferences.has(legacyReference));
+      existingLegacyReferences.add(legacyReference);
       const createdAt = safeDateTime(source.registration_date);
-      const membershipStatus = String(source.membership_status || "Active").trim().toLowerCase() === "deceased" ? "Deceased" : "Active";
+      const importedRemark = String(source.remarks || "").trim();
+      const importedRemarkAliases = {
+        bedridden: "Bedridden",
+        "bed ridden": "Bedridden",
+        deceased: "Deceased",
+        dead: "Deceased",
+        unlocated: "Unlocated",
+        "not located": "Unlocated",
+        transferred: "Transferred",
+        "transferred out": "Transferred",
+        registered: "Registered",
+        active: "Registered",
+        "non registered": "Non-registered",
+        "not registered": "Non-registered"
+      };
+      // Separate recognized medical conditions from OSCA classification remarks.
+      // Preserve the source wording in problems_needs.health_problem_specify.
+      const medicalConditionAliases = new Set([
+        "diabetic", "diabetes", "diabetes mellitus",
+        "hypertension", "high blood pressure",
+        "prostate", "prostate problem", "prostate enlargement",
+        "asthma", "arthritis", "cancer", "heart disease",
+        "kidney disease", "renal disease", "stroke",
+        "parkinson disease", "parkinsons disease",
+        "alzheimer disease", "alzheimers disease",
+        "cataract", "glaucoma", "tuberculosis", "tb"
+      ]);
+      const remarkParts = importedRemark
+        ? importedRemark.split(/[,;|/\\n]+/).map(value => value.trim()).filter(Boolean)
+        : [];
+      const medicalRemarkParts = [];
+      const nonMedicalRemarkParts = [];
+      remarkParts.forEach(part => {
+        if (medicalConditionAliases.has(normalizeText(part))) medicalRemarkParts.push(part);
+        else nonMedicalRemarkParts.push(part);
+      });
+      const normalizedImportedRemark = nonMedicalRemarkParts.length
+        ? nonMedicalRemarkParts.map(part => {
+            const key = normalizeText(part);
+            return importedRemarkAliases[key] || part;
+          }).join("; ")
+        : null;
+      const existingHealthDetails = String(source._related?.problems_needs?.health_problem_specify || "").trim();
+      const legacyHealthDetails = [existingHealthDetails, ...medicalRemarkParts].filter(Boolean).join("; ");
+      const hasLegacyHealthDetails = Boolean(legacyHealthDetails);
+      const isDeceased = remarkParts.some(part => ["deceased", "dead"].includes(normalizeText(part))) ||
+        normalizeText(source.membership_status || "") === "deceased";
+      const membershipStatus = isDeceased ? "Deceased" : "Active";
       const applicationRecord = {
         ...(internalApplicationId ? { application_id: internalApplicationId } : {}),
         first_name: firstName, middle_name: middleName || null, surname,
@@ -2606,10 +2889,10 @@ const importApplicantRecords = async (req, res) => {
         house_street: source.house_street || null, barangay_district: barangay || null,
         educational_attainment: source.educational_attainment || null, religion: source.religion || null,
         religion_specify: source.religion_specify || null, occupation: source.occupation || null,
-        osca_id_number: externalOsCaId || null, legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
+        legacy_reference: legacyReference, sss_id_number: source.sss_id_number || null,
         philhealth_id_number: source.philhealth_id_number || null, gsis_id_number: source.gsis_id_number || null,
         tin_id_number: source.tin_id_number || null, contact_number: source.contact_number || null,
-        membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
+        remarks: normalizedImportedRemark, membership_status: membershipStatus, application_type: source.application_type || "New", created_at: createdAt
       };
 
       const insertedTables = [];
@@ -2642,7 +2925,9 @@ const importApplicantRecords = async (req, res) => {
         insertedTables.push("application_status_history");
 
         for (const [table, allowed] of Object.entries(relatedColumns)) {
-          const raw = source._related?.[table];
+          const raw = table === "problems_needs" && hasLegacyHealthDetails
+            ? { ...(source._related?.[table] || {}), health_problem: true, health_problem_specify: legacyHealthDetails }
+            : source._related?.[table];
           if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
           const record = { application_id: id };
           allowed.forEach(column => {
@@ -2671,13 +2956,11 @@ const importApplicantRecords = async (req, res) => {
         }
 
         existingIds.add(String(id).toLowerCase());
-        if (externalOsCaId) importedOfficialIds.add(externalOsCaId.toLowerCase());
         identityKeys.add(identityKey);
         importedIdentityKeys.add(identityKey);
         result.importedApplicants.push({
           sourceRow: index + 1,
           application_id: id,
-          osca_id_number: externalOsCaId || null,
           legacy_reference: legacyReference
         });
         result.imported += 1;
@@ -2721,7 +3004,7 @@ const importApplicantRecords = async (req, res) => {
 
 /* ============================================================
    IMPORT HISTORICAL APPLICANT DOCUMENTS FROM A ZIP ARCHIVE
-   ZIP folder names must be official OSCA IDs or LEGACY references.
+   ZIP folder names must be generated LEGACY references.
    Files are stored under the internal application_id to preserve
    the existing private Storage path and cleanup conventions.
    ============================================================ */
@@ -2802,12 +3085,12 @@ const importApplicantDocuments = async (req, res) => {
     }
 
     const { data: applicants, error: applicantError } = await supabase.from("applications")
-      .select("application_id, osca_id_number, legacy_reference");
+      .select("application_id, legacy_reference");
     if (applicantError) throw applicantError;
 
     const referenceMap = new Map();
     (applicants || []).forEach(applicant => {
-      [applicant.osca_id_number, applicant.legacy_reference].forEach(value => {
+      [applicant.legacy_reference].forEach(value => {
         const key = String(value || "").trim().toLowerCase();
         if (!key) return;
         if (!referenceMap.has(key)) referenceMap.set(key, []);
@@ -2818,7 +3101,7 @@ const importApplicantDocuments = async (req, res) => {
     for (const [folderName, files] of applicantFolders.entries()) {
       const matches = referenceMap.get(folderName.toLowerCase()) || [];
       if (matches.length !== 1) {
-        result.unmatchedFolders.push({ folder: folderName, reason: matches.length ? "Reference matches more than one applicant; no files were assigned." : "No applicant has this OSCA ID or legacy reference." });
+        result.unmatchedFolders.push({ folder: folderName, reason: matches.length ? "Reference matches more than one applicant; no files were assigned." : "No applicant has this legacy reference." });
         continue;
       }
 
@@ -2907,6 +3190,7 @@ module.exports = {
   getIssuanceDetails,
   saveApplicationValidation,
   updateApplicationStatus,
+  updateApplicationRemarks,
   updateMembershipStatus,
   updateDocumentAuthentication,
   approveAllDocumentAuthentications,

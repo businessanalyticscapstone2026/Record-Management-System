@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>(function () { try { var t = localStorage.getItem('senioridTheme'); document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light'); document.documentElement.style.colorScheme = t === 'dark' ? 'dark' : 'light'; } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); } })();</script>
@@ -26,7 +27,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=45" />
-  <link rel="stylesheet" href="staff.css?v=66" />
+  <link rel="stylesheet" href="staff.css?v=69" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -442,6 +443,9 @@
 
           <div class="table-footer">
             <span class="table-footer__info">Showing 0 recent submissions</span>
+            <button type="button" class="btn btn--ghost" onclick="loadApplicationsFromDatabase()" title="Refresh recent submissions">
+              <i class="fi fi-rr-refresh" aria-hidden="true"></i> Refresh
+            </button>
             <button class="view-all-btn" id="btn-view-all-submissions" onclick="navigate('applicants')">
               View all submissions
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -460,7 +464,7 @@
           <div class="page-header__left">
             <div class="page-header__eyebrow">
               <h1 class="page-header__title">Applicants</h1> <span class="page-header__badge"
-                id="applicants-total-badge">0 Profiles</span>
+                id="applicants-total-badge">0 Registered Profiles</span>
             </div>
             <p class="page-header__sub">Manage registered senior citizens and their completed applications</p>
           </div>
@@ -629,6 +633,11 @@
                   <option value="name-za">Name Z-A</option>
                 </select>
               </div>
+              <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh registered applicants" title="Reload this table without refreshing the page">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
+                <span>Refresh</span>
+              </button>
               <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="resetRegisteredApplicantFilters()"
                 aria-label="Reset applicant filters" title="Clear search and barangay filter">
                 <i class="fi fi-rr-refresh" aria-hidden="true"></i>
@@ -646,6 +655,7 @@
                 <th>Age</th>
                 <th onclick="sortApplicantsByColumn('registration',this)" aria-sort="descending">Registration Date <span class="sort-icon">↓</span>
                 </th>
+                <th>ID Claimed By</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -698,6 +708,11 @@
                       clip-rule="evenodd" />
                   </svg>
                   Export Selected
+                </button>
+                <button type="button" class="batch-ops__item" id="batch-complete-selected"
+                  onclick="runBatchAction('complete')" disabled>
+                  <i class="fi fi-rr-check-circle" aria-hidden="true"></i>
+                  Mark Selected as Completed
                 </button>
                 <button type="button" class="batch-ops__item batch-ops__item--danger"
                   onclick="runBatchAction('approve')" disabled>
@@ -932,6 +947,11 @@
                   <path d="M4 6l4 4 4-4" />
                 </svg>
               </div>
+              <button type="button" class="applications-filter-reset" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh applications table" title="Reload application records without refreshing the page">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
+                <span>Refresh</span>
+              </button>
               <button type="button" class="applications-filter-reset" onclick="resetApplicationsFilters()"
                 aria-label="Reset application filters" title="Clear search, stage, and barangay filters">
                 <i class="fi fi-rr-refresh" aria-hidden="true"></i>
@@ -951,7 +971,7 @@
                 <th onclick="sortTable('applications-tbody',3,this)">Submitted <span class="sort-icon">↕</span></th>
                 <th>Documents</th>
                 <th>Stage</th>
-                <th>Membership</th>
+                <th>Remarks</th>
                 <th onclick="sortTable('applications-tbody',7,this)" style="text-align:center">Days Pending <span
                     class="sort-icon">↕</span></th>
                 <th style="text-align:center">Actions</th>
@@ -1884,11 +1904,33 @@
           </div>
         </div>
 
+        <!-- Applicant assistance details -->
+        <div class="content-card" id="assisted-by-card">
+          <div class="content-card__header">
+            <div>
+              <div class="content-card__title">ASSISTED BY</div>
+              <div class="content-card__desc">Authorized person who assisted the applicant in completing the application form</div>
+            </div>
+          </div>
+          <div class="content-card__body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Name</div>
+                <div id="info-assisted-by" style="font-size:13px">—</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Relation to Registrant</div>
+                <div id="info-assisted-relation" style="font-size:13px">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Rule-based validation -->
         <div class="content-card">
           <div class="content-card__header">
             <div>
-              <div class="content-card__title">Eligibility Validation (Rules + AI)</div>
+              <div class="content-card__title">ELIGIBILITY VALIDATION (RULES-BASED + AI-Assisted)</div>
               <div class="content-card__desc">Auto-check age (60+), residency, document completeness</div>
             </div>
             <button class="btn btn--ghost" style="height:34px;font-size:12px" onclick="runValidation()">Run
@@ -2194,6 +2236,37 @@
     </div>
   </div>
 
+  <!-- PICKUP RECIPIENT CONFIRMATION -->
+  <div class="modal-backdrop pickup-recipient-modal" id="pickup-recipient-modal">
+    <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="pickup-recipient-title">
+      <div class="confirm-hero">
+        <div class="confirm-icon"><i class="fi fi-rr-id-card-clip-alt"></i></div>
+        <div>
+          <div class="confirm-title" id="pickup-recipient-title">Record ID Pickup</div>
+          <div class="confirm-desc">Select who collected the Senior Citizen ID.</div>
+        </div>
+      </div>
+      <div class="confirm-body">
+        <p id="pickup-recipient-count" class="pickup-recipient-count">Record who collected this Senior Citizen ID.</p>
+        <label class="form-label" for="pickup-recipient-type" style="margin-top:14px">Collected by</label>
+        <select class="form-select" id="pickup-recipient-type" onchange="updatePickupRecipientFields()">
+          <option value="applicant">Applicant</option>
+          <option value="barangay_president">Senior Barangay President</option>
+          <option value="authorized_personnel">Authorized Personnel</option>
+        </select>
+        <div id="pickup-recipient-name-field" class="pickup-recipient-name-field" hidden>
+          <label class="form-label" for="pickup-recipient-name">Name of Authorized Personnel</label>
+          <input class="form-input" id="pickup-recipient-name" type="text" maxlength="150" placeholder="Enter full name" />
+        </div>
+        <div id="pickup-recipient-error" class="pickup-recipient-error" role="alert" aria-live="polite"></div>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn--ghost" onclick="closePickupRecipientDialog()">Cancel</button>
+        <button type="button" class="btn btn--primary" onclick="confirmPickupRecipient()">Confirm Pickup</button>
+      </div>
+    </div>
+  </div>
+
   <!-- APPLICANT PROFILE AND APPLICATION HISTORY -->
   <div class="modal-backdrop" id="applicant-profile-modal">
     <div class="modal applicant-profile-modal" role="dialog" aria-modal="true"
@@ -2394,9 +2467,15 @@
             </select>
           </div>
           <div class="staff-export__control">
-            <label class="staff-export__label" for="staff-export-membership">Membership status</label>
-            <select class="staff-export__select" id="staff-export-membership">
-              <option value="">All membership statuses</option><option>Active</option><option>Deceased</option><option value="Unassigned">Not assigned</option>
+            <label class="staff-export__label" for="staff-export-remarks">Remarks</label>
+            <select class="staff-export__select" id="staff-export-remarks">
+              <option value="">All remarks</option>
+              <option>Bedridden</option>
+              <option>Deceased</option>
+              <option>Unlocated</option>
+              <option>Transferred</option>
+              <option>Registered</option>
+              <option>Non-registered</option>
             </select>
           </div>
         </div>
@@ -2432,7 +2511,7 @@
         <div>
           <span class="applicant-import-eyebrow">REGISTERED SENIOR CITIZEN RECORDS</span>
           <h2 id="applicant-import-title">Import Applicant Records</h2>
-          <p>Bring existing OSCA records into the system from a CSV file or searchable PDF.</p>
+          <p>Import existing OSCA records from a standard CSV/PDF or the original multi-sheet barangay Excel workbook.</p>
         </div>
         <button class="applicant-import-close" type="button" aria-label="Close import" onclick="closeApplicantImportModal()">×</button>
       </header>
@@ -2445,13 +2524,14 @@
             <li>If no old OSCA/Application ID is supplied, the system creates a LEGACY reference for record tracking; it is not an officially issued senior citizen ID.</li>
             <li>Column names do not need to match. Review and adjust the field mapping before importing. A single Full Name column is split automatically as First / Middle / Surname for review.</li>
             <li>Searchable PDFs are read directly. Scanned PDFs use in-browser OCR; carefully review the extracted values before importing.</li>
+            <li>OSCA legacy Excel workbooks are read sheet by sheet. The barangay is taken from row 3 (or the worksheet name), and applicant data is read from row 7 onward.</li>
           </ul>
         </div>
         <label class="applicant-import-dropzone" id="applicant-import-dropzone" for="applicant-import-file">
           <span class="applicant-import-file-icon">↑</span>
-          <strong>Choose a CSV or PDF file</strong>
-          <span>or drag and drop it here · maximum 15 MB</span>
-          <input id="applicant-import-file" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
+          <strong>Choose an OSCA Excel workbook, CSV, or PDF</strong>
+          <span>Excel workbooks with multiple barangay worksheets are supported · maximum 15 MB</span>
+          <input id="applicant-import-file" type="file" accept=".xlsx,.xls,.csv,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/pdf" />
         </label>
         <div class="applicant-import-file-meta" id="applicant-import-file-meta" hidden></div>
         <div class="applicant-import-error" id="applicant-import-error" role="alert" hidden></div>
@@ -2472,7 +2552,15 @@
           <div id="applicant-import-map-list" class="applicant-import-map-list"></div>
           <div class="applicant-import-preview-heading"><strong>Data preview</strong><span>First 8 rows</span></div>
           <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table" id="applicant-import-preview"></table></div>
-          <div class="applicant-import-summary" id="applicant-import-summary"></div>
+                    <div class="applicant-import-summary" id="applicant-import-summary"></div>
+          <section class="applicant-import-review" id="applicant-import-review" hidden>
+            <div class="applicant-import-preview-heading"><strong>Legacy Import Review</strong><span>Complete required fields before importing</span></div>
+            <p class="applicant-import-review-help">These source rows are missing a first name, surname, or valid date of birth. They are kept here for review and will not be sent to the database until the required fields are completed. Repeated header rows are excluded.</p>
+            <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table">
+              <thead><tr><th>Source row</th><th>Barangay</th><th>First name</th><th>Surname</th><th>Date of birth</th><th>Needs attention</th></tr></thead>
+              <tbody id="applicant-import-review-body"></tbody>
+            </table></div>
+          </section>
         </section>
         <div class="applicant-import-progress" id="applicant-import-progress" hidden>
           <div class="applicant-import-progress-track"><span id="applicant-import-progress-bar"></span></div>
@@ -2506,9 +2594,9 @@
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=52"></script>
+  <script src="app.js?v=pickup-history-1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="staff.js?v=legacy-applicant-import-3"></script>
+  <script src="staff.js?v=legacy-review-2"></script>
 </body>
 
 </html>

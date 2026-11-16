@@ -1,11 +1,11 @@
 const supabase = require("../config/supabase");
 const { createAuditLogFromRequest } = require("./auditLogController");
 
+// Current ID Maker workflow. Legacy database values are normalized on read
+// so existing queue records remain compatible without destructive migration.
 const ALLOWED_STATUSES = [
   "Queued",
   "In Production",
-  "Printed",
-  "In Transit",
   "Completed",
 ];
 
@@ -37,14 +37,18 @@ const normalizePrintStatus = (value) => {
   const canonical = ALLOWED_STATUSES.find((item) => item.toLowerCase() === status);
   if (canonical) return canonical;
 
+  // Older records used Printed and In Transit. Both now mean the ID is
+  // still being handled by ID Maker; only Completed means ready for release.
   const legacyStatusMap = {
     pending: "Queued",
     "in process": "In Production",
     inproduction: "In Production",
     processing: "In Production",
-    exported: "Printed",
-    ready: "In Transit",
-    intransit: "In Transit",
+    printed: "In Production",
+    exported: "In Production",
+    "in transit": "In Production",
+    intransit: "In Production",
+    ready: "In Production",
     released: "Completed",
   };
   return legacyStatusMap[status] || "Queued";
@@ -656,7 +660,6 @@ const updateIdMakerQueue = async (req, res) => {
     }
 
     const updatedAt = new Date().toISOString();
-    const isReadyForRelease = print_status === "In Transit";
 
     const { data: application, error: applicationError } = await supabase
       .from("applications")

@@ -761,6 +761,94 @@ function toggleStatusSelect(btn, event) {
   }
 }
 
+let PENDING_PICKUP_COMPLETION = null;
+
+function openPickupRecipientDialog(applicationIds, previousStatuses = {}) {
+  const ids = [...new Set((Array.isArray(applicationIds) ? applicationIds : [applicationIds])
+    .map(value => String(value || '').trim()).filter(Boolean))];
+  if (!ids.length) return;
+
+  PENDING_PICKUP_COMPLETION = { ids, previousStatuses: previousStatuses || {} };
+  const modal = document.getElementById('pickup-recipient-modal');
+  const select = document.getElementById('pickup-recipient-type');
+  const nameInput = document.getElementById('pickup-recipient-name');
+  const error = document.getElementById('pickup-recipient-error');
+  if (!modal || !select || !nameInput) {
+    showToast('Pickup recipient form is unavailable. Please refresh the page.', 'error');
+    PENDING_PICKUP_COMPLETION = null;
+    return;
+  }
+  select.value = 'applicant';
+  nameInput.value = '';
+  if (error) error.textContent = '';
+  updatePickupRecipientFields();
+  const count = document.getElementById('pickup-recipient-count');
+  if (count) count.textContent = ids.length > 1
+    ? `This pickup recipient will be applied to all ${ids.length} selected applicants.`
+    : 'Record who collected this Senior Citizen ID.';
+  modal.classList.add('show');
+}
+
+function updatePickupRecipientFields() {
+  const select = document.getElementById('pickup-recipient-type');
+  const field = document.getElementById('pickup-recipient-name-field');
+  const input = document.getElementById('pickup-recipient-name');
+  const isAuthorized = select?.value === 'authorized_personnel';
+  if (field) field.hidden = !isAuthorized;
+  if (input) input.required = Boolean(isAuthorized);
+}
+
+function closePickupRecipientDialog() {
+  document.getElementById('pickup-recipient-modal')?.classList.remove('show');
+  PENDING_PICKUP_COMPLETION = null;
+}
+
+async function confirmPickupRecipient() {
+  const pending = PENDING_PICKUP_COMPLETION;
+  const select = document.getElementById('pickup-recipient-type');
+  const nameInput = document.getElementById('pickup-recipient-name');
+  const error = document.getElementById('pickup-recipient-error');
+  if (!pending || !select || !nameInput) return;
+
+  const type = select.value;
+  const name = nameInput.value.trim();
+  if (!['applicant', 'barangay_president', 'authorized_personnel'].includes(type)) {
+    if (error) error.textContent = 'Please select who collected the ID.';
+    return;
+  }
+  if (type === 'authorized_personnel' && !name) {
+    if (error) error.textContent = 'Please enter the authorized personnel name.';
+    nameInput.focus();
+    return;
+  }
+  const recipient = {
+    pickup_recipient_type: type,
+    pickup_recipient_name: type === 'authorized_personnel' ? name : null
+  };
+  const selectedIds = pending.ids.slice();
+  const requests = selectedIds.map(id => {
+    const previous = pending.previousStatuses[id] || 'Ready for Release';
+    return updateTableStatus(id, 'Completed', previous, recipient);
+  });
+  closePickupRecipientDialog();
+  const results = await Promise.all(requests);
+  const succeeded = results.filter(Boolean).length;
+  const failed = results.length - succeeded;
+  if (selectedIds.length > 1 && typeof showToast === 'function') {
+    showToast(
+      failed
+        ? `Pickup details saved for ${succeeded} of ${selectedIds.length} applicants; ${failed} failed.`
+        : `Pickup details saved for all ${succeeded} selected applicants.`,
+      failed ? 'error' : 'success'
+    );
+  }
+}
+
+window.openPickupRecipientDialog = openPickupRecipientDialog;
+window.closePickupRecipientDialog = closePickupRecipientDialog;
+window.confirmPickupRecipient = confirmPickupRecipient;
+window.updatePickupRecipientFields = updatePickupRecipientFields;
+
 function selectStatusOption(btn, event) {
   if (event && event.__statusHandled) return;
 
@@ -792,6 +880,18 @@ function selectStatusOption(btn, event) {
   // transition using APP_DB/LIVE_APPLICATIONS, because these page-level caches
   // can be stale until the application detail modal refreshes the record.
 
+
+  if (!root.dataset.requestId && status === 'Completed') {
+    if (!['Ready for Release', 'Completed'].includes(previousStatus)) {
+      closeAllStatusMenus();
+      showToast('The application must be Ready for Release before recording ID pickup.', 'info');
+      return;
+    }
+    closeAllStatusMenus();
+    // Completed records may reopen this dialog to correct or complete pickup details.
+    openPickupRecipientDialog([appId], { [appId]: previousStatus });
+    return;
+  }
 
   root
     .querySelectorAll('.status-select__option')
@@ -2801,6 +2901,30 @@ function saveLocalIdMakerQueue(queueEntry, broadcastUpdate = true) {
 
 let CURRENT_APP_ID = null;
 
+function formatApplicantAddress(application = {}) {
+  const street = String(
+    application.house_street ||
+    application.houseStreet ||
+    application.address ||
+    ''
+  ).trim();
+
+  const barangay = String(
+    application.barangay_district ||
+    application.barangayDistrict ||
+    application.barangay ||
+    ''
+  ).trim();
+
+  if (!street) return barangay;
+  if (!barangay) return street;
+
+  // Avoid repeating the barangay if the imported address already contains it.
+  if (street.toLowerCase().includes(barangay.toLowerCase())) return street;
+
+  return `${street}, Brgy. ${barangay.replace(/^brgy\.?\s*/i, '')}`;
+}
+
 function syncApplicationsToAppDB(applications) {
   if (!Array.isArray(applications)) return;
 
@@ -2843,11 +2967,7 @@ function syncApplicationsToAppDB(applications) {
       middleName: middleName,
       surname: surname,
 
-      address:
-        application.house_street ||
-        application.houseStreet ||
-        application.address ||
-        '',
+      address: formatApplicantAddress(application),
 
       barangay:
         application.barangay_district ||
@@ -2898,12 +3018,6 @@ function syncApplicationsToAppDB(applications) {
       contactNumber:
         application.contact_number ||
         application.contactNumber ||
-        '',
-
-      idOsca:
-        application.osca_id_number ||
-        application.oscaIdNumber ||
-        application.idOsca ||
         '',
 
       idSss:
@@ -3110,7 +3224,6 @@ async function openApplicationDetail(appId) {
           occupation: a.occupation || '',
           contactNumber: a.contact_number || '',
 
-          idOsca: a.osca_id_number || '',
           idSss: a.sss_id_number || '',
           idPhilhealth: a.philhealth_id_number || '',
           idGsis: a.gsis_id_number || '',
@@ -3294,6 +3407,7 @@ async function openApplicationDetail(appId) {
 
           confirmations: result.confirmations || null,
           documentAuthentications: result.documentAuthentications || [],
+          applicantEditLogs: result.applicantEditLogs || [],
           statusHistory: result.statusHistory || []
         };
 
@@ -3322,6 +3436,44 @@ async function openApplicationDetail(appId) {
 
   setText('modal-title', `Application Detail — ${app.name}`);
   setText('modal-sub', `${app.id} · Barangay: ${app.barangay} · Status: ${app.status}`);
+
+  // Show a clear staff-facing notice when the applicant has edited the record.
+  const modalBody = document.getElementById('modal-body-content');
+  if (modalBody) {
+    let editNotice = document.getElementById('applicant-edit-notice');
+    if (!editNotice) {
+      editNotice = document.createElement('section');
+      editNotice.id = 'applicant-edit-notice';
+      editNotice.style.cssText = 'margin:0 0 14px;padding:14px 16px;border:1px solid #f2c46d;border-radius:12px;background:#fff9e9;color:#754b08';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Applicant updated this application';
+      heading.style.display = 'block';
+      heading.style.marginBottom = '6px';
+      const list = document.createElement('ul');
+      list.id = 'applicant-edit-notice-list';
+      list.style.cssText = 'margin:0;padding-left:20px;font-size:12px;line-height:1.6';
+      editNotice.append(heading, list);
+      modalBody.insertBefore(editNotice, modalBody.children[1] || null);
+    }
+    const editLogs = Array.isArray(app.applicantEditLogs) ? app.applicantEditLogs : [];
+    const editList = editNotice.querySelector('#applicant-edit-notice-list');
+    if (editList) {
+      editList.replaceChildren();
+      editLogs.forEach(log => {
+        const item = document.createElement('li');
+        const detail = document.createElement('span');
+        detail.textContent = log.details || 'Applicant information was updated.';
+        item.appendChild(detail);
+        if (log.created_at) {
+          const date = document.createElement('small');
+          date.textContent = ' · ' + new Date(log.created_at).toLocaleString();
+          item.appendChild(date);
+        }
+        editList.appendChild(item);
+      });
+    }
+    editNotice.hidden = editLogs.length === 0;
+  }
 
   // Applicant summary header (accurate to the registration form)
   const detailPhoto = document.getElementById('detail-photo');
@@ -3443,6 +3595,14 @@ async function openApplicationDetail(appId) {
     renderChipList('info-problems-community', []);
     setText('info-problems-other', '—');
   }
+
+  // ── Applicant assistance details ──
+  const assistance = app.confirmations || {};
+  const wasAssisted = assistance.assisted_certified === true ||
+    assistance.assisted_certified === 'true' ||
+    Boolean(String(assistance.assisted_by || '').trim());
+  setText('info-assisted-by', wasAssisted ? (assistance.assisted_by || 'Not provided') : 'Not assisted');
+  setText('info-assisted-relation', wasAssisted ? (assistance.relation || 'Not provided') : '—');
 
   // ── Documents ──
   loadSavedDocStatuses(app);
@@ -3640,6 +3800,16 @@ function updateStatus(newStatus) {
     if (sel) sel.value = currentStatus;
     return;
   }
+  if (newStatus === 'Completed') {
+    if (currentStatus !== 'Ready for Release') {
+      showToast('The application must be Ready for Release before recording ID pickup.', 'info');
+      const sel = document.getElementById('status-select');
+      if (sel) sel.value = currentStatus;
+      return;
+    }
+    openPickupRecipientDialog([CURRENT_APP_ID], { [CURRENT_APP_ID]: currentStatus });
+    return;
+  }
   if (APP_DB[CURRENT_APP_ID]) {
     APP_DB[CURRENT_APP_ID].status = newStatus;
   }
@@ -3668,7 +3838,8 @@ function updateStatus(newStatus) {
 async function updateTableStatus(
   appId,
   newStatus,
-  previousStatus = 'Pending'
+  previousStatus = 'Pending',
+  pickupRecipient = null
 ) {
   const app =
     APP_DB[appId] ||
@@ -3758,7 +3929,8 @@ async function updateTableStatus(
           headers: getAuthHeaders(),
 
           body: JSON.stringify({
-            status: newStatus
+            status: newStatus,
+            ...(newStatus === 'Completed' && pickupRecipient ? pickupRecipient : {})
           })
         }
       );
@@ -3784,10 +3956,13 @@ async function updateTableStatus(
 
     app.status =
       savedStatus;
-
+    if (savedStatus === 'Completed' && result.statusHistory) {
+      app.pickup_recipient_type = result.statusHistory.pickup_recipient_type || null;
+      app.pickup_recipient_name = result.statusHistory.pickup_recipient_name || null;
+    }
     APP_DB[appId] = app;
 
-    // Keep the person registry, membership column, and KPI groups in sync
+    // Keep the person registry, remarks column, and KPI groups in sync
     // immediately after the backend confirms the status update.
     if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
       const liveApplication = LIVE_APPLICATIONS.find(item =>
@@ -3797,18 +3972,9 @@ async function updateTableStatus(
         liveApplication.status = savedStatus;
         liveApplication.status_updated_at =
           result.statusHistory?.[0]?.updated_at || new Date().toISOString();
-
-        // The backend automatically activates membership when an application
-        // becomes Completed. Reflect that returned value without a page refresh.
-        if (
-          savedStatus === 'Completed' &&
-          result.membershipSync?.updated &&
-          result.membershipSync.membership_status
-        ) {
-          liveApplication.membership_status =
-            result.membershipSync.membership_status;
-          app.membership_status =
-            result.membershipSync.membership_status;
+        if (savedStatus === 'Completed' && result.statusHistory) {
+          liveApplication.pickup_recipient_type = result.statusHistory.pickup_recipient_type || null;
+          liveApplication.pickup_recipient_name = result.statusHistory.pickup_recipient_name || null;
         }
       }
       if (typeof updateApplicantSummaryCards === 'function') updateApplicantSummaryCards(LIVE_APPLICATIONS);
@@ -3895,6 +4061,7 @@ async function updateTableStatus(
         applicantsStatusFilter.value
       );
     }
+    return true;
 
   } catch (error) {
 
@@ -3972,6 +4139,7 @@ async function updateTableStatus(
       (error.message || ''),
       'error'
     );
+    return false;
   }
 }
 
@@ -4111,8 +4279,10 @@ async function _populateDigitalIssuance(appId) {
           app.surname ||
           '',
 
+        // Build the complete address from the saved street/purok and barangay fields.
+        // Do not overwrite the previously formatted address with house_street alone.
         address:
-          liveApplication.house_street ||
+          formatApplicantAddress(liveApplication) ||
           app.address ||
           '',
 
@@ -4939,6 +5109,42 @@ async function downloadDigitalIssuanceDocs() {
     const blob =
       await response.blob();
 
+    // Downloading the issuance form from the ID Maker portal starts production.
+    // Do not downgrade an item that has already been marked Completed.
+    if (DI_MODE === 'idmaker') {
+      const queueItem = (typeof ID_MAKER_QUEUE !== 'undefined' ? ID_MAKER_QUEUE : [])
+        .find(item => String(item.application_id || item.id) === String(appId));
+      const currentQueueStatus = String(queueItem?.printStatus || 'Queued').trim();
+
+      if (currentQueueStatus !== 'In Production' && currentQueueStatus !== 'Completed') {
+        const statusResponse = await fetch(
+          `${RMS_API_BASE}/api/id-maker-queue/bulk-status`,
+          {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              application_ids: [String(appId)],
+              print_status: 'In Production'
+            })
+          }
+        );
+        const statusResult = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || !statusResult.success) {
+          throw new Error(statusResult.message || 'The document was generated, but the queue status could not be updated to In Production. Please retry the download.');
+        }
+
+        if (queueItem) {
+          queueItem.printStatus = 'In Production';
+          queueItem.updatedAt = new Date().toISOString();
+        }
+        if (typeof updateIdMakerKPIs === 'function') updateIdMakerKPIs();
+        if (typeof renderQueueTable === 'function') renderQueueTable();
+        if (typeof syncStaffApplicationStatusFromServer === 'function') {
+          syncStaffApplicationStatusFromServer(appId, 'In Process');
+        }
+      }
+    }
+
     const url =
       URL.createObjectURL(blob);
 
@@ -4947,14 +5153,15 @@ async function downloadDigitalIssuanceDocs() {
 
     link.href = url;
 
-    link.download =
-      'Digital_Issuance_' +
-      String(appId)
-        .replace(
-          /[^a-zA-Z0-9-_]/g,
-          '_'
-        ) +
-      '.docx';
+    const safeApplicantName = String(name || 'Applicant')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[. ]+$/g, '') || 'Applicant';
+
+    link.download = safeApplicantName + '.docx';
 
     document.body.appendChild(link);
 
@@ -4982,6 +5189,47 @@ async function downloadDigitalIssuanceDocs() {
       'Failed to download Word document.',
       'error'
     );
+  }
+}
+
+function syncStaffApplicationStatusFromServer(applicationId, status) {
+  if (!applicationId || !status) return;
+  const id = String(applicationId);
+  const now = new Date().toISOString();
+
+  if (typeof APP_DB !== 'undefined') {
+    const app = APP_DB[id] || { id };
+    app.status = status;
+    APP_DB[id] = app;
+  }
+
+  if (typeof LIVE_APPLICATIONS !== 'undefined' && Array.isArray(LIVE_APPLICATIONS)) {
+    const live = LIVE_APPLICATIONS.find(item =>
+      String(item.application_id || item.id) === id
+    );
+    if (live) {
+      live.status = status;
+      live.status_updated_at = now;
+    }
+    if (typeof updateApplicantSummaryCards === 'function') updateApplicantSummaryCards(LIVE_APPLICATIONS);
+    if (typeof updateApplicationSummaryCards === 'function') updateApplicationSummaryCards(LIVE_APPLICATIONS);
+    if (typeof renderLiveApplicants === 'function') renderLiveApplicants(LIVE_APPLICATIONS);
+    if (typeof renderLiveApplications === 'function') renderLiveApplications(LIVE_APPLICATIONS);
+    if (typeof renderRecentSubmissions === 'function') renderRecentSubmissions(LIVE_APPLICATIONS);
+  }
+
+  if (typeof syncApplicationsTableBadge === 'function') syncApplicationsTableBadge(id, status);
+  if (typeof syncRecentSubmissionsStatus === 'function') syncRecentSubmissionsStatus(id, status);
+  if (typeof updateStatusTabCounts === 'function') updateStatusTabCounts();
+  if (typeof applyApplicationsModuleFilters === 'function') applyApplicationsModuleFilters();
+
+  if (String(CURRENT_APP_ID || '') === id) {
+    if (typeof renderWorkflow === 'function') renderWorkflow(status);
+    const app = typeof APP_DB !== 'undefined' ? APP_DB[id] : null;
+    const modalSub = document.getElementById('modal-sub');
+    if (modalSub && app) {
+      modalSub.textContent = `${app.id || id} · Barangay: ${app.barangay || app.barangay_district || '—'} · Status: ${status}`;
+    }
   }
 }
 
@@ -5028,16 +5276,31 @@ async function runValidation() {
     age >= 60;
 
 
-  // Residency
+  // AI-assisted residency validation (server-side; locality fields only).
+  let residencyResult = {
+    status: 'manual_review',
+    resident: null,
+    matchedBarangay: null,
+    provider: 'unavailable',
+    explanation: 'Residency could not be checked. OSCA staff must verify the address.'
+  };
 
-  const barangay =
-    String(
-      app.barangay || ''
-    ).trim();
+  try {
+    const residencyResponse = await fetch(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(CURRENT_APP_ID)}/residency-validation`,
+      { method: 'POST', headers: getAuthHeaders() }
+    );
+    const residencyPayload = await residencyResponse.json();
+    if (!residencyResponse.ok || !residencyPayload.success || !residencyPayload.residency) {
+      throw new Error(residencyPayload.message || 'Residency validation failed.');
+    }
+    residencyResult = residencyPayload.residency;
+  } catch (residencyError) {
+    console.error('AI residency validation failed:', residencyError);
+    showToast('Residency check requires manual verification.', 'info');
+  }
 
-  const residencyOk =
-    barangay !== '' &&
-    barangay !== '—';
+  const residencyOk = residencyResult.status === 'resident';
 
 
   // Documents
@@ -5145,19 +5408,12 @@ async function runValidation() {
   }
 
 
-  if (residencyOk) {
-
-    notes.push(
-      'Residency information is valid.'
-    );
-
-  } else {
-
-    notes.push(
-      'Residency information needs checking.'
-    );
-
-  }
+  notes.push(
+    'Residency: ' + String(residencyResult.status || 'manual_review') +
+    (residencyResult.matchedBarangay ? ' (' + residencyResult.matchedBarangay + ')' : '') +
+    ' [provider: ' + String(residencyResult.provider || 'unavailable') + ']. ' +
+    String(residencyResult.explanation || 'Manual OSCA verification is required.')
+  );
 
 
   if (docsOk) {
@@ -5207,6 +5463,9 @@ async function runValidation() {
 
     residencyOk:
       residencyOk,
+
+    residencyResult:
+      residencyResult,
 
     docsOk:
       docsOk,
@@ -5264,10 +5523,7 @@ async function runValidation() {
     }"
       >
         • RESIDENCY:
-        ${residencyOk
-      ? 'Likely Valid'
-      : 'Needs Check'
-    }
+        ${residencyOk ? 'Resident – ' + (residencyResult.matchedBarangay || 'Bauan') : 'Manual Review'}
       </span>
 
 
@@ -5367,6 +5623,10 @@ async function runValidation() {
         result.message ||
         'Failed to save validation result.'
       );
+    }
+
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
     }
 
     // Keep the saved result in the current application
@@ -5950,6 +6210,10 @@ async function setDocStatus(doc, state, options = {}) {
   }
 
     // Keep the saved authentication in the current application object
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
+    }
+
     if (APP_DB[CURRENT_APP_ID]) {
       if (!Array.isArray(
         APP_DB[CURRENT_APP_ID]
@@ -6229,6 +6493,10 @@ async function saveDocumentAuthentication(
       );
     }
 
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
+    }
+
     if (APP_DB[CURRENT_APP_ID]) {
       if (!Array.isArray(
         APP_DB[CURRENT_APP_ID]
@@ -6342,22 +6610,51 @@ async function approveAllDocs() {
       throw new Error(result.message || 'Failed to approve all documents.');
     }
 
+    if (result.application_status) {
+      syncStaffApplicationStatusFromServer(CURRENT_APP_ID, result.application_status);
+    }
+
     const savedRecords = Array.isArray(result.documentAuthentications)
       ? result.documentAuthentications
       : [];
     const savedByType = new Map(savedRecords.map(record => [record.document_type, record]));
+    const documentTypeMap = {
+      idFront: 'valid_id',
+      idBack: 'valid_id_back',
+      photo: 'latest_photo',
+      bc: 'birth_certificate',
+      cedula: 'community_tax_certificate',
+      signature: 'signature'
+    };
+    const failedDocuments = [];
+    let approvedCount = 0;
 
+    // The bulk endpoint has already persisted the approvals. Update the
+    // visible cards from its response instead of issuing six more PUT requests.
     for (const doc of docs) {
-      const approved = await setDocStatus(doc, 'ok', { silent: true });
-      if (approved) approvedCount++;
-      else failedDocuments.push(DOC_LABELS[doc]);
+      const saved = savedByType.get(documentTypeMap[doc]);
+      if (saved && saved.authentication_status === 'approved') {
+        DOC_STATUS[doc] = 'ok';
+        approvedCount++;
+        const statusElementId = 'doc-' + doc.replace(/([A-Z])/g, '-$1').toLowerCase() + '-status';
+        const statusElement = document.getElementById(statusElementId);
+        if (statusElement) {
+          statusElement.className = 'doc-card__status ok';
+          statusElement.textContent = 'Approved';
+        }
+      } else {
+        failedDocuments.push(DOC_LABELS[doc] || doc);
+      }
       if (button) button.textContent = `Approving ${approvedCount}/${docs.length}...`;
     }
 
+    if (APP_DB[CURRENT_APP_ID]) {
+      APP_DB[CURRENT_APP_ID].documentAuthentications = savedRecords;
+    }
     updateDocsSummary();
     if (failedDocuments.length) {
       showToast(
-        `${approvedCount} of ${docs.length} uploaded documents approved. Could not save: ${failedDocuments.join(', ')}.`,
+        `${approvedCount} of ${docs.length} uploaded documents approved. Could not confirm: ${failedDocuments.join(', ')}.`,
         'error'
       );
     } else {
@@ -6749,7 +7046,7 @@ const STAFF_EXPORT_FIELDS = {
     { key: 'age', label: 'Age', checked: false },
     { key: 'application_type', label: 'Application Type', checked: false },
     { key: 'status', label: 'Application Status', checked: true },
-    { key: 'membership_status', label: 'Membership Status', checked: false },
+    { key: 'remarks', label: 'Remarks', checked: false },
     { key: 'created_at', label: 'Date Submitted', checked: false }
   ]
 };
@@ -6789,9 +7086,9 @@ function openStaffExport() {
   }
 
   const statusSelect = document.getElementById('staff-export-status');
-  const membershipSelect = document.getElementById('staff-export-membership');
+  const remarksSelect = document.getElementById('staff-export-remarks');
   if (statusSelect) statusSelect.value = '';
-  if (membershipSelect) membershipSelect.value = '';
+  if (remarksSelect) remarksSelect.value = '';
 
   const typeSelect = document.getElementById('staff-export-type');
   if (typeSelect) typeSelect.value = 'barangay';
@@ -6841,7 +7138,7 @@ function staffExportValue(application, key) {
     age: application.age ?? '',
     application_type: application.application_type || application.applicationType || '',
     status: application.status || '',
-    membership_status: application.membership_status || '',
+    remarks: application.remarks || '',
     created_at: application.created_at || application.submitted_at || application.application_date || ''
   };
   return values[key] ?? '';
@@ -7905,7 +8202,7 @@ async function downloadStaffExport() {
   const type = document.getElementById('staff-export-type')?.value || 'barangay';
   const barangayFilter = document.getElementById('staff-export-barangay')?.value || '';
   const statusFilter = document.getElementById('staff-export-status')?.value || '';
-  const membershipFilter = document.getElementById('staff-export-membership')?.value || '';
+  const remarksFilter = document.getElementById('staff-export-remarks')?.value || '';
   const errorEl = document.getElementById('staff-export-error');
   const selectedFields = [...document.querySelectorAll('input[name="staff-export-field"]:checked')].map(input => input.value);
 
@@ -7913,11 +8210,10 @@ async function downloadStaffExport() {
   const filtered = source.filter(application => {
     const barangay = String(application.barangay_district || application.barangay || '').trim();
     const status = String(application.status || '').trim().toLowerCase();
-    const membership = String(application.membership_status || '').trim().toLowerCase();
+    const remarks = String(application.remarks || '').trim().toLowerCase();
     if (barangayFilter && barangay !== barangayFilter) return false;
     if (statusFilter && status !== statusFilter.toLowerCase()) return false;
-    if (membershipFilter === 'Unassigned' && membership) return false;
-    if (membershipFilter && membershipFilter !== 'Unassigned' && membership !== membershipFilter.toLowerCase()) return false;
+    if (remarksFilter && remarks !== remarksFilter.toLowerCase()) return false;
     return true;
   });
 
@@ -8113,7 +8409,7 @@ function updatePreview() {
   }
 
   if (addrEl) {
-    addrEl.value = app.address || '';
+    addrEl.value = formatApplicantAddress(app) || app.address || '';
   }
 
   if (dobEl) {
@@ -8194,7 +8490,7 @@ function updateIssuancePreview(app) {
   }
 
   if (pAddr) {
-    pAddr.textContent = app.address || '________________';
+    pAddr.textContent = formatApplicantAddress(app) || app.address || '________________';
   }
 
   if (pDob) {
@@ -8567,8 +8863,21 @@ async function sendFromIssuanceToIdMaker() {
   const apiBase = `${RMS_API_BASE}/api`;
   const fetchWithTimeout = (url, options = {}) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutMs = 60000;
+    const timeoutId = setTimeout(() => {
+      controller.abort(new DOMException(
+        `Request timed out after ${timeoutMs / 1000} seconds: ${url}`,
+        'TimeoutError'
+      ));
+    }, timeoutMs);
+
     return fetch(url, { ...options, signal: controller.signal })
+      .catch(error => {
+        if (error?.name === 'TimeoutError') {
+          throw new Error(error.message);
+        }
+        throw error;
+      })
       .finally(() => clearTimeout(timeoutId));
   };
   try {
@@ -8619,7 +8928,10 @@ async function sendFromIssuanceToIdMaker() {
     // Also update the linked ID request in the database.
     const requestsResponse = await fetchWithTimeout(
       `${apiBase}/replacements`,
-      { cache: 'no-store' }
+      {
+        headers: getAuthHeaders(),
+        cache: 'no-store'
+      }
     );
 
     const requestsResult = await requestsResponse.json();

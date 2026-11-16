@@ -19,7 +19,7 @@ async function sendReadyForReleaseSms({ phone, applicationId }) {
   const recipient = normalizePhilippineNumber(phone);
   const content =
     "OSCA Bauan: Your Senior Citizen ID is now ready for release. " +
-    "Please visit the OSCA office to claim your ID. Thank you.";
+    "You may personally claim it at the OSCA Office or authorize a representative to pick it up on your behalf. Thank you.";
 
   const credentials = Buffer.from(`${secretKey}:`).toString("base64");
   const response = await fetch("https://unismsapi.com/api/sms", {
