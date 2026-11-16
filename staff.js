@@ -6165,7 +6165,7 @@ function resetApplicantImportModal() {
   const dateFormat = document.getElementById("applicant-import-date-format");
   if (dateFormat) dateFormat.value = "auto";
   const submit = document.getElementById("applicant-import-submit");
-  if (submit) { submit.disabled = true; submit.textContent = "Import records"; }
+  if (submit) { submit.hidden = false; submit.disabled = true; submit.textContent = "Import records"; }
   setApplicantImportError("");
 }
 
@@ -6475,7 +6475,13 @@ async function submitApplicantImport() {
     APPLICANT_IMPORT_STATE.imported = true;
     const documentImportPanel = document.getElementById("applicant-document-import");
     if (documentImportPanel && totals.imported > 0) documentImportPanel.hidden = false;
-    if (submit) { submit.textContent = totals.imported === 0 && (totals.failed + totals.skippedInvalid) > 0 ? "Import failed" : (totals.failed + totals.skippedInvalid) > 0 ? "Import partially complete" : "Import complete"; submit.disabled = true; }
+    // The result panel is the completion notification; do not turn the
+    // action button into a status label after the import has finished.
+    if (submit) {
+      submit.hidden = true;
+      submit.disabled = true;
+      submit.textContent = "Import records";
+    }
     if (typeof loadApplicationsFromDatabase === "function") {
       try {
         await loadApplicationsFromDatabase();
