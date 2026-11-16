@@ -510,6 +510,19 @@
                 citizens with open requests</span>
             </div>
           </article>
+          <article class="stat-card applicants-deceased-card" id="applicants-deceased-card" role="button" tabindex="0" aria-pressed="false"
+            onclick="toggleDeceasedApplicantsFilter()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleDeceasedApplicantsFilter();}">
+            <div class="stat-card__top">
+              <div class="stat-card__icon-wrap iwrap-slate"><svg class="stat-card__icon ic-slate" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm-3 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm-5.2 3.6a.8.8 0 0 1 1.1.2 3.8 3.8 0 0 0 6.2 0 .8.8 0 1 1 1.3.9 5.4 5.4 0 0 1-8.8 0 .8.8 0 0 1 .2-1.1z" clip-rule="evenodd" />
+              </svg></div>
+              <div class="stat-card__meta"><span class="stat-card__trend trend-neutral" id="applicants-deceased-trend">Loading…</span></div>
+            </div>
+            <div class="stat-card__body"><span class="stat-card__label">Deceased Applicants</span>
+              <span class="stat-card__value" id="applicants-deceased-count" aria-live="polite">—</span>
+              <span class="stat-card__sub">Marked deceased in remarks</span>
+            </div>
+          </article>
           <article class="stat-card">
             <div class="stat-card__top">
               <div class="stat-card__icon-wrap iwrap-warn"><svg class="stat-card__icon ic-warn" viewBox="0 0 20 20"
