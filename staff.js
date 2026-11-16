@@ -6437,19 +6437,22 @@ async function submitApplicantImport() {
     }
     return (hash >>> 0).toString(36).toUpperCase();
   };
-  const mappedRows = APPLICANT_IMPORT_STATE.rows
-    .map((row, index) => {
-      const mapped = getApplicantImportMappedRow(row);
-      const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
-      Object.assign(mapped, edits);
-      mapped._sourceRow = index + 1;
-      return mapped;
-    })
-    .filter(row =>
-      row.first_name && row.surname && row.date_of_birth &&
-      !row._invalidDateOfBirth &&
-      !isApplicantImportRepeatedHeader(row)
-    );
+  const allMappedRows = APPLICANT_IMPORT_STATE.rows.map((row, index) => {
+    const mapped = getApplicantImportMappedRow(row);
+    const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
+    Object.assign(mapped, edits);
+    mapped._sourceRow = index + 1;
+    return mapped;
+  });
+  const incompleteReviewCount = allMappedRows.filter(row =>
+    !isApplicantImportRepeatedHeader(row) &&
+    (!row.first_name || !row.surname || !row.date_of_birth || row._invalidDateOfBirth)
+  ).length;
+  const mappedRows = allMappedRows.filter(row =>
+    row.first_name && row.surname && row.date_of_birth &&
+    !row._invalidDateOfBirth &&
+    !isApplicantImportRepeatedHeader(row)
+  );
   if (!mappedRows.length) {
     setApplicantImportError("No valid rows remain. Map First name, Surname, and a valid Date of birth, then review the preview.");
     return;
@@ -6506,7 +6509,8 @@ async function submitApplicantImport() {
         "<span><b>" + totals.imported.toLocaleString() + "</b> Imported</span>" +
         "<span><b>" + totals.skippedDuplicates.toLocaleString() + "</b> Duplicates skipped</span>" +
         "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
-        "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") + "</p>" +
+        "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") +
+        (incompleteReviewCount ? " " + incompleteReviewCount.toLocaleString() + " incomplete row(s) remain in Legacy Import Review and were not imported. Complete their required fields and run the import again." : "") + "</p>" +
         (totals.importedApplicants.length ? "<details class='applicant-import-reference-list'><summary>View generated applicant references (" + totals.importedApplicants.length + ")</summary><ul>" +
           totals.importedApplicants.map(item => "<li>Source row " + Number(item.sourceRow || 0) + ": <strong>" + escapeApplicantImportHtml(item.legacy_reference || item.application_id) + "</strong></li>").join("") +
           "</ul></details>" : "") +
