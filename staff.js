@@ -6080,7 +6080,7 @@ function renderApplicantImportPreview() {
 
   if (summary) {
     const legacyNotice = summary.dataset.legacyWorkbook === "true"
-      ? '<div class="applicant-import-legacy-note"><strong>OSCA legacy workbook detected.</strong> Core profile fields will be imported. SC ID No., Date Issued, pension check columns, NCSC-RRN, and Date Death are not separate fields in the current RMS import schema and will not be imported. The source workbook remains unchanged.</div>'
+      ? '<div class="applicant-import-legacy-note"><strong>OSCA legacy workbook detected.</strong> Core profile fields will be imported. SC ID No., Date Issued, pension check columns, NCSC-RRN, and the exact Date Death value are not stored as separate RMS fields. A populated Date Death will set the imported remark to Deceased when no remark is already present. The source workbook remains unchanged.</div>'
       : "";
     summary.innerHTML = legacyNotice +
       '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " rows ready</span>" +
@@ -6226,7 +6226,8 @@ function parseApplicantLegacyWorkbookMatrix(matrix, sheetName) {
     if (month && day && year && Number(day) >= 1 && Number(day) <= 31 && Number(year) >= 1900) {
       dateOfBirth = year.padStart(4, "0") + "-" + month + "-" + day.padStart(2, "0");
     }
-    rows.push([lastName, firstName, middleName, text(row[4]), sex, dateOfBirth, text(row[11]), barangay, text(row[19]), text(row[20])]);
+    const legacyRemark = text(row[20]) || (text(row[22]) ? "Deceased" : "");
+    rows.push([lastName, firstName, middleName, text(row[4]), sex, dateOfBirth, text(row[11]), barangay, text(row[19]), legacyRemark]);
   }
   return { headers, rows, barangay, sheetName };
 }
