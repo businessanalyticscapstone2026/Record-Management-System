@@ -676,8 +676,7 @@ router.get(
     try {
       let { data: users, error } = await supabase
         .from("user_accounts")
-        .select("id, username, full_name, email, role, account_status, approval_status, created_at, deleted_at")
-        .is("deleted_at", null)
+        .select("id, username, full_name, email, role, account_status, approval_status, created_at")
         .order("id", { ascending: true });
 
       // Backward compatibility: keep existing personnel visible in Admin
@@ -692,8 +691,7 @@ router.get(
         console.warn("Account approval migration is not applied; loading legacy user account fields.");
         const fallback = await supabase
           .from("user_accounts")
-          .select("id, username, full_name, email, role, account_status, deleted_at")
-          .is("deleted_at", null)
+          .select("id, username, full_name, email, role, account_status")
           .order("id", { ascending: true });
         users = fallback.data;
         error = fallback.error;
@@ -1251,7 +1249,7 @@ router.put(
 
 
 /* =========================================================
-   SOFT DELETE USER ACCOUNT
+   PERMANENTLY DELETE USER ACCOUNT
    DELETE /api/auth/users/:id
 
    ADMIN ONLY
@@ -1274,53 +1272,60 @@ router.delete(
 
       const { data: targetUser, error: lookupError } = await supabase
         .from("user_accounts")
-        .select("id, username, full_name, role, account_status, deleted_at")
+        .select("id, username, full_name, role")
         .eq("id", userId)
         .maybeSingle();
 
       if (lookupError) {
         console.error("Delete user lookup error:", lookupError);
-        return res.status(500).json({ success: false, message: "Unable to verify the user account before deletion. Confirm migration 004 has been applied." });
+        return res.status(500).json({ success: false, message: "Unable to verify the user account before deletion." });
       }
 
-      if (!targetUser || targetUser.deleted_at) {
+      if (!targetUser) {
         return res.status(404).json({ success: false, message: "User account not found or already deleted." });
       }
 
-      const deletedAt = new Date().toISOString();
+      // Permanently remove the user_accounts row. Password-reset tokens cascade;
+      // historical audit rows remain and identify this account by entity_id/username.
       const { data: deletedUser, error: deleteError } = await supabase
         .from("user_accounts")
-        .update({ account_status: "Inactive", deleted_at: deletedAt })
+        .delete()
         .eq("id", userId)
-        .is("deleted_at", null)
         .select("id, username, full_name")
         .maybeSingle();
 
       if (deleteError) {
-        console.error("Soft delete user error:", deleteError);
-        return res.status(500).json({ success: false, message: "Unable to delete the user account." });
+        console.error("Permanent delete user error:", deleteError);
+        return res.status(409).json({
+          success: false,
+          message: "The account could not be permanently deleted. A related database record may still reference this user. Check the database foreign-key constraints.",
+        });
       }
 
       if (!deletedUser) {
-        return res.status(409).json({ success: false, message: "This user account has already been deleted." });
+        return res.status(404).json({ success: false, message: "User account not found or already deleted." });
       }
 
-      await createAuditLog({
+      const auditSaved = await createAuditLog({
         userId: req.user.id,
         username: req.user.username,
         role: req.user.role,
         action: "USER_DELETED",
         entityType: "USER",
         entityId: String(deletedUser.id),
-        details: `Soft-deleted user account: ${deletedUser.username} (ID: ${deletedUser.id}). Account access was revoked; historical records were preserved.`,
+        details: `Permanently deleted user account: ${deletedUser.username} (ID: ${deletedUser.id}). Historical audit events were retained.`,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
       });
 
+      if (!auditSaved) {
+        console.error("User account was deleted, but the USER_DELETED audit event could not be saved.");
+      }
+
       return res.json({
         success: true,
-        message: `User account for ${deletedUser.full_name || deletedUser.username} was deleted successfully.`,
-        deleted_at: deletedAt,
+        message: `User account for ${deletedUser.full_name || deletedUser.username} was permanently deleted.`,
+        audit_recorded: auditSaved,
       });
     } catch (error) {
       console.error("Delete user error:", error);
