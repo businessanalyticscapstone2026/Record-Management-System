@@ -2834,7 +2834,6 @@ const importApplicantRecords = async (req, res) => {
       existingLegacyReferences.add(legacyReference);
       const createdAt = safeDateTime(source.registration_date);
       const importedRemark = String(source.remarks || "").trim();
-      const normalizedRemarkKey = normalizeText(importedRemark);
       const importedRemarkAliases = {
         bedridden: "Bedridden",
         "bed ridden": "Bedridden",
@@ -2849,12 +2848,37 @@ const importApplicantRecords = async (req, res) => {
         "non registered": "Non-registered",
         "not registered": "Non-registered"
       };
-      // Keep source remarks even when they are not one of the standard options.
-      // This prevents historical information from being silently discarded.
-      const normalizedImportedRemark = importedRemark
-        ? (importedRemarkAliases[normalizedRemarkKey] || importedRemark)
+      // Separate recognized medical conditions from OSCA classification remarks.
+      // Preserve the source wording in problems_needs.health_problem_specify.
+      const medicalConditionAliases = new Set([
+        "diabetic", "diabetes", "diabetes mellitus",
+        "hypertension", "high blood pressure",
+        "prostate", "prostate problem", "prostate enlargement",
+        "asthma", "arthritis", "cancer", "heart disease",
+        "kidney disease", "renal disease", "stroke",
+        "parkinson disease", "parkinsons disease",
+        "alzheimer disease", "alzheimers disease",
+        "cataract", "glaucoma", "tuberculosis", "tb"
+      ]);
+      const remarkParts = importedRemark
+        ? importedRemark.split(/[,;|/\\n]+/).map(value => value.trim()).filter(Boolean)
+        : [];
+      const medicalRemarkParts = [];
+      const nonMedicalRemarkParts = [];
+      remarkParts.forEach(part => {
+        if (medicalConditionAliases.has(normalizeText(part))) medicalRemarkParts.push(part);
+        else nonMedicalRemarkParts.push(part);
+      });
+      const normalizedImportedRemark = nonMedicalRemarkParts.length
+        ? nonMedicalRemarkParts.map(part => {
+            const key = normalizeText(part);
+            return importedRemarkAliases[key] || part;
+          }).join("; ")
         : null;
-      const isDeceased = normalizedRemarkKey === "deceased" || normalizedRemarkKey === "dead" ||
+      const existingHealthDetails = String(source._related?.problems_needs?.health_problem_specify || "").trim();
+      const legacyHealthDetails = [existingHealthDetails, ...medicalRemarkParts].filter(Boolean).join("; ");
+      const hasLegacyHealthDetails = Boolean(legacyHealthDetails);
+      const isDeceased = remarkParts.some(part => ["deceased", "dead"].includes(normalizeText(part))) ||
         normalizeText(source.membership_status || "") === "deceased";
       const membershipStatus = isDeceased ? "Deceased" : "Active";
       const applicationRecord = {
@@ -2901,7 +2925,9 @@ const importApplicantRecords = async (req, res) => {
         insertedTables.push("application_status_history");
 
         for (const [table, allowed] of Object.entries(relatedColumns)) {
-          const raw = source._related?.[table];
+          const raw = table === "problems_needs" && hasLegacyHealthDetails
+            ? { ...(source._related?.[table] || {}), health_problem: true, health_problem_specify: legacyHealthDetails }
+            : source._related?.[table];
           if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
           const record = { application_id: id };
           allowed.forEach(column => {
