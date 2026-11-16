@@ -2539,7 +2539,15 @@
           <div id="applicant-import-map-list" class="applicant-import-map-list"></div>
           <div class="applicant-import-preview-heading"><strong>Data preview</strong><span>First 8 rows</span></div>
           <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table" id="applicant-import-preview"></table></div>
-          <div class="applicant-import-summary" id="applicant-import-summary"></div>
+                    <div class="applicant-import-summary" id="applicant-import-summary"></div>
+          <section class="applicant-import-review" id="applicant-import-review" hidden>
+            <div class="applicant-import-preview-heading"><strong>Legacy Import Review</strong><span>Complete required fields before importing</span></div>
+            <p class="applicant-import-review-help">These source rows are missing a first name, surname, or valid date of birth. They are kept here for review and will not be sent to the database until the required fields are completed. Repeated header rows are excluded.</p>
+            <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table">
+              <thead><tr><th>Source row</th><th>First name</th><th>Surname</th><th>Date of birth</th><th>Needs attention</th></tr></thead>
+              <tbody id="applicant-import-review-body"></tbody>
+            </table></div>
+          </section>
         </section>
         <div class="applicant-import-progress" id="applicant-import-progress" hidden>
           <div class="applicant-import-progress-track"><span id="applicant-import-progress-bar"></span></div>
