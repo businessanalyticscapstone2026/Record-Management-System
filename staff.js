@@ -3673,11 +3673,23 @@ function resetRegisteredApplicantFilters() {
 }
 
 function toggleDeceasedApplicantsFilter() {
-  APPLICANTS_FILTER_STATE.deceasedOnly = APPLICANTS_FILTER_STATE.deceasedOnly !== true;
+  const enabling = APPLICANTS_FILTER_STATE.deceasedOnly !== true;
+  APPLICANTS_FILTER_STATE.deceasedOnly = enabling;
+  if (enabling) {
+    // KPI clicks should show their matching registered profiles directly,
+    // without unrelated search or table filters hiding them.
+    APPLICANTS_FILTER_STATE.search = '';
+    APPLICANTS_FILTER_STATE.barangay = [];
+    APPLICANTS_FILTER_STATE.status = [];
+    const search = document.getElementById('applicant-search');
+    const barangay = document.getElementById('applicants-barangay-filter');
+    if (search) search.value = '';
+    if (barangay) barangay.value = '';
+  }
   const card = document.getElementById('applicants-deceased-card');
   if (card) {
-    card.classList.toggle('active', APPLICANTS_FILTER_STATE.deceasedOnly);
-    card.setAttribute('aria-pressed', String(APPLICANTS_FILTER_STATE.deceasedOnly));
+    card.classList.toggle('active', enabling);
+    card.setAttribute('aria-pressed', String(enabling));
   }
   applyApplicantsFilters();
 }

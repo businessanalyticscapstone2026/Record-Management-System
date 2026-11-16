@@ -8154,32 +8154,35 @@ async function downloadAnalyticsReport(format) {
   const report = buildAnalyticsExportReport();
   const formatCode = format === 'excel' ? 'XLSX' : format.toUpperCase();
   const formatLabel = format === 'excel' ? 'Excel' : format.toUpperCase();
-  try {
-    await recordStaffDataActivity('DATA_EXPORTED', `Staff operations analytics (${report.rangeLabel}; ${report.reportId})`, formatCode, report.recordCount);
-  } catch (error) {
-    console.error('[Analytics Export] Audit logging failed:', error);
-    showToast(`Export blocked: audit log failed${error?.message ? ` (${error.message})` : ''}.`, 'error');
-    return;
-  }
-
   const dateSlug = new Date().toISOString().slice(0, 10);
   const rangeSlug = report.rangeLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const base = `osca-staff-analytics-${rangeSlug}-${dateSlug}`;
-  let blob;
-  let extension;
-  if (format === 'pdf') {
-    blob = await analyticsReportPdf(report);
-    extension = 'pdf';
-  } else if (format === 'excel') {
-    blob = analyticsReportExcel(report);
-    extension = 'xlsx';
-  } else {
-    blob = analyticsReportCsv(report);
-    extension = 'csv';
+  try {
+    let blob;
+    let extension;
+    if (format === 'pdf') {
+      blob = await analyticsReportPdf(report);
+      extension = 'pdf';
+    } else if (format === 'excel') {
+      blob = analyticsReportExcel(report);
+      extension = 'xlsx';
+    } else if (format === 'csv') {
+      blob = analyticsReportCsv(report);
+      extension = 'csv';
+    } else {
+      throw new Error('Unsupported analytics export format.');
+    }
+    saveStaffExport(blob, `${base}.${extension}`);
+  } catch (error) {
+    console.error('[Analytics Export] File generation failed:', error);
+    showToast(`Unable to create the ${formatLabel} report${error?.message ? `: ${error.message}` : '.'}`, 'error');
+    return;
   }
-  saveStaffExport(blob, `${base}.${extension}`);
+
   appendAudit(CURRENT_USER?.displayName || 'Staff', `Exported staff analytics (${formatLabel})`, 'System');
   showToast(`${formatLabel} analytics report downloaded. ${report.recordCount} applications included.`, 'success');
+  recordStaffDataActivity('DATA_EXPORTED', `Staff operations analytics (${report.rangeLabel}; ${report.reportId})`, formatCode, report.recordCount)
+    .catch(error => console.error('[Analytics Export] Audit logging failed after download:', error));
 }
 
 async function recordStaffDataActivity(action, report, format, recordCount) {
