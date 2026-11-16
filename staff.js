@@ -3511,7 +3511,7 @@ function buildApplicantProfiles(applications) {
       // A Completed legacy profile confirms that the ID was already claimed,
       // but older OSCA source records did not capture the claimant's identity.
       profile.idClaimedBy = profile.isRegistered
-        ? 'Claimant not recorded (Legacy Record)'
+        ? 'Legacy Record'
         : 'Not yet claimed';
     }
     profile.isActive = profile.ongoingApplications.length > 0;
