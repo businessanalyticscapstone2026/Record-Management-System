@@ -6079,7 +6079,10 @@ function renderApplicantImportPreview() {
     ).join("") + "</tbody>";
 
   if (summary) {
-    summary.innerHTML =
+    const legacyNotice = summary.dataset.legacyWorkbook === "true"
+      ? '<div class="applicant-import-legacy-note"><strong>OSCA legacy workbook detected.</strong> Core profile fields will be imported. SC ID No., Date Issued, pension check columns, NCSC-RRN, and Date Death are not separate fields in the current RMS import schema and will not be imported. The source workbook remains unchanged.</div>'
+      : "";
+    summary.innerHTML = legacyNotice +
       '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " rows ready</span>" +
       '<span class="applicant-import-summary-muted">' + invalid.toLocaleString() + " incomplete/repeated header rows excluded</span>" +
       (possibleDuplicates
@@ -6149,7 +6152,7 @@ function resetApplicantImportModal() {
     if (element) element.hidden = true;
   });
   const summary = document.getElementById("applicant-import-summary");
-  if (summary) summary.textContent = "";
+  if (summary) { summary.textContent = ""; delete summary.dataset.legacyWorkbook; }
   const bar = document.getElementById("applicant-import-progress-bar");
   if (bar) bar.style.width = "0%";
   const dateFormat = document.getElementById("applicant-import-date-format");
@@ -6174,6 +6177,75 @@ function closeApplicantImportModal() {
   document.body.classList.remove("modal-open");
 }
 
+async function loadApplicantXlsxLibrary() {
+  if (window.XLSX) return window.XLSX;
+  if (window.__applicantXlsxPromise) return window.__applicantXlsxPromise;
+  window.__applicantXlsxPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.async = true;
+    script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error("The Excel workbook reader did not initialize."));
+    script.onerror = () => reject(new Error("Unable to load the Excel workbook reader. Check your internet connection and try again."));
+    document.head.appendChild(script);
+  });
+  return window.__applicantXlsxPromise;
+}
+function parseApplicantLegacyWorkbookMatrix(matrix, sheetName) {
+  const text = value => String(value ?? "").trim();
+  const metadataRow = matrix[2] || [];
+  const barangayText = metadataRow.map(text).find(value => /barangay\s*:/i.test(value)) || "";
+  const barangay = (barangayText.match(/barangay\s*:\s*(.+)/i) || [])[1]?.trim() || text(sheetName);
+  const rows = [];
+  const monthNumber = value => {
+    const raw = text(value);
+    if (!raw) return "";
+    if (/^\d{1,2}$/.test(raw)) {
+      const number = Number(raw);
+      return number >= 1 && number <= 12 ? String(number).padStart(2, "0") : "";
+    }
+    const parsed = new Date(raw + " 1, 2000");
+    return Number.isNaN(parsed.getTime()) ? "" : String(parsed.getMonth() + 1).padStart(2, "0");
+  };
+  const checked = value => ["1", "true", "yes", "y", "x", "✓", "✔", "m", "f"].includes(text(value).toLowerCase());
+  const headers = ["Last Name", "First Name", "Middle Name", "Civil Status", "Sex", "Date of Birth", "Age", "Barangay", "Contact Number", "Remarks"];
+  for (let rowIndex = 6; rowIndex < matrix.length; rowIndex += 1) {
+    const row = matrix[rowIndex] || [];
+    const lastName = text(row[1]), firstName = text(row[2]), middleName = text(row[3]);
+    if (!lastName && !firstName && !middleName) continue;
+    if (/last\s*name/i.test(lastName) || /first\s*name/i.test(firstName)) continue;
+    const maleMark = checked(row[5]), femaleMark = checked(row[6]);
+    let sex = "";
+    if (maleMark !== femaleMark) sex = maleMark ? "Male" : "Female";
+    else {
+      const directSex = text(row[5] || row[6]).toLowerCase();
+      if (["male", "m"].includes(directSex)) sex = "Male";
+      if (["female", "f"].includes(directSex)) sex = "Female";
+    }
+    let dateOfBirth = text(row[7]);
+    const month = monthNumber(row[8]), day = text(row[9]).replace(/\D/g, ""), year = text(row[10]).replace(/\D/g, "");
+    if (month && day && year && Number(day) >= 1 && Number(day) <= 31 && Number(year) >= 1900) {
+      dateOfBirth = year.padStart(4, "0") + "-" + month + "-" + day.padStart(2, "0");
+    }
+    rows.push([lastName, firstName, middleName, text(row[4]), sex, dateOfBirth, text(row[11]), barangay, text(row[19]), text(row[20])]);
+  }
+  return { headers, rows, barangay, sheetName };
+}
+async function parseApplicantLegacyWorkbook(file) {
+  const XLSX = await loadApplicantXlsxLibrary();
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+  const combined = [], sheets = [];
+  workbook.SheetNames.forEach(sheetName => {
+    const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: false, defval: "", blankrows: false });
+    const parsed = parseApplicantLegacyWorkbookMatrix(matrix, sheetName);
+    if (parsed.rows.length) {
+      combined.push(...parsed.rows);
+      sheets.push({ name: sheetName, barangay: parsed.barangay, rows: parsed.rows.length });
+    }
+  });
+  if (!combined.length) throw new Error("No applicant records were found. Expected headers in rows 4–6 and applicant records beginning on row 7.");
+  return { headers: ["Last Name", "First Name", "Middle Name", "Civil Status", "Sex", "Date of Birth", "Age", "Barangay", "Contact Number", "Remarks"], rows: combined, legacyWorkbook: true, sheets };
+}
+
 async function handleApplicantImportFile(file) {
   resetApplicantImportModal();
   if (!file) return;
@@ -6190,12 +6262,16 @@ async function handleApplicantImportFile(file) {
     }
     let parsed;
     const fileName = file.name.toLowerCase();
-    if (fileName.endsWith(".csv") || file.type === "text/csv") {
+    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls") ||
+        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        file.type === "application/vnd.ms-excel") {
+      parsed = await parseApplicantLegacyWorkbook(file);
+    } else if (fileName.endsWith(".csv") || file.type === "text/csv") {
       parsed = parseApplicantCsv(await file.text());
     } else if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
       parsed = await parseApplicantPdf(file);
     } else {
-      throw new Error("Please select a CSV or PDF file.");
+      throw new Error("Please select an OSCA Excel workbook (.xlsx/.xls), CSV, or PDF file.");
     }
     if (!parsed.headers.length || !parsed.rows.length) throw new Error("No table rows were found in the selected file.");
     if (parsed.headers.length > 40) throw new Error("The file contains more than 40 columns. Please simplify the source file before importing.");
@@ -6210,7 +6286,16 @@ async function handleApplicantImportFile(file) {
       APPLICANT_IMPORT_STATE.mapping[index] = guessed && !guessedFields.has(guessed) ? guessed : "";
       if (APPLICANT_IMPORT_STATE.mapping[index]) guessedFields.add(guessed);
     });
-    if (meta) meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " rows · " + parsed.headers.length + " columns";
+    if (meta) {
+      const sheetSummary = parsed.legacyWorkbook
+        ? " · " + parsed.sheets.length + " barangay sheet(s): " + parsed.sheets.map(sheet => sheet.name + " (" + sheet.rows + ")").join(", ")
+        : "";
+      meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " applicant rows · " + parsed.headers.length + " fields" + sheetSummary;
+    }
+    if (parsed.legacyWorkbook) {
+      const summary = document.getElementById("applicant-import-summary");
+      if (summary) summary.dataset.legacyWorkbook = "true";
+    }
     const section = document.getElementById("applicant-import-mapping");
     if (section) section.hidden = false;
     renderApplicantImportMapping();
