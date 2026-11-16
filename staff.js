@@ -6053,6 +6053,7 @@ function renderApplicantImportReviewRows(rows) {
     if (!row.date_of_birth || row._invalidDateOfBirth) missing.push("Date of birth");
     const sourceIndex = row._sourceRow - 1;
     return "<tr><td>" + row._sourceRow + "</td>" +
+      "<td>" + escapeApplicantImportHtml(row.barangay_district || "Not provided") + "</td>" +
       "<td><input type='text' data-review-row='" + sourceIndex + "' data-review-field='first_name' value='" + escapeApplicantImportHtml(row.first_name || "") + "' placeholder='First name'></td>" +
       "<td><input type='text' data-review-row='" + sourceIndex + "' data-review-field='surname' value='" + escapeApplicantImportHtml(row.surname || "") + "' placeholder='Surname'></td>" +
       "<td><input type='date' data-review-row='" + sourceIndex + "' data-review-field='date_of_birth' value='" + escapeApplicantImportHtml(row.date_of_birth && !row._invalidDateOfBirth ? row.date_of_birth : "") + "'></td>" +
