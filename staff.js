@@ -3373,6 +3373,21 @@ document.addEventListener(
 
 // Registry view helpers: group request rows into one profile per senior.
 var STAFF_APPLICANT_PROFILES = [];
+// Keep deceased label matching centralized and conservative: free-text remarks
+// qualify only when the normalized value is exactly one of these labels.
+const DECEASED_APPLICANT_REMARK_KEYWORDS = Object.freeze([
+  'deceased', 'dead', 'died', 'patay', 'namatay', 'passed away', 'rip'
+]);
+function isApplicantMarkedDeceased(application) {
+  if (!application || typeof application !== 'object') return false;
+  const normalize = value => String(value || '').trim().toLocaleLowerCase('en').replace(/\s+/g, ' ');
+  const explicitStatus = normalize(application.membership_status || application.membershipStatus);
+  if (explicitStatus === 'deceased' || normalize(application.status) === 'deceased' || normalize(application.deceased_status) === 'deceased') return true;
+  if (application.is_deceased === true || application.isDeceased === true || application.deceased === true || application.deceased_flag === true) return true;
+  const remarks = [application.remarks, application.remark, application.membership_remarks, application.membershipRemarks]
+    .filter(value => typeof value === 'string');
+  return remarks.some(value => DECEASED_APPLICANT_REMARK_KEYWORDS.includes(normalize(value)));
+}
 var APPLICANTS_SORT_STATE = (() => {
   const params = new URLSearchParams(window.location.search);
   const sort = params.get('sort');
@@ -3468,6 +3483,12 @@ function buildApplicantProfiles(applications) {
     profile.ongoingApplications = profile.applications.filter(a =>
       !['completed', 'rejected'].includes(normalizeApplicationStatus(a.status)));
     profile.isRegistered = profile.completedApplications.length > 0;
+    profile.isDeceased = profile.applications.some(isApplicantMarkedDeceased);
+    profile.deceasedMarkedAt = profile.applications
+      .filter(isApplicantMarkedDeceased)
+      .map(application => new Date(application.updated_at || application.status_updated_at || application.created_at || 0))
+      .filter(date => !Number.isNaN(date.getTime()) && date.getTime() > 0)
+      .sort((a, b) => b - a)[0] || null;
     const registeredDates = profile.completedApplications.map(a => new Date(a.status_updated_at || a.updated_at || a.created_at || 0))
       .filter(date => !Number.isNaN(date.getTime()) && date.getTime() > 0).sort((a, b) => a - b);
     profile.registeredAt = registeredDates[0] || null;
@@ -3585,12 +3606,14 @@ function applyApplicantsFilters() {
   const statuses = Array.isArray(APPLICANTS_FILTER_STATE.status)
     ? APPLICANTS_FILTER_STATE.status.map(value => String(value).trim().toLowerCase())
     : [];
+  const deceasedOnly = APPLICANTS_FILTER_STATE.deceasedOnly === true;
   const matchingRows = rows.filter(row => {
     const rowBarangay = String(row.dataset.barangay || '').trim().toLowerCase();
     const rowStatus = String(row.dataset.status || '').trim().toLowerCase();
     return (!search || (row.dataset.search || row.textContent).toLowerCase().includes(search)) &&
       (!barangays.length || barangays.includes(rowBarangay)) &&
-      (!statuses.length || statuses.includes(rowStatus));
+      (!statuses.length || statuses.includes(rowStatus)) &&
+      (!deceasedOnly || row.dataset.deceased === 'true');
   });
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
   const compareIds = (a, b) => collator.compare(
@@ -3644,8 +3667,21 @@ function resetRegisteredApplicantFilters() {
   APPLICANTS_FILTER_STATE.search = '';
   APPLICANTS_FILTER_STATE.barangay = [];
   APPLICANTS_FILTER_STATE.status = [];
+  APPLICANTS_FILTER_STATE.deceasedOnly = false;
+  document.getElementById('applicants-deceased-card')?.classList.remove('active');
   applyApplicantsFilters();
 }
+
+function toggleDeceasedApplicantsFilter() {
+  APPLICANTS_FILTER_STATE.deceasedOnly = APPLICANTS_FILTER_STATE.deceasedOnly !== true;
+  const card = document.getElementById('applicants-deceased-card');
+  if (card) {
+    card.classList.toggle('active', APPLICANTS_FILTER_STATE.deceasedOnly);
+    card.setAttribute('aria-pressed', String(APPLICANTS_FILTER_STATE.deceasedOnly));
+  }
+  applyApplicantsFilters();
+}
+window.toggleDeceasedApplicantsFilter = toggleDeceasedApplicantsFilter;
 
 function updateApplicantsSortUI() {
   const select = document.getElementById('applicants-sort-select');
@@ -4585,6 +4621,7 @@ function updateApplicantSummaryCards(applications) {
   if (!Array.isArray(applications)) return;
   const profiles = buildApplicantProfiles(applications);
   const ongoingProfiles = profiles.filter(profile => profile.isActive);
+  const deceasedProfiles = profiles.filter(profile => profile.isRegistered && profile.isDeceased);
   const ongoingApplicationCount = applications.filter(application =>
     !['completed', 'rejected'].includes(normalizeApplicationStatus(application.status))).length;
   const now = new Date();
@@ -4649,6 +4686,14 @@ function updateApplicantSummaryCards(applications) {
   setTrend('applicants-registrations-trend', registrationComparison.text, registrationComparison.trendClass);
   setTrend('applicants-duplicates-trend', duplicateProfiles === 0 ? 'All clear' : 'Needs review',
     duplicateProfiles === 0 ? 'trend-good' : 'trend-up');
+  const deceasedMarkedThisWeek = deceasedProfiles.filter(profile => profile.deceasedMarkedAt && profile.deceasedMarkedAt >= startOfThisWeek && profile.deceasedMarkedAt <= now).length;
+  const deceasedMarkedThisMonth = deceasedProfiles.filter(profile => profile.deceasedMarkedAt && profile.deceasedMarkedAt >= startOfThisMonth && profile.deceasedMarkedAt <= now).length;
+  const deceasedTrend = document.getElementById('applicants-deceased-trend');
+  if (deceasedTrend) deceasedTrend.textContent = deceasedMarkedThisWeek
+    ? `+${deceasedMarkedThisMonth || deceasedMarkedThisWeek} this month`
+    : 'No new this week';
+  const deceasedCount = document.getElementById('applicants-deceased-count');
+  if (deceasedCount) deceasedCount.textContent = deceasedProfiles.length.toLocaleString();
   const counts = {
     'applicants-total-count': totalRegistered,
     'applicants-verified-count': ongoingProfiles.length,

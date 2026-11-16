@@ -3365,6 +3365,23 @@ body>.status-select__menu {
   box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
 }
 
+#applicants-kpi-strip {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+#applicants-kpi-strip .applicants-deceased-card {
+  cursor: pointer;
+}
+
+#applicants-kpi-strip .applicants-deceased-card:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}
+
+#applicants-kpi-strip .applicants-deceased-card .stat-card__trend {
+  white-space: nowrap;
+}
+
 #applicants-kpi-strip .stat-card:nth-child(1) {
   --applicant-kpi-accent: #8b1e2d;
   --applicant-kpi-tint: rgba(139, 30, 45, .1);
@@ -3376,11 +3393,16 @@ body>.status-select__menu {
 }
 
 #applicants-kpi-strip .stat-card:nth-child(3) {
+  --applicant-kpi-accent: #64748b;
+  --applicant-kpi-tint: rgba(100, 116, 139, .12);
+}
+
+#applicants-kpi-strip .stat-card:nth-child(4) {
   --applicant-kpi-accent: #0f766e;
   --applicant-kpi-tint: rgba(15, 118, 110, .1);
 }
 
-#applicants-kpi-strip .stat-card:nth-child(4) {
+#applicants-kpi-strip .stat-card:nth-child(5) {
   --applicant-kpi-accent: #a16207;
   --applicant-kpi-tint: rgba(217, 119, 6, .12);
 }
@@ -3442,9 +3464,19 @@ body>.status-select__menu {
 }
 
 @media (max-width: 760px) {
+  #applicants-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   #applicants-kpi-strip .stat-card {
     min-height: 120px;
     padding: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  #applicants-kpi-strip {
+    grid-template-columns: 1fr;
   }
 }
 
