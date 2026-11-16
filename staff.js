@@ -5645,6 +5645,7 @@ let APPLICANT_IMPORT_STATE = {
   headers: [],
   rows: [],
   mapping: {},
+  reviewEdits: {},
   imported: false,
   busy: false
 };
@@ -6039,20 +6040,59 @@ function isApplicantImportRepeatedHeader(row) {
     ["surname", "last name", "lastname", "family name"].includes(last);
 }
 
+function renderApplicantImportReviewRows(rows) {
+  const panel = document.getElementById("applicant-import-review");
+  const body = document.getElementById("applicant-import-review-body");
+  if (!panel || !body) return;
+  panel.hidden = rows.length === 0;
+  if (!rows.length) { body.innerHTML = ""; return; }
+  body.innerHTML = rows.map(row => {
+    const missing = [];
+    if (!row.first_name) missing.push("First name");
+    if (!row.surname) missing.push("Surname");
+    if (!row.date_of_birth || row._invalidDateOfBirth) missing.push("Date of birth");
+    const sourceIndex = row._sourceRow - 1;
+    return "<tr><td>" + row._sourceRow + "</td>" +
+      "<td><input type='text' data-review-row='" + sourceIndex + "' data-review-field='first_name' value='" + escapeApplicantImportHtml(row.first_name || "") + "' placeholder='First name'></td>" +
+      "<td><input type='text' data-review-row='" + sourceIndex + "' data-review-field='surname' value='" + escapeApplicantImportHtml(row.surname || "") + "' placeholder='Surname'></td>" +
+      "<td><input type='date' data-review-row='" + sourceIndex + "' data-review-field='date_of_birth' value='" + escapeApplicantImportHtml(row.date_of_birth && !row._invalidDateOfBirth ? row.date_of_birth : "") + "'></td>" +
+      "<td>" + escapeApplicantImportHtml(missing.join(", ")) + "</td></tr>";
+  }).join("");
+  body.querySelectorAll("input[data-review-row]").forEach(input => {
+    input.addEventListener("change", () => {
+      const index = input.dataset.reviewRow;
+      const field = input.dataset.reviewField;
+      if (!APPLICANT_IMPORT_STATE.reviewEdits[index]) APPLICANT_IMPORT_STATE.reviewEdits[index] = {};
+      APPLICANT_IMPORT_STATE.reviewEdits[index][field] = input.value.trim();
+      if (field === "date_of_birth") {
+        APPLICANT_IMPORT_STATE.reviewEdits[index]._invalidDateOfBirth = !input.value;
+      }
+      renderApplicantImportPreview();
+    });
+  });
+}
+
 function renderApplicantImportPreview() {
   const preview = document.getElementById("applicant-import-preview");
   const summary = document.getElementById("applicant-import-summary");
   const submit = document.getElementById("applicant-import-submit");
   if (!preview) return;
 
-  const mappedRows = APPLICANT_IMPORT_STATE.rows.map(row => getApplicantImportMappedRow(row));
-  const validRows = mappedRows.filter(row =>
-    row.first_name && row.surname && row.date_of_birth &&
-    !row._invalidDateOfBirth &&
-    !row._invalidRegistrationDate &&
-    !isApplicantImportRepeatedHeader(row)
+  const mappedRows = APPLICANT_IMPORT_STATE.rows.map((row, index) => {
+    const mapped = getApplicantImportMappedRow(row);
+    const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
+    return { ...mapped, ...edits, _sourceRow: index + 1 };
+  });
+  const repeatedHeaderRows = mappedRows.filter(isApplicantImportRepeatedHeader).length;
+  const reviewRows = mappedRows.filter(row =>
+    !isApplicantImportRepeatedHeader(row) &&
+    (!row.first_name || !row.surname || !row.date_of_birth || row._invalidDateOfBirth)
   );
-  const invalid = mappedRows.length - validRows.length;
+  const validRows = mappedRows.filter(row =>
+    !isApplicantImportRepeatedHeader(row) &&
+    row.first_name && row.surname && row.date_of_birth &&
+    !row._invalidDateOfBirth
+  );
   const selectedFields = [];
   APPLICANT_IMPORT_FIELDS.forEach(field => {
     if (field.key && Object.values(APPLICANT_IMPORT_STATE.mapping).includes(field.key)) selectedFields.push(field);
@@ -6091,11 +6131,13 @@ function renderApplicantImportPreview() {
       : "";
     summary.innerHTML = legacyNotice +
       '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " rows ready</span>" +
-      '<span class="applicant-import-summary-muted">' + invalid.toLocaleString() + " incomplete/repeated header rows excluded</span>" +
+      '<span class="applicant-import-summary-muted">' + reviewRows.length.toLocaleString() + " incomplete row(s) need review" +
+      (repeatedHeaderRows ? "; " + repeatedHeaderRows.toLocaleString() + " repeated header row(s) excluded" : "") + "</span>" +
       (possibleDuplicates
         ? '<span class="applicant-import-summary-duplicate">' + possibleDuplicates.toLocaleString() + " possible duplicate(s) will be checked again before saving</span>"
         : "");
   }
+  renderApplicantImportReviewRows(reviewRows);
   if (submit) submit.disabled = APPLICANT_IMPORT_STATE.busy || !hasValidApplicantImportMapping() || validRows.length === 0;
 }
 
@@ -6149,7 +6191,7 @@ function setApplicantImportError(message) {
 }
 
 function resetApplicantImportModal() {
-  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, imported: false, busy: false };
+  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, reviewEdits: {}, imported: false, busy: false };
   const input = document.getElementById("applicant-import-file");
   if (input) input.value = "";
   const documentZip = document.getElementById("applicant-document-zip");
@@ -6398,13 +6440,14 @@ async function submitApplicantImport() {
   const mappedRows = APPLICANT_IMPORT_STATE.rows
     .map((row, index) => {
       const mapped = getApplicantImportMappedRow(row);
+      const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
+      Object.assign(mapped, edits);
       mapped._sourceRow = index + 1;
       return mapped;
     })
     .filter(row =>
       row.first_name && row.surname && row.date_of_birth &&
       !row._invalidDateOfBirth &&
-      !row._invalidRegistrationDate &&
       !isApplicantImportRepeatedHeader(row)
     );
   if (!mappedRows.length) {
