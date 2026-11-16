@@ -3508,7 +3508,11 @@ function buildApplicantProfiles(applications) {
         ? pickupName
         : 'Authorized Personnel (name not recorded)';
     } else {
-      profile.idClaimedBy = 'Not yet claimed';
+      // A Completed legacy profile confirms that the ID was already claimed,
+      // but older OSCA source records did not capture the claimant's identity.
+      profile.idClaimedBy = profile.isRegistered
+        ? 'Claimant not recorded (Legacy Record)'
+        : 'Not yet claimed';
     }
     profile.isActive = profile.ongoingApplications.length > 0;
     profile.hasDuplicateFlag = profile.applications.some(isProfileDuplicateFlagged);
@@ -4200,9 +4204,12 @@ function buildApplicationRemarksSelect(applicationId, currentRemarks) {
       <span>${label}</span>
     </button>`;
   }).join('');
-  const selected = APPLICATION_REMARKS_CONFIG[currentRemarks];
-  const label = selected ? currentRemarks : 'Select remark';
-  const color = selected ? selected.color : '#94A3B8';
+  const remarkValue = String(currentRemarks || '').trim();
+  const selected = APPLICATION_REMARKS_CONFIG[remarkValue];
+  // Historical workbooks may contain free-text remarks outside the standard
+  // dropdown values. Display the original text instead of showing a blank prompt.
+  const label = selected ? remarkValue : (remarkValue || 'Select remark');
+  const color = selected ? selected.color : '#64748B';
   const path = selected ? selected.path : '<circle cx="10" cy="10" r="6"/><path d="M10 7v3m0 3h.01"/>';
   return `<div class="status-select remarks-select" data-app-id="${escapeApplicationHtml(applicationId)}" data-previous-value="${escapeApplicationHtml(currentRemarks)}">
     <button type="button" class="status-select__trigger" onclick="toggleApplicationRemarksSelect(this,event)" aria-label="Remarks: ${escapeApplicationHtml(label)}">
