@@ -5606,7 +5606,7 @@ APPLICANT_IMPORT_FIELDS.push(
   { key: "sss_id_number", label: "SSS ID number", aliases: ["sss id", "sss number"] },
   { key: "philhealth_id_number", label: "PhilHealth ID number", aliases: ["philhealth id", "philhealth number"] },
   { key: "gsis_id_number", label: "GSIS ID number", aliases: ["gsis id", "gsis number"] },
-  { key: "tin_id_number", label: "TIN ID number", aliases: ["tin id", "tin number", "tax identification number"] },
+  { key: "tin_id_number", label: "TIN ID number", aliases: ["tin", "tin id", "tin number", "tax identification number"] },
   { key: "application_type", label: "Application type", aliases: ["application type", "record type"] }
 );
 
@@ -5990,7 +5990,9 @@ function guessApplicantImportTarget(header) {
       const value = normalizeApplicantImportHeader(alias);
       let score = 0;
       if (normalized === value) score = 100;
-      else if (normalized.includes(value) || value.includes(normalized)) score = Math.min(85, value.length * 2);
+      else if (normalized.includes(" " + value + " ") || (" " + value + " ").includes(" " + normalized + " ")) {
+        score = Math.min(85, value.length * 2);
+      }
       if (score > bestScore) {
         bestScore = score;
         best = field.key;
@@ -6721,7 +6723,7 @@ async function submitApplicantImport() {
   if (resultPanel) resultPanel.hidden = true;
   setApplicantImportError("");
 
-  const totals = { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [] };
+  const totals = { imported: 0, importedFamilyMembers: 0, skippedDuplicates: 0, skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [] };
   const batchSize = 100;
   const totalBatches = Math.ceil(mappedRows.length / batchSize);
   try {
@@ -6741,6 +6743,7 @@ async function submitApplicantImport() {
       if (!response.ok || !payload.success) throw new Error(payload.message || "The server rejected an import batch.");
 
       totals.imported += Number(payload.imported || 0);
+      totals.importedFamilyMembers += Number(payload.importedFamilyMembers || 0);
       totals.skippedDuplicates += Number(payload.skippedDuplicates || 0);
       totals.skippedInvalid += Number(payload.skippedInvalid || 0);
       totals.failed += Number(payload.failed || 0);
@@ -6764,6 +6767,7 @@ async function submitApplicantImport() {
       resultPanel.innerHTML =
         "<strong>" + (totals.imported === 0 && (totals.failed + totals.skippedInvalid) > 0 ? "Import failed" : (totals.failed + totals.skippedInvalid) > 0 ? "Import partially completed" : "Import successful") + "</strong><div class='applicant-import-result-grid'>" +
         "<span><b>" + totals.imported.toLocaleString() + "</b> Imported</span>" +
+        "<span><b>" + Number(totals.importedFamilyMembers || 0).toLocaleString() + "</b> Family members imported</span>" +
         "<span><b>" + totals.skippedDuplicates.toLocaleString() + "</b> Duplicates skipped</span>" +
         "<span><b>" + (totals.skippedInvalid + totals.failed).toLocaleString() + "</b> Not imported</span></div>" +
         "<p>" + (totals.imported > 0 ? "Successfully saved records are stored as Completed profiles. Existing records were not changed." : "No records were saved. Correct the row issues before trying again.") +
