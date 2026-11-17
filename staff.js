@@ -6219,6 +6219,28 @@ function renderApplicantImportPreview() {
       ).join("") + "</tr>"
     ).join("") + "</tbody>";
 
+  const familyPreviewPanel = document.getElementById("applicant-import-family-preview-panel");
+  const familyPreview = document.getElementById("applicant-import-family-preview");
+  const familyPreviewRows = [];
+  APPLICANT_IMPORT_STATE.familyMembersByRow.forEach((members, applicantIndex) => {
+    const applicant = mappedRows[applicantIndex] || {};
+    const applicantName = [applicant.first_name, applicant.middle_name, applicant.surname].filter(Boolean).join(" ");
+    (members || []).forEach(member => familyPreviewRows.push({ applicantName, member }));
+  });
+  if (familyPreviewPanel) familyPreviewPanel.hidden = familyPreviewRows.length === 0 && !APPLICANT_IMPORT_STATE.familyCompositionUnmatched;
+  if (familyPreview) {
+    familyPreview.innerHTML = "<thead><tr><th>Applicant</th><th>Family member</th><th>Relationship</th><th>Age</th><th>Civil status</th><th>Occupation</th><th>Income</th></tr></thead><tbody>" +
+      familyPreviewRows.slice(0, 12).map(({ applicantName, member }) =>
+        "<tr><td>" + escapeApplicantImportHtml(applicantName || "—") + "</td>" +
+        "<td>" + escapeApplicantImportHtml(member.name || "—") + "</td>" +
+        "<td>" + escapeApplicantImportHtml(member.relationship || "—") + "</td>" +
+        "<td>" + escapeApplicantImportHtml(member.age || "—") + "</td>" +
+        "<td>" + escapeApplicantImportHtml(member.civil_status || "—") + "</td>" +
+        "<td>" + escapeApplicantImportHtml(member.occupation || "—") + "</td>" +
+        "<td>" + escapeApplicantImportHtml(member.income || "—") + "</td></tr>"
+      ).join("") + "</tbody>";
+  }
+
   if (summary) {
     const legacyNotice = summary.dataset.legacyWorkbook === "true"
       ? '<div class="applicant-import-legacy-note"><strong>OSCA legacy workbook detected.</strong> Core profile fields will be imported. SC ID No., Date Issued, pension check columns, NCSC-RRN, and the exact Date Death value are not stored as separate RMS fields. A populated Date Death will set the imported remark to Deceased when no remark is already present. The source workbook remains unchanged.</div>'
