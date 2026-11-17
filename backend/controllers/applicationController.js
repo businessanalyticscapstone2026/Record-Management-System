@@ -2799,7 +2799,7 @@ const importApplicantRecords = async (req, res) => {
     }).filter(Boolean));
 
     const importedIdentityKeys = new Set();
-    const result = { success: true, received: rows.length, imported: 0, skippedDuplicates: 0,
+    const result = { success: true, received: rows.length, imported: 0, importedFamilyMembers: 0, skippedDuplicates: 0,
       skippedInvalid: 0, failed: 0, errors: [], importedApplicants: [], warnings: [] };
 
     for (let index = 0; index < rows.length; index += 1) {
@@ -2896,6 +2896,7 @@ const importApplicantRecords = async (req, res) => {
       };
 
       const insertedTables = [];
+      let insertedFamilyCount = 0;
       let applicationIdForRollback = internalApplicationId;
       try {
         const { data: inserted, error: insertError } = await supabase.from("applications")
@@ -2928,31 +2929,39 @@ const importApplicantRecords = async (req, res) => {
           const raw = table === "problems_needs" && hasLegacyHealthDetails
             ? { ...(source._related?.[table] || {}), health_problem: true, health_problem_specify: legacyHealthDetails }
             : source._related?.[table];
-          if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
-          const record = { application_id: id };
-          allowed.forEach(column => {
-            const value = raw[column];
-            if (value === undefined || value === null || String(value).trim() === "") return;
-            if (booleanColumns.has(table + "." + column)) {
-              const parsed = parseBoolean(value);
-              if (parsed !== null) record[column] = parsed;
-            } else if (["age", "income"].includes(column)) {
-              const number = Number(String(value).replace(/[,₱\s]/g, ""));
-              if (Number.isFinite(number)) record[column] = number;
-            } else if (["association_date", "application_date"].includes(column)) {
-              const date = normalizeDate(value);
-              if (date) record[column] = date;
-            } else if (table === "family_composition" && column === "civil_status") {
-              const normalizedStatus = normalizeFamilyCivilStatus(value);
-              if (normalizedStatus) record[column] = normalizedStatus;
-            } else {
-              record[column] = String(value).trim();
-            }
-          });
-          if (!hasValues(record)) continue;
-          const { error } = await supabase.from(table).insert(record);
-          if (error) throw new Error(table + ": " + error.message);
-          insertedTables.push(table);
+          // Family Composition is a one-to-many relationship: a single applicant
+          // can have several family members in the source workbook.
+          const rawRecords = table === "family_composition" && Array.isArray(source._family_members)
+            ? source._family_members
+            : [raw];
+          for (const rawRecord of rawRecords) {
+            if (!rawRecord || typeof rawRecord !== "object" || Array.isArray(rawRecord)) continue;
+            const record = { application_id: id };
+            allowed.forEach(column => {
+              const value = rawRecord[column];
+              if (value === undefined || value === null || String(value).trim() === "") return;
+              if (booleanColumns.has(table + "." + column)) {
+                const parsed = parseBoolean(value);
+                if (parsed !== null) record[column] = parsed;
+              } else if (["age", "income"].includes(column)) {
+                const number = Number(String(value).replace(/[,₱\s]/g, ""));
+                if (Number.isFinite(number)) record[column] = number;
+              } else if (["association_date", "application_date"].includes(column)) {
+                const date = normalizeDate(value);
+                if (date) record[column] = date;
+              } else if (table === "family_composition" && column === "civil_status") {
+                const normalizedStatus = normalizeFamilyCivilStatus(value);
+                if (normalizedStatus) record[column] = normalizedStatus;
+              } else {
+                record[column] = String(value).trim();
+              }
+            });
+            if (!hasValues(record)) continue;
+            const { error } = await supabase.from(table).insert(record);
+            if (error) throw new Error(table + ": " + error.message);
+            insertedTables.push(table);
+            if (table === "family_composition") insertedFamilyCount += 1;
+          }
         }
 
         existingIds.add(String(id).toLowerCase());
@@ -2961,8 +2970,10 @@ const importApplicantRecords = async (req, res) => {
         result.importedApplicants.push({
           sourceRow: index + 1,
           application_id: id,
-          legacy_reference: legacyReference
+          legacy_reference: legacyReference,
+          familyMembersImported: insertedFamilyCount
         });
+        result.importedFamilyMembers += insertedFamilyCount;
         result.imported += 1;
       } catch (error) {
         // Best-effort rollback keeps the application and its linked records together.
@@ -2990,7 +3001,7 @@ const importApplicantRecords = async (req, res) => {
       "Imported records are marked Completed and appear in the Registered Seniors directory.",
       "Existing records are never overwritten; duplicate records are skipped.",
       "Related family, background, needs, membership, and file metadata are saved only when mapped source values are provided.",
-      "A single family-composition mapping creates one family member row per applicant. Multiple family members require separate source rows or a future multi-member grouping enhancement.",
+      "Multiple Family Composition worksheet rows can be linked to the same applicant and are saved as separate family member records.",
       "Document URLs are imported as references only; actual document files are not uploaded to Storage."
     ];
     return res.status(200).json(result);

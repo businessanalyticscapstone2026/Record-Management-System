@@ -2525,6 +2525,7 @@
             <li>Column names do not need to match. Review and adjust the field mapping before importing. A single Full Name column is split automatically as First / Middle / Surname for review.</li>
             <li>Searchable PDFs are read directly. Scanned PDFs use in-browser OCR; carefully review the extracted values before importing.</li>
             <li>OSCA legacy Excel workbooks are read sheet by sheet. The barangay is taken from row 3 (or the worksheet name), and applicant data is read from row 7 onward.</li>
+            <li>Standard workbooks with separate Personal details and Family Composition worksheets are supported. Family members are matched to applicants by the Applicant name and saved as linked family records.</li>
           </ul>
         </div>
         <label class="applicant-import-dropzone" id="applicant-import-dropzone" for="applicant-import-file">
@@ -2552,7 +2553,11 @@
           <div id="applicant-import-map-list" class="applicant-import-map-list"></div>
           <div class="applicant-import-preview-heading"><strong>Data preview</strong><span>First 8 rows</span></div>
           <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table" id="applicant-import-preview"></table></div>
-                    <div class="applicant-import-summary" id="applicant-import-summary"></div>
+          <section id="applicant-import-family-preview-panel" hidden>
+            <div class="applicant-import-preview-heading"><strong>Family Composition Preview</strong><span>Linked family members</span></div>
+            <div class="applicant-import-preview-wrap"><table class="applicant-import-preview-table" id="applicant-import-family-preview"></table></div>
+          </section>
+          <div class="applicant-import-summary" id="applicant-import-summary"></div>
           <section class="applicant-import-review" id="applicant-import-review" hidden>
             <div class="applicant-import-preview-heading"><strong>Legacy Import Review</strong><span>Complete required fields before importing</span></div>
             <p class="applicant-import-review-help">These source rows are missing a first name, surname, or valid date of birth. They are kept here for review and will not be sent to the database until the required fields are completed. Repeated header rows are excluded.</p>
@@ -2596,7 +2601,7 @@
   <script src="theme.js?v=1"></script>
   <script src="app.js?v=analytics-restore-1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="staff.js?v=analytics-restore-1"></script>
+  <script src="staff.js?v=family-composition-import-3"></script>
 </body>
 
 </html>
