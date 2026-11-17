@@ -5709,7 +5709,7 @@ let APPLICANT_IMPORT_STATE = {
 };
 
 function normalizeApplicantImportHeader(value) {
-  return String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\\s+/g, " ");
 }
 
@@ -6345,7 +6345,7 @@ async function parseApplicantLegacyWorkbook(file) {
   const combined = [], sheets = [];
 
   const normalizeCell = value => String(value ?? "").trim().toLowerCase()
-    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
   const matrices = workbook.SheetNames.map(sheetName => ({
     name: sheetName,
@@ -6358,7 +6358,7 @@ async function parseApplicantLegacyWorkbook(file) {
   // column headings in rows 4–6, and records beginning on row 7).
   const isLegacyWorkbook = matrices.some(({ matrix }) => {
     const metadata = (matrix[2] || []).map(value => String(value ?? ""));
-    const hasBarangayMetadata = metadata.some(value => /barangay\\s*:/i.test(value));
+    const hasBarangayMetadata = metadata.some(value => /barangay\s*:/i.test(value));
     const headerText = matrix.slice(3, 6).flat().map(normalizeCell);
     const hasNameHeaders = headerText.some(value => value === "last name" || value.includes("last name")) &&
       headerText.some(value => value === "first name" || value.includes("first name"));
@@ -6395,7 +6395,7 @@ async function parseApplicantLegacyWorkbook(file) {
     const sourceHeaders = (matrix[headerIndex] || []).map((value, index) =>
       String(value ?? "").trim() || ("Column " + (index + 1))
     );
-    while (sourceHeaders.length && /^Column \\d+$/.test(sourceHeaders[sourceHeaders.length - 1])) {
+    while (sourceHeaders.length && /^Column \d+$/.test(sourceHeaders[sourceHeaders.length - 1])) {
       sourceHeaders.pop();
     }
     if (!sourceHeaders.length) return;
