@@ -6019,6 +6019,23 @@ function normalizeApplicantImportDate(value) {
   if (!raw) return "";
   if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
 
+  // Parse month-name dates as calendar dates in UTC. This prevents strings
+  // such as "August 4, 1960" from shifting to the previous day in UTC+ zones.
+  const namedDate = raw.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (namedDate) {
+    const monthNames = ["january", "february", "march", "april", "may", "june",
+      "july", "august", "september", "october", "november", "december"];
+    const month = monthNames.indexOf(namedDate[1].toLowerCase());
+    const day = Number(namedDate[2]);
+    const year = Number(namedDate[3]);
+    const date = new Date(Date.UTC(year, month, day));
+    if (month >= 0 && date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month && date.getUTCDate() === day) {
+      return date.toISOString().slice(0, 10);
+    }
+    return "";
+  }
+
   const format = document.getElementById("applicant-import-date-format")?.value || "auto";
   const ymd = raw.match(/^(\\d{4})[/.-](\\d{1,2})[/.-](\\d{1,2})$/);
   if (ymd) {
