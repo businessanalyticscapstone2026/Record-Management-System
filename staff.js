@@ -3578,6 +3578,7 @@ function renderLiveApplicants(applications) {
     const remarks = String(profile.remarks || '').trim();
     const searchText = [profile.name, profile.seniorId, profile.barangay, profile.idClaimedBy, remarks, ids].join(' ').toLowerCase();
     return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}"
+      data-deceased="${profile.isDeceased ? 'true' : 'false'}"
       data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-name="${escapeApplicationHtml(profile.name || '')}"
       data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
       <td><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info">
