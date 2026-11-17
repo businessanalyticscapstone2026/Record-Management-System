@@ -1532,8 +1532,77 @@ function updateLiveAnalyticsCharts(
     return;
   }
 
-  const currentYear =
-    new Date().getFullYear();
+  if (typeof updateAnalyticsChartRangeLabels === 'function') {
+    updateAnalyticsChartRangeLabels();
+  }
+  if (typeof CHARTS !== 'undefined' && CHARTS.processing) {
+    setAnalyticsChartState('processing', 'loading', 'Updating turnaround data…');
+  }
+  if (typeof CHARTS !== 'undefined' && CHARTS.barangay) {
+    setAnalyticsChartState('barangay', 'loading', 'Updating barangay workload…');
+  }
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const selectedRange = document.getElementById('report-range')?.value || '30';
+  const processingMode = selectedRange === '7' ? 'day' : selectedRange === '30' ? 'week' : 'month';
+  const processingStart = new Date(today);
+  if (selectedRange === '7' || selectedRange === '30') {
+    processingStart.setDate(processingStart.getDate() - (Number(selectedRange) - 1));
+  } else if (selectedRange === 'quarter') {
+    processingStart.setMonth(Math.floor(processingStart.getMonth() / 3) * 3, 1);
+  } else if (selectedRange === 'year') {
+    processingStart.setMonth(0, 1);
+  } else {
+    const earliestTimestamp = applications.reduce((earliest, application) => {
+      const value = application.created_at || application.submitted_at || application.application_date;
+      const date = value ? new Date(value) : null;
+      return date && !Number.isNaN(date.getTime()) ? Math.min(earliest, date.getTime()) : earliest;
+    }, Infinity);
+    if (Number.isFinite(earliestTimestamp)) {
+      const earliest = new Date(earliestTimestamp);
+      processingStart.setFullYear(earliest.getFullYear(), earliest.getMonth(), 1);
+    } else {
+      processingStart.setDate(1);
+    }
+  }
+  if (processingMode === 'week') {
+    processingStart.setDate(processingStart.getDate() - ((processingStart.getDay() + 6) % 7));
+  }
+  const processingDateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const processingBucketDate = date => {
+    const bucketDate = new Date(date);
+    bucketDate.setHours(0, 0, 0, 0);
+    if (processingMode === 'week') bucketDate.setDate(bucketDate.getDate() - ((bucketDate.getDay() + 6) % 7));
+    if (processingMode === 'month') bucketDate.setDate(1);
+    return bucketDate;
+  };
+  const processingBuckets = new Map();
+  const processingBucketEnd = new Date(today);
+  if (processingMode === 'week') processingBucketEnd.setDate(processingBucketEnd.getDate() - ((processingBucketEnd.getDay() + 6) % 7));
+  if (processingMode === 'month') processingBucketEnd.setDate(1);
+  const bucketCursor = new Date(processingStart);
+  while (bucketCursor <= processingBucketEnd) {
+    const date = new Date(bucketCursor);
+    let label;
+    if (processingMode === 'day') {
+      label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else if (processingMode === 'week') {
+      const end = new Date(date);
+      end.setDate(end.getDate() + 6);
+      const left = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const right = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      label = date.getMonth() === end.getMonth() ? `${date.toLocaleDateString('en-US', { month: 'short' })} ${date.getDate()}–${end.getDate()}` : `${left}–${right}`;
+    } else {
+      label = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+    processingBuckets.set(processingDateKey(date), { date, label, values: [] });
+    if (processingMode === 'day') bucketCursor.setDate(bucketCursor.getDate() + 1);
+    else if (processingMode === 'week') bucketCursor.setDate(bucketCursor.getDate() + 7);
+    else bucketCursor.setMonth(bucketCursor.getMonth() + 1);
+  }
 
 
   // INITIAL DATA ARRAYS
@@ -1548,12 +1617,6 @@ function updateLiveAnalyticsCharts(
     Array(12).fill(0);
 
   const issuanceMonthly =
-    Array(12).fill(0);
-
-  const processingTotals =
-    Array(12).fill(0);
-
-  const processingCounts =
     Array(12).fill(0);
 
   const barangays = {};
@@ -1840,14 +1903,9 @@ function updateLiveAnalyticsCharts(
           );
 
 
-        const month =
-          statusDate.getMonth();
-
-
-        processingTotals[month] +=
-          days;
-
-        processingCounts[month]++;
+        const bucketDate = processingBucketDate(createdDate);
+        const bucket = processingBuckets.get(processingDateKey(bucketDate));
+        if (bucket) bucket.values.push(days);
 
       }
 
@@ -1889,26 +1947,19 @@ function updateLiveAnalyticsCharts(
 
   // CALCULATE AVERAGE PROCESSING TIME
 
-  const processing =
-    processingTotals.map(
-      (total, index) => {
-
-        if (
-          processingCounts[index] ===
-          0
-        ) {
-          return 0;
-        }
-
-        return Number(
-          (
-            total /
-            processingCounts[index]
-          ).toFixed(1)
-        );
-
-      }
-    );
+  const processingEntries = [...processingBuckets.values()];
+  const processingLabels = processingEntries.map(bucket => bucket.label);
+  const processingCounts = processingEntries.map(bucket => bucket.values.length);
+  const processing = processingEntries.map(bucket => bucket.values.length
+    ? Number((bucket.values.reduce((sum, days) => sum + days, 0) / bucket.values.length).toFixed(1))
+    : null);
+  const processingMedians = processingEntries.map(bucket => {
+    if (!bucket.values.length) return null;
+    const sorted = bucket.values.slice().sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    return Number(median.toFixed(1));
+  });
 
 
   // CALCULATE CUMULATIVE ID ISSUANCE
@@ -1984,6 +2035,15 @@ function updateLiveAnalyticsCharts(
 
       data.processing =
         [...processing];
+
+      data.processingLabels =
+        [...processingLabels];
+
+      data.processingMedians =
+        [...processingMedians];
+
+      data.processingCounts =
+        [...processingCounts];
 
     }
   );
@@ -2065,27 +2125,7 @@ function updateLiveAnalyticsCharts(
 
 
       if (CHARTS.barangay) {
-
-        CHARTS.barangay.data.labels =
-          barangayLabels;
-
-        if (CHARTS.barangay.data.datasets[0]) {
-          CHARTS.barangay.data.datasets[0].data =
-            barangayTotal;
-        }
-
-        if (CHARTS.barangay.data.datasets[1]) {
-          CHARTS.barangay.data.datasets[1].data =
-            barangayApproved;
-        }
-
-        if (CHARTS.barangay.data.datasets[2]) {
-          CHARTS.barangay.data.datasets[2].data =
-            barangayPending;
-        }
-
-        CHARTS.barangay.update();
-
+        initBarangay(barangayStacked);
       }
 
 
@@ -2118,13 +2158,18 @@ function updateLiveAnalyticsCharts(
       if (
         CHARTS.processing
       ) {
-
-        CHARTS.processing.data.datasets[0]
-          .data =
-          processing;
-
-        CHARTS.processing.update();
-
+        const data = analyticsScope();
+        try {
+          CHARTS.processing.data.labels = data.processingLabels;
+          CHARTS.processing.data.datasets[0].data = data.processing;
+          CHARTS.processing.data.datasets[1].data = data.processingMedians;
+          CHARTS.processing.update();
+          const hasTurnaroundData = data.processingCounts.some(count => Number(count) > 0);
+          setAnalyticsChartState('processing', hasTurnaroundData ? 'ready' : 'empty', hasTurnaroundData ? '' : 'No turnaround data for this range.');
+        } catch (error) {
+          console.error('[Analytics] Turnaround chart update failed:', error);
+          setAnalyticsChartState('processing', 'error', 'Unable to display turnaround data.');
+        }
       }
     }
   }
