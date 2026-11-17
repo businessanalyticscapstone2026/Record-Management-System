@@ -5734,6 +5734,9 @@ let APPLICANT_IMPORT_STATE = {
   rows: [],
   mapping: {},
   reviewEdits: {},
+  familyMembersByRow: [],
+  familyCompositionCount: 0,
+  familyCompositionUnmatched: 0,
   imported: false,
   busy: false
 };
@@ -6219,7 +6222,13 @@ function renderApplicantImportPreview() {
       ? '<div class="applicant-import-legacy-note"><strong>OSCA legacy workbook detected.</strong> Core profile fields will be imported. SC ID No., Date Issued, pension check columns, NCSC-RRN, and the exact Date Death value are not stored as separate RMS fields. A populated Date Death will set the imported remark to Deceased when no remark is already present. The source workbook remains unchanged.</div>'
       : "";
     summary.innerHTML = legacyNotice +
-      '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " rows ready</span>" +
+      '<span class="applicant-import-summary-good">' + validRows.length.toLocaleString() + " applicants ready</span>" +
+      (APPLICANT_IMPORT_STATE.familyCompositionCount
+        ? '<span class="applicant-import-summary-good">' + APPLICANT_IMPORT_STATE.familyCompositionCount.toLocaleString() + " family member(s) linked</span>"
+        : "") +
+      (APPLICANT_IMPORT_STATE.familyCompositionUnmatched
+        ? '<span class="applicant-import-summary-duplicate">' + APPLICANT_IMPORT_STATE.familyCompositionUnmatched.toLocaleString() + " family member row(s) could not be matched to an applicant</span>"
+        : "") +
       '<span class="applicant-import-summary-muted">' + reviewRows.length.toLocaleString() + " incomplete row(s) need review" +
       (repeatedHeaderRows ? "; " + repeatedHeaderRows.toLocaleString() + " repeated header row(s) excluded" : "") + "</span>" +
       (possibleDuplicates
@@ -6280,7 +6289,7 @@ function setApplicantImportError(message) {
 }
 
 function resetApplicantImportModal() {
-  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, reviewEdits: {}, imported: false, busy: false };
+  APPLICANT_IMPORT_STATE = { fileName: "", headers: [], rows: [], mapping: {}, reviewEdits: {}, familyMembersByRow: [], familyCompositionCount: 0, familyCompositionUnmatched: 0, imported: false, busy: false };
   const input = document.getElementById("applicant-import-file");
   if (input) input.value = "";
   const documentZip = document.getElementById("applicant-document-zip");
@@ -6414,6 +6423,88 @@ async function parseApplicantLegacyWorkbook(file) {
     };
   }
 
+  // Special multi-sheet OSCA workbook: keep Personal details as the applicant
+  // source and attach every Family Composition row to its matching applicant.
+  const personalSheet = matrices.find(({ name, matrix }) =>
+    normalizeCell(name) === "personal details" ||
+    normalizeCell(name) === "personal detail"
+  );
+  const familySheet = matrices.find(({ name }) =>
+    normalizeCell(name) === "family composition" ||
+    normalizeCell(name) === "family compositions"
+  );
+  if (personalSheet && familySheet) {
+    const findHeaderIndex = matrix => matrix.findIndex(row =>
+      Array.isArray(row) && row.some(value => String(value ?? "").trim() !== "")
+    );
+    const personalHeaderIndex = findHeaderIndex(personalSheet.matrix);
+    const familyHeaderIndex = findHeaderIndex(familySheet.matrix);
+    const personalHeaders = (personalSheet.matrix[personalHeaderIndex] || []).map(value => String(value ?? "").trim());
+    const familyHeaders = (familySheet.matrix[familyHeaderIndex] || []).map(value => String(value ?? "").trim());
+    const findColumn = (headers, aliases) => headers.findIndex(header =>
+      aliases.includes(normalizeCell(header))
+    );
+    const personalFirstIndex = findColumn(personalHeaders, ["firstname", "first name", "given name"]);
+    const personalSurnameIndex = findColumn(personalHeaders, ["surname", "last name", "lastname", "family name"]);
+    const familyApplicantIndex = findColumn(familyHeaders, ["applicant", "applicant name", "senior citizen", "senior citizen name"]);
+    if (personalFirstIndex < 0 || personalSurnameIndex < 0 || familyApplicantIndex < 0) {
+      throw new Error("The Personal details / Family Composition worksheets were detected, but the required Firstname, Surname, or Applicant columns are missing.");
+    }
+    const personalRows = personalSheet.matrix.slice(personalHeaderIndex + 1)
+      .filter(row => row && row.some(value => String(value ?? "").trim() !== ""))
+      .map(row => personalHeaders.map((_, index) => {
+        const value = row[index];
+        return value === null || value === undefined ? "" : String(value).trim();
+      }));
+    const familyRows = familySheet.matrix.slice(familyHeaderIndex + 1)
+      .filter(row => row && row.some(value => String(value ?? "").trim() !== ""));
+    const familyColumnIndexes = {
+      name: findColumn(familyHeaders, ["name", "family member name", "member name"]),
+      relationship: findColumn(familyHeaders, ["relationship", "relation"]),
+      age: findColumn(familyHeaders, ["age"]),
+      civil_status: findColumn(familyHeaders, ["civil status", "marital status"]),
+      occupation: findColumn(familyHeaders, ["occupation"]),
+      income: findColumn(familyHeaders, ["income", "monthly income"])
+    };
+    const familyKey = value => normalizeCell(value);
+    const applicantKeys = new Map();
+    personalRows.forEach((row, index) => {
+      const key = familyKey([row[personalFirstIndex], row[personalSurnameIndex]].filter(Boolean).join(" "));
+      if (key) applicantKeys.set(key, index);
+    });
+    const familyMembersByRow = personalRows.map(() => []);
+    let unmatchedFamilyCount = 0;
+    familyRows.forEach(row => {
+      const applicantName = String(row[familyApplicantIndex] ?? "").trim();
+      const applicantIndex = applicantKeys.get(familyKey(applicantName));
+      if (applicantIndex === undefined) {
+        unmatchedFamilyCount += 1;
+        return;
+      }
+      const member = {};
+      Object.entries(familyColumnIndexes).forEach(([field, columnIndex]) => {
+        if (columnIndex < 0) return;
+        const value = row[columnIndex];
+        if (value !== null && value !== undefined && String(value).trim() !== "") {
+          member[field] = String(value).trim();
+        }
+      });
+      if (member.name || member.relationship) familyMembersByRow[applicantIndex].push(member);
+    });
+    return {
+      headers: personalHeaders,
+      rows: personalRows,
+      legacyWorkbook: false,
+      sheets: [
+        { name: personalSheet.name, rows: personalRows.length },
+        { name: familySheet.name, rows: familyRows.length }
+      ],
+      familyMembersByRow,
+      familyCompositionCount: familyMembersByRow.reduce((sum, members) => sum + members.length, 0),
+      familyCompositionUnmatched: unmatchedFamilyCount
+    };
+  }
+
   // Standard Excel workbook support: use the first non-empty row in each
   // worksheet as its header, then combine worksheets that share the same
   // column arrangement. This makes ordinary .xlsx files work like CSV files.
@@ -6488,6 +6579,9 @@ async function handleApplicantImportFile(file) {
     APPLICANT_IMPORT_STATE.fileName = file.name;
     APPLICANT_IMPORT_STATE.headers = parsed.headers;
     APPLICANT_IMPORT_STATE.rows = parsed.rows;
+    APPLICANT_IMPORT_STATE.familyMembersByRow = Array.isArray(parsed.familyMembersByRow) ? parsed.familyMembersByRow : [];
+    APPLICANT_IMPORT_STATE.familyCompositionCount = Number(parsed.familyCompositionCount || 0);
+    APPLICANT_IMPORT_STATE.familyCompositionUnmatched = Number(parsed.familyCompositionUnmatched || 0);
     APPLICANT_IMPORT_STATE.mapping = {};
     const guessedFields = new Set();
     parsed.headers.forEach((header, index) => {
@@ -6498,7 +6592,9 @@ async function handleApplicantImportFile(file) {
     if (meta) {
       const sheetSummary = parsed.legacyWorkbook
         ? " · " + parsed.sheets.length + " barangay sheet(s): " + parsed.sheets.map(sheet => sheet.name + " (" + sheet.rows + ")").join(", ")
-        : "";
+        : (parsed.familyCompositionCount
+          ? " · " + parsed.familyCompositionCount + " family member(s) linked from " + (parsed.sheets || []).find(sheet => normalizeApplicantImportHeader(sheet.name) === "family composition")?.name
+          : "");
       meta.textContent = file.name + " · " + parsed.rows.length.toLocaleString() + " applicant rows · " + parsed.headers.length + " fields" + sheetSummary;
     }
     if (parsed.legacyWorkbook) {
@@ -6600,6 +6696,8 @@ async function submitApplicantImport() {
     const mapped = getApplicantImportMappedRow(row);
     const edits = APPLICANT_IMPORT_STATE.reviewEdits[index] || {};
     Object.assign(mapped, edits);
+    const familyMembers = APPLICANT_IMPORT_STATE.familyMembersByRow[index] || [];
+    if (familyMembers.length) mapped._family_members = familyMembers;
     mapped._sourceRow = index + 1;
     return mapped;
   });
