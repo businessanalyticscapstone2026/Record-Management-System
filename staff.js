@@ -1532,6 +1532,16 @@ function updateLiveAnalyticsCharts(
     return;
   }
 
+  if (typeof updateAnalyticsChartRangeLabels === 'function') {
+    updateAnalyticsChartRangeLabels();
+  }
+  if (typeof CHARTS !== 'undefined' && CHARTS.processing) {
+    setAnalyticsChartState('processing', 'loading', 'Updating turnaround data…');
+  }
+  if (typeof CHARTS !== 'undefined' && CHARTS.barangay) {
+    setAnalyticsChartState('barangay', 'loading', 'Updating barangay workload…');
+  }
+
   const currentYear =
     new Date().getFullYear();
 
@@ -1555,6 +1565,9 @@ function updateLiveAnalyticsCharts(
 
   const processingCounts =
     Array(12).fill(0);
+
+  const processingValues =
+    Array.from({ length: 12 }, () => []);
 
   const barangays = {};
 
@@ -1848,6 +1861,7 @@ function updateLiveAnalyticsCharts(
           days;
 
         processingCounts[month]++;
+        processingValues[month].push(days);
 
       }
 
@@ -1909,6 +1923,15 @@ function updateLiveAnalyticsCharts(
 
       }
     );
+
+  const processingMedians =
+    processingValues.map(values => {
+      if (!values.length) return null;
+      const sorted = values.slice().sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      const median = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+      return Number(median.toFixed(1));
+    });
 
 
   // CALCULATE CUMULATIVE ID ISSUANCE
@@ -1984,6 +2007,12 @@ function updateLiveAnalyticsCharts(
 
       data.processing =
         [...processing];
+
+      data.processingMedians =
+        [...processingMedians];
+
+      data.processingCounts =
+        [...processingCounts];
 
     }
   );
@@ -2064,28 +2093,8 @@ function updateLiveAnalyticsCharts(
       }
 
 
-      if (CHARTS.barangay) {
-
-        CHARTS.barangay.data.labels =
-          barangayLabels;
-
-        if (CHARTS.barangay.data.datasets[0]) {
-          CHARTS.barangay.data.datasets[0].data =
-            barangayTotal;
-        }
-
-        if (CHARTS.barangay.data.datasets[1]) {
-          CHARTS.barangay.data.datasets[1].data =
-            barangayApproved;
-        }
-
-        if (CHARTS.barangay.data.datasets[2]) {
-          CHARTS.barangay.data.datasets[2].data =
-            barangayPending;
-        }
-
-        CHARTS.barangay.update();
-
+      if (document.getElementById('chart-barangay')) {
+        initBarangay(barangayStacked);
       }
 
 
@@ -2118,13 +2127,20 @@ function updateLiveAnalyticsCharts(
       if (
         CHARTS.processing
       ) {
-
-        CHARTS.processing.data.datasets[0]
-          .data =
-          processing;
-
-        CHARTS.processing.update();
-
+        const data = analyticsScope();
+        try {
+          CHARTS.processing.data.datasets[0].data = data.processing;
+          CHARTS.processing.data.datasets[1].data = data.processingMedians;
+          CHARTS.processing.update();
+          const hasTurnaroundData = data.processingCounts.some(count => Number(count) > 0);
+          setAnalyticsChartResult('processing', hasTurnaroundData, 'No turnaround data for this range');
+        } catch (error) {
+          delete CHARTS.processing;
+          console.error('[Analytics] Turnaround chart update failed:', error);
+          setAnalyticsChartState('processing', 'error', 'Unable to display turnaround data.');
+        }
+      } else if (document.getElementById('mod-analytics')?.classList.contains('active')) {
+        initProcessing();
       }
     }
   }
@@ -2957,6 +2973,12 @@ function setStaffDashboardLoading(isLoading) {
 
 async function loadApplicationsFromDatabase() {
 
+  analyticsChartDataLoading = true;
+  analyticsChartDataLoadError = false;
+  updateAnalyticsChartRangeLabels();
+  setAnalyticsChartState('barangay', 'loading', 'Loading barangay workload…');
+  setAnalyticsChartState('processing', 'loading', 'Loading turnaround data…');
+
   // Show loading state
   if (typeof Skeleton !== 'undefined' && typeof Skeleton.setAllKpisLoading === 'function') {
     Skeleton.setAllKpisLoading(true);
@@ -3041,6 +3063,9 @@ async function loadApplicationsFromDatabase() {
       )
         ? result.applications
         : [];
+
+    analyticsChartDataLoading = false;
+    analyticsChartDataLoadError = false;
 
 
     console.log(
@@ -3195,6 +3220,11 @@ async function loadApplicationsFromDatabase() {
 
 
   } catch (error) {
+
+    analyticsChartDataLoading = false;
+    analyticsChartDataLoadError = true;
+    setAnalyticsChartState('barangay', 'error', 'Unable to load barangay workload.');
+    setAnalyticsChartState('processing', 'error', 'Unable to load turnaround data.');
 
     console.error(
       "ERROR LOADING APPLICATIONS:",
