@@ -6343,16 +6343,86 @@ async function parseApplicantLegacyWorkbook(file) {
   const XLSX = await loadApplicantXlsxLibrary();
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const combined = [], sheets = [];
-  workbook.SheetNames.forEach(sheetName => {
-    const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: false, defval: "", blankrows: false });
-    const parsed = parseApplicantLegacyWorkbookMatrix(matrix, sheetName);
-    if (parsed.rows.length) {
-      combined.push(...parsed.rows);
-      sheets.push({ name: sheetName, barangay: parsed.barangay, rows: parsed.rows.length });
-    }
+
+  const normalizeCell = value => String(value ?? "").trim().toLowerCase()
+    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+  const matrices = workbook.SheetNames.map(sheetName => ({
+    name: sheetName,
+    matrix: XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      header: 1, raw: false, defval: "", blankrows: false
+    })
+  }));
+
+  // Keep the dedicated OSCA legacy-workbook layout (barangay in row 3,
+  // column headings in rows 4–6, and records beginning on row 7).
+  const isLegacyWorkbook = matrices.some(({ matrix }) => {
+    const metadata = (matrix[2] || []).map(value => String(value ?? ""));
+    const hasBarangayMetadata = metadata.some(value => /barangay\\s*:/i.test(value));
+    const headerText = matrix.slice(3, 6).flat().map(normalizeCell);
+    const hasNameHeaders = headerText.some(value => value === "last name" || value.includes("last name")) &&
+      headerText.some(value => value === "first name" || value.includes("first name"));
+    return hasBarangayMetadata || hasNameHeaders;
   });
-  if (!combined.length) throw new Error("No applicant records were found. Expected headers in rows 4–6 and applicant records beginning on row 7.");
-  return { headers: ["Last Name", "First Name", "Middle Name", "Civil Status", "Sex", "Date of Birth", "Age", "Barangay", "Contact Number", "Remarks"], rows: combined, legacyWorkbook: true, sheets };
+
+  if (isLegacyWorkbook) {
+    matrices.forEach(({ name, matrix }) => {
+      const parsed = parseApplicantLegacyWorkbookMatrix(matrix, name);
+      if (parsed.rows.length) {
+        combined.push(...parsed.rows);
+        sheets.push({ name, barangay: parsed.barangay, rows: parsed.rows.length });
+      }
+    });
+    if (!combined.length) {
+      throw new Error("No applicant records were found in the OSCA legacy workbook. Expected headers in rows 4–6 and applicant records beginning on row 7.");
+    }
+    return {
+      headers: ["Last Name", "First Name", "Middle Name", "Civil Status", "Sex", "Date of Birth", "Age", "Barangay", "Contact Number", "Remarks"],
+      rows: combined,
+      legacyWorkbook: true,
+      sheets
+    };
+  }
+
+  // Standard Excel workbook support: use the first non-empty row in each
+  // worksheet as its header, then combine worksheets that share the same
+  // column arrangement. This makes ordinary .xlsx files work like CSV files.
+  let standardHeaders = null;
+  matrices.forEach(({ name, matrix }) => {
+    const headerIndex = matrix.findIndex(row => Array.isArray(row) && row.some(value => String(value ?? "").trim() !== ""));
+    if (headerIndex < 0) return;
+
+    const sourceHeaders = (matrix[headerIndex] || []).map((value, index) =>
+      String(value ?? "").trim() || ("Column " + (index + 1))
+    );
+    while (sourceHeaders.length && /^Column \\d+$/.test(sourceHeaders[sourceHeaders.length - 1])) {
+      sourceHeaders.pop();
+    }
+    if (!sourceHeaders.length) return;
+
+    if (!standardHeaders) standardHeaders = sourceHeaders;
+    const sameHeaders = sourceHeaders.length === standardHeaders.length &&
+      sourceHeaders.every((header, index) => normalizeCell(header) === normalizeCell(standardHeaders[index]));
+    if (!sameHeaders) return;
+
+    let sheetRows = 0;
+    matrix.slice(headerIndex + 1).forEach(sourceRow => {
+      const values = standardHeaders.map((_, index) => {
+        const value = sourceRow?.[index];
+        return value === null || value === undefined ? "" : String(value).trim();
+      });
+      if (values.some(value => value !== "")) {
+        combined.push(values);
+        sheetRows += 1;
+      }
+    });
+    if (sheetRows) sheets.push({ name, rows: sheetRows });
+  });
+
+  if (!standardHeaders || !combined.length) {
+    throw new Error("No applicant records were found. Make sure the Excel workbook has a header row followed by applicant records.");
+  }
+  return { headers: standardHeaders, rows: combined, legacyWorkbook: false, sheets };
 }
 
 async function handleApplicantImportFile(file) {
