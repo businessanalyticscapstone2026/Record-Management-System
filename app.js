@@ -48,8 +48,6 @@ const ANALYTICS_DATA = {
     statusDenominator: 0,
     issuance: [],
     processing: [],
-    processingMedians: [],
-    processingCounts: [],
     ageDistribution: []
   },
   Staff: {
@@ -73,8 +71,6 @@ const ANALYTICS_DATA = {
     statusDenominator: 0,
     issuance: [],
     processing: [],
-    processingMedians: [],
-    processingCounts: [],
     ageDistribution: []
   },
   'ID Maker': {
@@ -98,8 +94,6 @@ const ANALYTICS_DATA = {
     statusDenominator: 0,
     issuance: [],
     processing: [],
-    processingMedians: [],
-    processingCounts: [],
     ageDistribution: []
   }
 };
@@ -111,10 +105,6 @@ const BRGY_TOT = ANALYTICS_DATA.Admin.barangayTotal;
 const BRGY_APR = ANALYTICS_DATA.Admin.barangayApproved;
 const BRGY_PND = ANALYTICS_DATA.Admin.barangayPending;
 const CHARTS = {};
-let barangayShowAll = false;
-let barangayStacked = false;
-let analyticsChartDataLoading = false;
-let analyticsChartDataLoadError = false;
 
 
 function analyticsScope() {
@@ -126,50 +116,6 @@ const SCALE = {
   y: { grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) : null } }
 };
 const TIP = { backgroundColor: C.tooltip, padding: 12, cornerRadius: 10, titleFont: { weight: '700', size: 12 }, bodyFont: { size: 11 } };
-
-function setAnalyticsChartState(chart, state, message = '') {
-  const element = document.getElementById(`chart-${chart}-state`);
-  const canvas = document.getElementById(`chart-${chart}`);
-  if (!element || !canvas) return;
-  element.textContent = message;
-  element.style.display = state ? 'flex' : 'none';
-  element.dataset.state = state || '';
-  element.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
-  canvas.style.visibility = state === 'ready' ? 'visible' : 'hidden';
-}
-
-function setAnalyticsChartResult(chart, hasData, emptyMessage) {
-  if (analyticsChartDataLoading) {
-    setAnalyticsChartState(chart, 'loading', chart === 'barangay' ? 'Loading barangay workload…' : 'Loading turnaround data…');
-  } else if (analyticsChartDataLoadError) {
-    setAnalyticsChartState(chart, 'error', chart === 'barangay' ? 'Unable to load barangay workload.' : 'Unable to load turnaround data.');
-  } else {
-    setAnalyticsChartState(chart, hasData ? 'ready' : 'empty', hasData ? '' : emptyMessage);
-  }
-}
-
-function updateAnalyticsChartRangeLabels() {
-  const label = document.getElementById('report-range')?.selectedOptions[0]?.textContent || 'Selected range';
-  ['barangay', 'processing'].forEach(chart => {
-    const element = document.getElementById(`analytics-${chart}-range`);
-    if (element) element.textContent = `Selected range: ${label}`;
-  });
-}
-
-function formatTurnaroundValue(value) {
-  const days = Number(value) || 0;
-  if (days < 1) {
-    const hours = Math.round(days * 24);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  return `${Number(days.toFixed(1))} day${days === 1 ? '' : 's'}`;
-}
-
-function formatBarangayChartLabel(value) {
-  return String(value || 'Unknown').trim().toLocaleLowerCase('en')
-    .replace(/(^|[\s-])([a-z])/g, (_match, boundary, letter) => boundary + letter.toUpperCase())
-    .replace(/\b(i{1,3}|iv|v|vi{0,3}|ix|x)\b/gi, roman => roman.toUpperCase());
-}
 
 function mkCanvas(id) {
   const canvas = document.getElementById(id);
@@ -405,52 +351,19 @@ function selectCalendarDay(day, month, year) {
   }
 }
 function initBarangay(stacked = false) {
-  barangayStacked = stacked;
-  updateAnalyticsChartRangeLabels();
-  setAnalyticsChartState('barangay', 'loading', 'Loading barangay workload…');
-  try {
-    const ctx = mkCanvas('chart-barangay');
-    if (!ctx) {
-      setAnalyticsChartState('barangay', 'error', 'Unable to display barangay workload.');
-      return;
-    }
-    const data = analyticsScope();
-    const labels = data.barangayLabels || [];
-    const rows = labels.map((label, index) => ({
-      label: formatBarangayChartLabel(label),
-      total: Number(data.barangayTotal?.[index]) || 0,
-      approved: Number(data.barangayApproved?.[index]) || 0,
-      pending: Number(data.barangayPending?.[index]) || 0
-    })).sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
-    const toggle = document.getElementById('barangay-workload-toggle');
-    if (toggle) {
-      toggle.hidden = rows.length <= 10;
-      toggle.textContent = barangayShowAll ? 'Show less' : 'Show all';
-      toggle.setAttribute('aria-expanded', barangayShowAll ? 'true' : 'false');
-    }
-    if (!rows.length) {
-      delete CHARTS['barangay'];
-      setAnalyticsChartResult('barangay', false, 'No barangay workload data for this range.');
-      return;
-    }
-    const shownRows = barangayShowAll ? rows : rows.slice(0, 10);
-    CHARTS['barangay'] = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: shownRows.map(row => row.label), datasets: [
-          { label: 'Total', data: shownRows.map(row => row.total), backgroundColor: 'rgba(29,78,216,0.85)', hoverBackgroundColor: '#1E40AF', borderColor: '#1E40AF', borderWidth: 1.5, borderRadius: 5, borderSkipped: false },
-          { label: 'Approved', data: shownRows.map(row => row.approved), backgroundColor: 'rgba(5,150,105,0.7)', hoverBackgroundColor: C.green, borderRadius: 5, borderSkipped: false },
-          { label: 'Pending Review', data: shownRows.map(row => row.pending), backgroundColor: 'rgba(217,119,6,0.7)', hoverBackgroundColor: C.amber, borderRadius: 5, borderSkipped: false },
-        ]
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()} applications` } } }, scales: { x: { stacked, grid: { display: false }, ticks: { color: C.text } }, y: { stacked, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) : null } } } }
-    });
-    setAnalyticsChartResult('barangay', true, '');
-  } catch (error) {
-    delete CHARTS['barangay'];
-    console.error('[Analytics] Barangay chart failed:', error);
-    setAnalyticsChartState('barangay', 'error', 'Unable to display barangay workload.');
-  }
+  const ctx = mkCanvas('chart-barangay'); if (!ctx) return;
+  const data = analyticsScope();
+  CHARTS['barangay'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.barangayLabels, datasets: [
+        { label: 'Total', data: data.barangayTotal, backgroundColor: 'rgba(26,79,186,0.22)', hoverBackgroundColor: 'rgba(26,79,186,0.5)', borderRadius: 5, borderSkipped: false },
+        { label: 'Approved', data: data.barangayApproved, backgroundColor: 'rgba(11,158,108,0.6)', hoverBackgroundColor: C.green, borderRadius: 5, borderSkipped: false },
+        { label: 'Pending Review', data: data.barangayPending, backgroundColor: 'rgba(192,122,10,0.6)', hoverBackgroundColor: C.amber, borderRadius: 5, borderSkipped: false },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}` } } }, scales: { x: { stacked, grid: { display: false }, ticks: { color: C.text } }, y: { stacked, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) : null } } } }
+  });
 }
 function renderBarangayRegistrations() {
   const list = document.getElementById('brgy-registrations-list');
@@ -500,7 +413,6 @@ function initIssuance() {
   });
 }
 function initProcessing() {
-  updateAnalyticsChartRangeLabels();
   const analyticsModule = document.getElementById('mod-analytics');
 
   if (
@@ -509,35 +421,13 @@ function initProcessing() {
   ) {
     return;
   }
-  setAnalyticsChartState('processing', 'loading', 'Loading turnaround data…');
-  try {
-    const ctx = mkCanvas('chart-processing');
-    if (!ctx) {
-      setAnalyticsChartState('processing', 'error', 'Unable to display turnaround data.');
-      return;
-    }
-    const data = analyticsScope();
-    const averages = data.processing || Array(12).fill(0);
-    const medians = data.processingMedians || Array(12).fill(null);
-    const counts = data.processingCounts || Array(12).fill(0);
-    const hasData = counts.some(count => Number(count) > 0);
-    CHARTS['processing'] = new Chart(ctx, {
-      type: 'bar',
-      data: { labels: MONTHS, datasets: [
-        { type: 'bar', label: 'Average', data: averages, backgroundColor: 'rgba(37,99,235,0.78)', hoverBackgroundColor: C.primary, borderColor: '#1D4ED8', borderWidth: 1, borderRadius: 4, borderSkipped: false },
-        { type: 'line', label: 'Median', data: medians, borderColor: C.purple, backgroundColor: C.purple, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2, tension: 0.2, spanGaps: false }
-      ] },
-      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, padding: 12 } }, tooltip: { ...TIP, callbacks: {
-        label: c => ` ${c.dataset.label}: ${formatTurnaroundValue(c.parsed.y)}`,
-        afterBody: items => { const index = items[0]?.dataIndex; return Number(counts[index]) ? `Records: ${Number(counts[index]).toLocaleString()}` : ''; }
-      } } }, scales: { x: { grid: { display: false }, ticks: { color: C.text, font: { size: 10 } } }, y: { min: 0, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, font: { size: 10 }, precision: 1, callback: value => Number(value) < 1 ? `${Math.round(Number(value) * 24)}h` : `${Number(value).toFixed(1).replace(/\.0$/, '')}d` } } } }
-    });
-    setAnalyticsChartResult('processing', hasData, 'No turnaround data for this range');
-  } catch (error) {
-    delete CHARTS['processing'];
-    console.error('[Analytics] Turnaround chart failed:', error);
-    setAnalyticsChartState('processing', 'error', 'Unable to display turnaround data.');
-  }
+  const ctx = mkCanvas('chart-processing'); if (!ctx) return;
+  const vals = analyticsScope().processing;
+  CHARTS['processing'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: MONTHS, datasets: [{ label: 'Avg Days', data: vals, backgroundColor: vals.map((v, i) => i >= 10 ? 'rgba(11,158,108,0.7)' : 'rgba(26,79,186,0.22)'), hoverBackgroundColor: vals.map((v, i) => i >= 10 ? C.green : C.primary), borderRadius: 4, borderSkipped: false }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` Avg: ${c.parsed.y} days` } } }, scales: { x: { grid: { display: false }, ticks: { color: C.text, font: { size: 10 } } }, y: { min: 0, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, font: { size: 10 }, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? v + 'd' : null } } } }
+  });
 }
 function initRadar() {
   const ctx = mkCanvas('chart-radar'); if (!ctx) return;
@@ -630,12 +520,7 @@ function switchTrendView(btn, view) {
 function switchBarangayView(btn, view) {
   btn.closest('.tab-group').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  barangayStacked = view === 'stacked';
-  initBarangay(barangayStacked);
-}
-function toggleBarangayWorkloadRows() {
-  barangayShowAll = !barangayShowAll;
-  initBarangay(barangayStacked);
+  initBarangay(view === 'stacked');
 }
 function switchPeriod(btn, p) {
   btn.closest('.tab-group').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
