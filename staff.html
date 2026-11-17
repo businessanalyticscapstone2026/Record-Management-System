@@ -1500,19 +1500,26 @@
               <div>
                 <div class="an-card__title">Barangay Workload</div>
                 <div class="an-card__sub">Where applications are coming from</div>
+                <span id="analytics-barangay-range" class="an-card__sub"></span>
               </div>
-              <div class="tab-group">
-                <button class="tab-btn active" onclick="switchBarangayView(this,'grouped')">Grouped</button>
-                <button class="tab-btn" onclick="switchBarangayView(this,'stacked')">Stacked</button>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div class="tab-group">
+                  <button class="tab-btn active" onclick="switchBarangayView(this,'grouped')">Grouped</button>
+                  <button class="tab-btn" onclick="switchBarangayView(this,'stacked')">Stacked</button>
+                </div>
+                <button type="button" id="barangay-workload-toggle" class="btn btn--ghost" style="padding:6px 10px;font-size:12px" onclick="toggleBarangayWorkloadRows()" aria-controls="chart-barangay" aria-expanded="false" hidden>Show all</button>
               </div>
             </div>
             <div class="legend-row">
-              <div class="legend-item"><span class="legend-dot" style="background:var(--primary)"></span>Total</div>
-              <div class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>Approved</div>
-              <div class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>Pending</div>
+              <div class="legend-item"><span class="legend-dot" style="background:#1D4ED8"></span>Total</div>
+              <div class="legend-item"><span class="legend-dot" style="background:#059669"></span>Approved</div>
+              <div class="legend-item"><span class="legend-dot" style="background:#D97706"></span>Pending</div>
             </div>
             <div class="an-card__body--nop" style="padding:0 22px 22px">
-              <div class="chart-wrap" style="height:240px"><canvas id="chart-barangay"></canvas></div>
+              <div class="chart-wrap" style="height:240px">
+                <canvas id="chart-barangay"></canvas>
+                <div id="chart-barangay-state" role="status" aria-live="polite" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:16px;background:var(--surface,#fff);color:var(--text-muted);font-size:13px;text-align:center;pointer-events:none"></div>
+              </div>
             </div>
           </div>
 
@@ -1567,11 +1574,15 @@
         <div class="an-card__header">
           <div>
             <div class="an-card__title">Turnaround Time</div>
-            <div class="an-card__sub">Average review days per month</div>
+            <div class="an-card__sub">Average and median review time per month</div>
+            <span id="analytics-processing-range" class="an-card__sub"></span>
           </div>
         </div>
         <div class="an-card__body--nop" style="padding:0 22px 22px">
-          <div class="chart-wrap" style="height:200px"><canvas id="chart-processing"></canvas></div>
+          <div class="chart-wrap" style="height:200px">
+            <canvas id="chart-processing"></canvas>
+            <div id="chart-processing-state" role="status" aria-live="polite" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:16px;background:var(--surface,#fff);color:var(--text-muted);font-size:13px;text-align:center;pointer-events:none"></div>
+          </div>
         </div>
       </div>
 
@@ -2594,9 +2605,9 @@
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=analytics-export-2"></script>
+  <script src="app.js?v=analytics-charts-2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="staff.js?v=deceased-filter-1"></script>
+  <script src="staff.js?v=analytics-charts-2"></script>
 </body>
 
 </html>
