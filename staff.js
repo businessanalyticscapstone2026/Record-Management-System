@@ -3528,7 +3528,7 @@ function buildApplicantProfiles(applications) {
         ? 'Legacy Record'
         : 'Not yet claimed';
     }
-    profile.isActive = profile.isRegistered && !profile.isDeceased && profile.ongoingApplications.length > 0;
+    profile.isActive = profile.ongoingApplications.length > 0;
     profile.hasDuplicateFlag = profile.applications.some(isProfileDuplicateFlagged);
     profile.status = profile.isRegistered ? 'Registered' : 'Rejected';
     return profile;
