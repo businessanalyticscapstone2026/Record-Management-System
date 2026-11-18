@@ -3580,7 +3580,7 @@ function renderLiveApplicants(applications) {
       <td><span class="cell-text">${escapeApplicationHtml(profile.barangay || '—')}</span></td>
       <td><span class="cell-text">${escapeApplicationHtml(String(profile.age))}</span></td>
       <td><span class="cell-text">${profile.registeredAt ? escapeApplicationHtml(formatStaffDate(profile.registeredAt)) : '—'}</span></td>
-      <td><span class="id-claimed-by">${escapeApplicationHtml(profile.idClaimedBy || 'Not yet claimed')}</span></td>
+      <td><span class="id-claimed-by${profile.idClaimedBy === 'Legacy Record' ? ' id-claimed-by--legacy' : ''}">${escapeApplicationHtml(profile.idClaimedBy || 'Not yet claimed')}</span></td>
       <td><span class="badge ${getProfileStatusClass(status)}"><span class="status-select__label">${escapeApplicationHtml(status)}</span></span></td>
       <td style="text-align:right"><button type="button" class="row-action always-visible" onclick="openApplicantProfile(${index})">View Profile</button></td>
     </tr>`;
