@@ -350,22 +350,63 @@ function selectCalendarDay(day, month, year) {
     showToast('Dashboard date selected: ' + label, 'info');
   }
 }
+let barangayWorkloadShowAll = false;
+const BARANGAY_WORKLOAD_DEFAULT_LIMIT = 10;
+
+function getBarangayWorkloadDisplay(data = analyticsScope()) {
+  const labels = data.barangayLabels || [];
+  const rows = labels.map((label, index) => ({
+    label,
+    total: data.barangayTotal?.[index] ?? 0,
+    approved: data.barangayApproved?.[index] ?? 0,
+    pending: data.barangayPending?.[index] ?? 0
+  })).sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0));
+  return barangayWorkloadShowAll ? rows : rows.slice(0, BARANGAY_WORKLOAD_DEFAULT_LIMIT);
+}
+
+function updateBarangayWorkloadDisplay() {
+  const chart = CHARTS['barangay'];
+  const control = document.getElementById('barangay-workload-toggle');
+  const count = (analyticsScope().barangayLabels || []).length;
+  if (control) {
+    control.hidden = count <= BARANGAY_WORKLOAD_DEFAULT_LIMIT;
+    control.textContent = barangayWorkloadShowAll ? 'Show less ↑' : 'Show all →';
+    control.setAttribute('aria-expanded', String(barangayWorkloadShowAll));
+  }
+  if (!chart) return;
+  const rows = getBarangayWorkloadDisplay();
+  const displayBarangay = value => String(value ?? '').trim().toLowerCase().replace(/(^|[\s-])([a-z])/g, (_, separator, letter) => separator + letter.toUpperCase()).replace(/\b(i{1,3}|iv|v)\b/gi, numeral => numeral.toUpperCase());
+  chart.data.labels = rows.map(row => displayBarangay(row.label));
+  chart.data.datasets[0].data = rows.map(row => row.total);
+  chart.data.datasets[1].data = rows.map(row => row.approved);
+  chart.data.datasets[2].data = rows.map(row => row.pending);
+  chart.update();
+}
+
+function toggleBarangayWorkload() {
+  barangayWorkloadShowAll = !barangayWorkloadShowAll;
+  updateBarangayWorkloadDisplay();
+}
+window.toggleBarangayWorkload = toggleBarangayWorkload;
+window.refreshBarangayWorkloadChart = updateBarangayWorkloadDisplay;
+
 function initBarangay(stacked = false) {
   const ctx = mkCanvas('chart-barangay'); if (!ctx) return;
   const data = analyticsScope();
-  // Keep source barangay values intact; normalize only the chart's displayed labels.
+  const rows = getBarangayWorkloadDisplay(data);
   const displayBarangay = value => String(value ?? '').trim().toLowerCase().replace(/(^|[\s-])([a-z])/g, (_, separator, letter) => separator + letter.toUpperCase()).replace(/\b(i{1,3}|iv|v)\b/gi, numeral => numeral.toUpperCase());
   CHARTS['barangay'] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: (data.barangayLabels || []).map(displayBarangay), datasets: [
-        { label: 'Total', data: data.barangayTotal, backgroundColor: 'rgba(26,79,186,0.22)', hoverBackgroundColor: 'rgba(26,79,186,0.5)', borderRadius: 5, borderSkipped: false },
-        { label: 'Approved', data: data.barangayApproved, backgroundColor: 'rgba(11,158,108,0.6)', hoverBackgroundColor: C.green, borderRadius: 5, borderSkipped: false },
-        { label: 'Pending Review', data: data.barangayPending, backgroundColor: 'rgba(192,122,10,0.6)', hoverBackgroundColor: C.amber, borderRadius: 5, borderSkipped: false },
+      labels: rows.map(row => displayBarangay(row.label)), datasets: [
+        { label: 'Total', data: rows.map(row => row.total), backgroundColor: 'rgba(29,78,216,0.88)', hoverBackgroundColor: '#1E3A8A', borderColor: '#1E3A8A', borderWidth: 1, borderRadius: 5, borderSkipped: false },
+        { label: 'Approved', data: rows.map(row => row.approved), backgroundColor: 'rgba(11,158,108,0.6)', hoverBackgroundColor: C.green, borderRadius: 5, borderSkipped: false },
+        { label: 'Pending Review', data: rows.map(row => row.pending), backgroundColor: 'rgba(192,122,10,0.6)', hoverBackgroundColor: C.amber, borderRadius: 5, borderSkipped: false },
       ]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}` } } }, scales: { x: { stacked, grid: { display: false }, ticks: { color: C.text } }, y: { stacked, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) : null } } } }
   });
+  updateBarangayWorkloadDisplay();
 }
 function renderBarangayRegistrations() {
   const list = document.getElementById('brgy-registrations-list');
