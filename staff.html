@@ -1507,12 +1507,15 @@
               </div>
             </div>
             <div class="legend-row">
-              <div class="legend-item"><span class="legend-dot" style="background:var(--primary)"></span>Total</div>
+              <div class="legend-item"><span class="legend-dot" style="background:#1d4ed8"></span>Total</div>
               <div class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>Approved</div>
               <div class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>Pending</div>
             </div>
             <div class="an-card__body--nop" style="padding:0 22px 22px">
               <div class="chart-wrap" style="height:240px"><canvas id="chart-barangay"></canvas></div>
+              <div style="display:flex;justify-content:flex-end;padding:0 2px 12px">
+                <button id="barangay-workload-toggle" type="button" class="btn btn--ghost" onclick="toggleBarangayWorkload()" aria-expanded="false" style="padding:6px 10px">Show all →</button>
+              </div>
             </div>
           </div>
 

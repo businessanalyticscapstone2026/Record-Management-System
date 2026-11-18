@@ -2065,26 +2065,9 @@ function updateLiveAnalyticsCharts(
 
 
       if (CHARTS.barangay) {
-
-        CHARTS.barangay.data.labels =
-          barangayLabels;
-
-        if (CHARTS.barangay.data.datasets[0]) {
-          CHARTS.barangay.data.datasets[0].data =
-            barangayTotal;
+        if (typeof window.refreshBarangayWorkloadChart === 'function') {
+          window.refreshBarangayWorkloadChart();
         }
-
-        if (CHARTS.barangay.data.datasets[1]) {
-          CHARTS.barangay.data.datasets[1].data =
-            barangayApproved;
-        }
-
-        if (CHARTS.barangay.data.datasets[2]) {
-          CHARTS.barangay.data.datasets[2].data =
-            barangayPending;
-        }
-
-        CHARTS.barangay.update();
 
       }
 
