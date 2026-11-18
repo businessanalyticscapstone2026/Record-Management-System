@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=45" />
-  <link rel="stylesheet" href="staff.css?v=applications-toolbar-1" />
+  <link rel="stylesheet" href="staff.css?v=applications-toolbar-2" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -831,7 +831,7 @@
           <div
             class="filter-bar filter-bar--compact flex flex-row items-center justify-between gap-2.5 w-full">
             <!-- Count Badge -->
-            <button type="button" class="btn-all-filter shrink-0 whitespace-nowrap"
+            <button type="button" class="btn-all-filter table-header__title shrink-0 whitespace-nowrap"
               onclick="filterByStatus(this,'all')">
               All applications <span class="applications-result-count" id="apps-filter-result-count">(0 of 0)</span>
             </button>
@@ -845,9 +845,9 @@
               <span class="chip-count" data-count-key="rejected">0</span>
             </div>
 
-            <!-- Controls Group: aligned in single row, no wrap -->
-            <div class="filter-bar-right-group flex flex-row items-center gap-2.5">
-              <!-- Search Input with flexible min-w-[130px] -->
+            <!-- Applications filters -->
+            <div class="filter-bar-right-group table-header__actions flex flex-row items-center gap-2.5">
+              <!-- Search Input -->
               <div class="table-search-wrap applications-search-wrap">
                 <svg class="table-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
                   <circle cx="8.8" cy="8.8" r="5.8"/><path d="m13.2 13.2 4 4"/>
@@ -859,7 +859,8 @@
               </div>
 
               <!-- Stage / Status Filter -->
-              <div class="filter-select-wrap relative shrink-0">
+              <div class="filter-select-wrap applications-stage-wrap relative shrink-0">
+                <svg class="applications-filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10m-7 6h4"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/></svg>
                 <select id="filter-application-stage"
                   class="filter-select app-filter-control appearance-none shrink-0 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 pr-7 text-xs font-medium text-slate-800 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                   onchange="filterApplicationsByStage(this)" aria-label="Filter applications by stage">
@@ -940,6 +941,7 @@
 
               <!-- Sort Filter -->
               <div class="sort-select-wrap relative shrink-0">
+                <svg class="applications-filter-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2v12M2.5 4.5 5 2l2.5 2.5M11 14V2m-2.5 9.5L11 14l2.5-2.5"/></svg>
                 <select
                   class="filter-select sort-select appearance-none shrink-0 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 pr-7 text-xs font-medium text-slate-800 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                   onchange="handleApplicationsSort(this.value)" aria-label="Sort applications">
@@ -953,14 +955,14 @@
                   <path d="M4 6l4 4 4-4" />
                 </svg>
               </div>
-              <button type="button" class="applications-refresh-button" onclick="loadApplicationsFromDatabase()"
-                aria-label="Refresh" title="Refresh" data-tooltip="Refresh">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 12.4-3"/></svg>
-              </button>
-              <button type="button" class="applications-filter-reset" onclick="resetApplicationsFilters()"
+              <button type="button" class="applications-filter-reset applicant-clear-filters" onclick="resetApplicationsFilters()"
                 aria-label="Clear filters" title="Clear filters" hidden>
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
                 <span>Clear filters</span>
+              </button>
+              <button type="button" class="applications-refresh-button applicant-refresh-button" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh" title="Refresh" data-tooltip="Refresh">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
               </button>
             </div>
           </div>
