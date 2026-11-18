@@ -1216,9 +1216,22 @@
               <div class="form-grid form-grid-2">
                 <div class="form-group">
                   <label class="form-label">Applicant <span>*</span></label>
-                  <select class="form-select" id="id-applicant" onchange="updatePreview()">
-                    <option value="">Select applicant</option>
-                  </select>
+                  <div class="issuance-applicant-picker" id="issuance-applicant-picker">
+                    <button type="button" class="form-select issuance-applicant-trigger" id="issuance-applicant-trigger"
+                      aria-haspopup="listbox" aria-expanded="false" aria-controls="issuance-applicant-options"
+                      onclick="toggleIssuanceApplicantPicker(event)"><span class="issuance-applicant-trigger-label">Select applicant</span>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <div class="issuance-applicant-menu" id="issuance-applicant-menu" hidden>
+                      <input type="search" class="issuance-applicant-search" id="issuance-applicant-search"
+                        placeholder="Search applicant..." aria-label="Search applicants" autocomplete="off"
+                        oninput="filterIssuanceApplicantOptions(this)" onkeydown="handleIssuanceApplicantPickerKeydown(event)">
+                      <div class="issuance-applicant-options" id="issuance-applicant-options" role="listbox" aria-label="Applicants"></div>
+                    </div>
+                    <select class="form-select issuance-applicant-native" id="id-applicant" onchange="updatePreview()">
+                      <option value="">Select applicant</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="id-fullname"
                     readonly style="background:var(--bg);color:var(--text-muted)" /></div>
@@ -2612,7 +2625,7 @@
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=analytics-restore-1"></script>
+  <script src="app.js?v=id-issuance-applicant-search-1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="staff.js?v=applications-toolbar-1"></script>
 </body>
