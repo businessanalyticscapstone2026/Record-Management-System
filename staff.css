@@ -3370,12 +3370,10 @@ body>.status-select__menu {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-#applicants-kpi-strip .applicants-active-card,
 #applicants-kpi-strip .applicants-deceased-card {
   cursor: pointer;
 }
 
-#applicants-kpi-strip .applicants-active-card:focus-visible,
 #applicants-kpi-strip .applicants-deceased-card:focus-visible {
   outline: 2px solid #64748b;
   outline-offset: 2px;

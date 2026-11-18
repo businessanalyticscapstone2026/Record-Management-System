@@ -1129,7 +1129,7 @@ document.addEventListener('click', (e) => {
    Search + Barangay + Status work together.
 ========================================================= */
 
-const APPLICANTS_FILTER_STATE = { search: '', barangay: [], status: [], activeOnly: false, deceasedOnly: false };
+const APPLICANTS_FILTER_STATE = { search: '', barangay: [], status: [], deceasedOnly: false };
 function selectedFilterValues(control) {
   if (!control) return [];
   if (control instanceof HTMLSelectElement && control.multiple) return Array.from(control.selectedOptions).map(option => String(option.value || '').trim().toLowerCase()).filter(Boolean);
