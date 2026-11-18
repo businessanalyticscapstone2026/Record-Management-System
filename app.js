@@ -399,9 +399,9 @@ function initBarangay(stacked = false) {
     type: 'bar',
     data: {
       labels: rows.map(row => displayBarangay(row.label)), datasets: [
-        { label: 'Total', data: rows.map(row => row.total), backgroundColor: '#172554', hoverBackgroundColor: '#0F172A', borderColor: '#0F172A', borderWidth: 1, borderRadius: 5, borderSkipped: false },
-        { label: 'Approved', data: rows.map(row => row.approved), backgroundColor: '#1D4ED8', hoverBackgroundColor: '#1E40AF', borderRadius: 5, borderSkipped: false },
-        { label: 'Pending Review', data: rows.map(row => row.pending), backgroundColor: '#3B82F6', hoverBackgroundColor: '#2563EB', borderRadius: 5, borderSkipped: false },
+        { label: 'Total', data: rows.map(row => row.total), backgroundColor: '#354F70', hoverBackgroundColor: '#2B405B', borderColor: '#2B405B', borderWidth: 1, borderRadius: 5, borderSkipped: false },
+        { label: 'Approved', data: rows.map(row => row.approved), backgroundColor: '#6689AD', hoverBackgroundColor: '#577B9F', borderRadius: 5, borderSkipped: false },
+        { label: 'Pending Review', data: rows.map(row => row.pending), backgroundColor: '#91B0CC', hoverBackgroundColor: '#7E9FBF', borderRadius: 5, borderSkipped: false },
       ]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}` } } }, scales: { x: { stacked, grid: { display: false }, ticks: { color: C.text } }, y: { stacked, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) : null } } } }
