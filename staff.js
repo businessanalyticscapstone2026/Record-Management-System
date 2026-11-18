@@ -4329,6 +4329,7 @@ function renderLiveApplications(applications) {
     const total = document.getElementById('apps-total');
     if (shown) shown.textContent = '0';
     if (total) total.textContent = '0';
+    applyApplicationsModuleFilters();
     updateBatchState();
     return;
   }
@@ -4710,6 +4711,22 @@ function applyApplicationsModuleFilters(statusKey) {
   });
 
   const shown = document.getElementById('apps-shown');
+  const resultCount = document.getElementById('apps-filter-result-count');
+  const clearButton = document.querySelector('#mod-applications .applications-filter-reset');
+  const searchInput = document.querySelector('#mod-applications .applications-search-input');
+  const stageInput = document.getElementById('filter-application-stage');
+  const barangayTrigger = document.querySelector('#mod-applications .applications-barangay-trigger');
+  const totalRows = rows.length;
+  if (resultCount) resultCount.textContent = `(${visible.toLocaleString()} of ${totalRows.toLocaleString()})`;
+  if (clearButton) clearButton.hidden = !(String(searchInput?.value || '').trim() || (stageInput && stageInput.value !== 'all') || (APPLICATIONS_FILTER_STATE.status || []).length || (APPLICATIONS_FILTER_STATE.barangay || []).length);
+  stageInput?.classList.toggle('is-active', stageInput.value !== 'all');
+  barangayTrigger?.classList.toggle('has-selection', (APPLICATIONS_FILTER_STATE.barangay || []).length > 0);
+  if (barangayTrigger) {
+    const selectedBarangay = (APPLICATIONS_FILTER_STATE.barangay || [])[0];
+    const label = barangayTrigger.querySelector('.applications-barangay-label');
+    if (label) label.textContent = selectedBarangay ? `Barangay: ${selectedBarangay}` : 'Barangay: All';
+    barangayTrigger.setAttribute('aria-label', selectedBarangay ? `Barangay: ${selectedBarangay}` : 'Barangay: All');
+  }
   if (shown) shown.textContent = visible.toLocaleString();
   updateBatchState();
 }
@@ -4733,21 +4750,107 @@ function filterApplicationsByStage(control) {
 }
 window.filterApplicationsByStage = filterApplicationsByStage;
 
-function filterApplicationsByBarangay(control) {
-  APPLICATIONS_FILTER_STATE.barangay = control instanceof HTMLSelectElement
-    ? Array.from(control.selectedOptions).map(option => option.value).filter(value => value && value !== 'all')
-    : (control ? [control] : []);
+function filterApplicationsByBarangay(value) {
+  APPLICATIONS_FILTER_STATE.barangay = value ? [String(value)] : [];
   applyApplicationsModuleFilters();
 }
+
+function toggleApplicationsBarangayMenu(button, event) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  const menu = button?.closest('.applications-barangay-dropdown')?.querySelector('.applications-barangay-menu');
+  if (!menu) return;
+  const opening = menu.hidden;
+  document.querySelectorAll('#mod-applications .applications-barangay-menu').forEach(item => { item.hidden = true; });
+  menu.hidden = !opening;
+  button.setAttribute('aria-expanded', String(opening));
+  if (opening) menu.querySelector('.applications-barangay-search')?.focus();
+}
+window.toggleApplicationsBarangayMenu = toggleApplicationsBarangayMenu;
+
+function filterApplicationsBarangayOptions(input) {
+  const query = String(input?.value || '').trim().toLowerCase();
+  input?.closest('.applications-barangay-menu')?.querySelectorAll('.applications-barangay-option[data-value]').forEach(option => {
+    option.hidden = Boolean(option.dataset.value) && !option.textContent.toLowerCase().includes(query);
+  });
+}
+window.filterApplicationsBarangayOptions = filterApplicationsBarangayOptions;
+
+function selectApplicationsBarangay(option) {
+  const value = option?.dataset.value || '';
+  const menu = option?.closest('.applications-barangay-menu');
+  if (!menu) return;
+  menu.querySelectorAll('.applications-barangay-option').forEach(item => item.setAttribute('aria-selected', String(item === option)));
+  const root = menu.closest('.applications-barangay-dropdown');
+  menu.hidden = true;
+  root?.querySelector('.applications-barangay-trigger')?.setAttribute('aria-expanded', 'false');
+  const search = menu.querySelector('.applications-barangay-search');
+  if (search) { search.value = ''; filterApplicationsBarangayOptions(search); }
+  filterApplicationsByBarangay(value);
+  root?.querySelector('.applications-barangay-trigger')?.focus();
+}
+window.selectApplicationsBarangay = selectApplicationsBarangay;
+
+function handleApplicationsBarangayMenuKeydown(event, input) {
+  const menu = input?.closest('.applications-barangay-menu');
+  if (!menu) return;
+  const visibleOptions = [...menu.querySelectorAll('.applications-barangay-option')].filter(option => !option.hidden);
+  if (event.key === 'Escape') {
+    event.preventDefault(); menu.hidden = true;
+    menu.closest('.applications-barangay-dropdown')?.querySelector('.applications-barangay-trigger')?.setAttribute('aria-expanded', 'false');
+    menu.closest('.applications-barangay-dropdown')?.querySelector('.applications-barangay-trigger')?.focus();
+    return;
+  }
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const current = menu.querySelector('.applications-barangay-option.is-keyboard-active');
+    let index = visibleOptions.indexOf(current);
+    index = event.key === 'ArrowDown' ? Math.min(index + 1, visibleOptions.length - 1) : Math.max(index < 0 ? visibleOptions.length - 1 : index - 1, 0);
+    menu.querySelectorAll('.applications-barangay-option').forEach(item => item.classList.remove('is-keyboard-active'));
+    visibleOptions[index]?.classList.add('is-keyboard-active'); visibleOptions[index]?.focus();
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    const active = menu.querySelector('.applications-barangay-option.is-keyboard-active') || visibleOptions[0];
+    active?.click();
+  }
+}
+window.handleApplicationsBarangayMenuKeydown = handleApplicationsBarangayMenuKeydown;
+
+function setApplicationsSearchPlaceholder() {
+  const input = document.querySelector('#mod-applications .applications-search-input');
+  if (input) input.placeholder = window.matchMedia('(max-width: 700px)').matches ? 'Search name or ID' : 'Search by name or application ID';
+}
+setApplicationsSearchPlaceholder();
+window.addEventListener('resize', setApplicationsSearchPlaceholder, { passive: true });
+
+document.addEventListener('keydown', event => {
+  const option = event.target.closest?.('#mod-applications .applications-barangay-option');
+  if (option && (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === 'Escape')) {
+    const search = option.closest('.applications-barangay-menu')?.querySelector('.applications-barangay-search');
+    handleApplicationsBarangayMenuKeydown(event, search);
+  }
+});
+
+document.addEventListener('click', event => {
+  if (event.target.closest('#mod-applications .applications-barangay-dropdown')) return;
+  document.querySelectorAll('#mod-applications .applications-barangay-menu').forEach(menu => {
+    menu.hidden = true;
+    menu.closest('.applications-barangay-dropdown')?.querySelector('.applications-barangay-trigger')?.setAttribute('aria-expanded', 'false');
+  });
+});
 
 function resetApplicationsFilters() {
   const search = document.querySelector('#mod-applications .table-search-wrap input');
   const stage = document.getElementById('filter-application-stage');
-  const barangay = document.querySelector('#mod-applications .barangay-select-wrap select');
+  const barangay = document.querySelector('#mod-applications .applications-barangay-menu');
 
   if (search) search.value = '';
   if (stage) stage.value = 'all';
-  if (barangay) barangay.value = '';
+  if (barangay) {
+    barangay.querySelectorAll('.applications-barangay-option').forEach(option => option.setAttribute('aria-selected', String(!option.dataset.value)));
+    const search = barangay.querySelector('.applications-barangay-search');
+    if (search) { search.value = ''; filterApplicationsBarangayOptions(search); }
+  }
 
   APPLICATIONS_FILTER_STATE.search = '';
   APPLICATIONS_FILTER_STATE.barangay = [];
@@ -4758,6 +4861,7 @@ function resetApplicationsFilters() {
 window.resetApplicationsFilters = resetApplicationsFilters;
 
 function handleApplicationsSort(val) {
+  if (!val) val = 'newest';
   if (typeof sortTable !== 'function') return;
   const thDate = document.querySelector('#mod-applications thead th:nth-child(4)');
   const thName = document.querySelector('#mod-applications thead th:nth-child(2)');
