@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=45" />
-  <link rel="stylesheet" href="staff.css?v=69" />
+  <link rel="stylesheet" href="staff.css?v=70" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -564,19 +564,30 @@
               <div class="table-header__title">Registered Seniors</div>
             </div>
             <div class="table-header__actions">
-              <label class="table-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+              <label class="table-search registered-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                   <circle cx="6.5" cy="6.5" r="4.5" />
                   <path d="M11 11l3 3" />
-                </svg><input type="search" id="applicant-search" placeholder="Search by name or ID…"
-                  oninput="filterApplicants(this.value)" /></label>
-              <div class="barangay-select-wrap">
+                </svg><input type="search" class="search-input" id="applicant-search" placeholder="Search by name or application ID"
+                  oninput="filterApplicants(this.value); updateRegisteredApplicantsToolbar()" /></label>
+              <div class="barangay-select-wrap applicant-barangay-dropdown" id="applicant-barangay-dropdown">
                 <svg class="barangay-select-wrap__pin" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <select class="filter-select" id="applicants-barangay-filter" onchange="filterRegisteredApplicantsByBarangay(this)"
-                  aria-label="Filter applicants by barangay">
+                <button type="button" class="filter-select applicant-barangay-trigger" id="applicants-barangay-trigger"
+                  aria-label="Filter applicants by barangay" aria-haspopup="listbox" aria-expanded="false"
+                  aria-controls="applicants-barangay-listbox" onclick="toggleApplicantsBarangayDropdown()"
+                  onkeydown="if(event.key==='ArrowDown'){event.preventDefault();toggleApplicantsBarangayDropdown(true);}">
+                  <span>Barangay: All</span>
+                  <svg class="applicant-select-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </button>
+                <div class="applicant-barangay-menu" id="applicants-barangay-menu" hidden>
+                  <input type="search" id="applicants-barangay-search" class="applicant-barangay-search"
+                    placeholder="Search barangay..." aria-label="Search barangays" autocomplete="off" />
+                  <div class="applicant-barangay-options" id="applicants-barangay-listbox" role="listbox" aria-label="Barangays"></div>
+                </div>
+                <select class="applicant-barangay-source" id="applicants-barangay-filter" tabindex="-1" aria-hidden="true">
                   <option value="">Barangay: All</option>
                   <option value="Alagao">Alagao</option>
                   <option value="Aplaya">Aplaya</option>
@@ -625,23 +636,22 @@
                   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M5 2v12M2.5 4.5 5 2l2.5 2.5M11 14V2m-2.5 9.5L11 14l2.5-2.5" />
                 </svg>
-                <select class="filter-select" id="applicants-sort-select" onchange="changeApplicantsSort(this.value)"
+                <select class="filter-select" id="applicants-sort-select" onchange="changeApplicantsSort(this.value); updateRegisteredApplicantsToolbar()"
                   aria-label="Sort residents">
                   <option value="latest" selected>Sort: Latest</option>
                   <option value="oldest">Oldest</option>
                   <option value="name-az">Name A-Z</option>
                   <option value="name-za">Name Z-A</option>
                 </select>
+                <svg class="applicant-sort-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" /></svg>
               </div>
-              <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="loadApplicationsFromDatabase()"
-                aria-label="Refresh registered applicants" title="Reload this table without refreshing the page">
+              <button type="button" class="applicant-refresh-button" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh" title="Refresh">
                 <i class="fi fi-rr-refresh" aria-hidden="true"></i>
-                <span>Refresh</span>
               </button>
-              <button type="button" class="btn btn--ghost applicant-filter-reset" onclick="resetRegisteredApplicantFilters()"
-                aria-label="Reset applicant filters" title="Clear search and barangay filter">
-                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
-                <span>Reset</span>
+              <button type="button" class="applicant-clear-filters" id="applicants-clear-filters" onclick="resetRegisteredApplicantFilters()"
+                aria-label="Clear filters" title="Clear filters" hidden>
+                Clear filters
               </button>
             </div>
           </div>
@@ -2607,7 +2617,7 @@
   <script src="theme.js?v=1"></script>
   <script src="app.js?v=analytics-restore-1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="staff.js?v=family-composition-import-3"></script>
+  <script src="staff.js?v=registered-seniors-toolbar-1"></script>
 </body>
 
 </html>
