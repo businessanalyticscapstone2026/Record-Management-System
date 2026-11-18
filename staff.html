@@ -1570,11 +1570,14 @@
         <div class="an-card__header">
           <div>
             <div class="an-card__title">Turnaround Time</div>
-            <div class="an-card__sub">Average review days per month</div>
+            <div class="an-card__sub">Average and median review days per month</div>
           </div>
         </div>
         <div class="an-card__body--nop" style="padding:0 22px 22px">
           <div class="chart-wrap" style="height:200px"><canvas id="chart-processing"></canvas></div>
+          <div id="processing-empty-state" style="height:200px;display:none;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--text-muted);background:var(--bg-2,rgba(148,163,184,.06));border:1px dashed var(--border-color,rgba(148,163,184,.35));border-radius:12px">
+            <div><strong style="display:block;color:var(--text-primary);margin-bottom:5px">No completed review data yet</strong><span>Turnaround time will appear when valid submission and completion dates are recorded.</span></div>
+          </div>
         </div>
       </div>
 
