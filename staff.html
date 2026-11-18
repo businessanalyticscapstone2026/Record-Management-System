@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css" />
 
   <link rel="stylesheet" href="base.css?v=45" />
-  <link rel="stylesheet" href="staff.css?v=70" />
+  <link rel="stylesheet" href="staff.css?v=applications-toolbar-1" />
   <script src="skeleton.js?v=3"></script>
 </head>
 
@@ -645,13 +645,13 @@
                 </select>
                 <svg class="applicant-sort-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round" /></svg>
               </div>
-              <button type="button" class="applicant-refresh-button" onclick="loadApplicationsFromDatabase()"
-                aria-label="Refresh" title="Refresh">
-                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
-              </button>
               <button type="button" class="applicant-clear-filters" id="applicants-clear-filters" onclick="resetRegisteredApplicantFilters()"
                 aria-label="Clear filters" title="Clear filters" hidden>
                 Clear filters
+              </button>
+              <button type="button" class="applicant-refresh-button" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh" title="Refresh">
+                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -829,11 +829,11 @@
 
         <div class="data-table-card">
           <div
-            class="filter-bar filter-bar--compact flex flex-row items-center justify-between gap-2.5 w-full flex-nowrap overflow-hidden">
+            class="filter-bar filter-bar--compact flex flex-row items-center justify-between gap-2.5 w-full">
             <!-- Count Badge -->
-            <button type="button" class="btn-all-filter shrink-0 whitespace-nowrap bg-blue-600 text-white rounded-full"
+            <button type="button" class="btn-all-filter shrink-0 whitespace-nowrap"
               onclick="filterByStatus(this,'all')">
-              ALL APPLICATIONS
+              All applications <span class="applications-result-count" id="apps-filter-result-count">(0 of 0)</span>
             </button>
             <div style="display:none">
               <span class="chip-count" data-count-key="all" id="apps-total-pill">0</span>
@@ -846,18 +846,16 @@
             </div>
 
             <!-- Controls Group: aligned in single row, no wrap -->
-            <div class="filter-bar-right-group flex flex-row items-center gap-2.5 shrink-0 flex-nowrap">
+            <div class="filter-bar-right-group flex flex-row items-center gap-2.5">
               <!-- Search Input with flexible min-w-[130px] -->
-              <div class="table-search-wrap min-w-[130px] shrink-0">
-                <svg class="table-search-icon" viewBox="0 0 16 16" fill="currentColor">
-                  <path fill-rule="evenodd"
-                    d="M10.5 3.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm-6 5a6 6 0 1 1 11 0 6 6 0 0 1-11 0zm10.03 4.44-2.5 2.5a.75.75 0 0 1-1.06-1.06l2.5-2.5a.75.75 0 1 1 1.06 1.06z"
-                    clip-rule="evenodd" />
+              <div class="table-search-wrap applications-search-wrap">
+                <svg class="table-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                  <circle cx="8.8" cy="8.8" r="5.8"/><path d="m13.2 13.2 4 4"/>
                 </svg>
-                <input type="search" placeholder="Search applicant or ID..."
+                <input type="search" placeholder="Search by name or application ID"
                   oninput="filterApplicationsTable(this.value)"
-                  class="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 pl-7 text-xs font-medium text-slate-800 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-                  aria-label="Search applicant or ID" />
+                  class="applications-search-input"
+                  aria-label="Search by name or application ID" />
               </div>
 
               <!-- Stage / Status Filter -->
@@ -882,63 +880,62 @@
               </div>
 
               <!-- Barangay Filter -->
-              <div class="barangay-select-wrap relative shrink-0">
+              <div class="barangay-select-wrap applications-barangay-dropdown relative shrink-0">
                 <svg class="barangay-select-wrap__pin" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <select
-                  class="filter-select appearance-none shrink-0 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 pl-7 pr-7 text-xs font-medium text-slate-800 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-                  onchange="filterApplicationsByBarangay(this)" aria-label="Filter applications by barangay">
-                  <option value="">Barangay: All</option>
-                  <option value="Alagao">Alagao</option>
-                  <option value="Aplaya">Aplaya</option>
-                  <option value="As-Is">As-Is</option>
-                  <option value="Bagong Silang">Bagong Silang</option>
-                  <option value="Baguilawa">Baguilawa</option>
-                  <option value="Balayong">Balayong</option>
-                  <option value="Barangay I (Poblacion)">Barangay I (Poblacion)</option>
-                  <option value="Barangay II (Poblacion)">Barangay II (Poblacion)</option>
-                  <option value="Barangay III (Poblacion)">Barangay III (Poblacion)</option>
-                  <option value="Barangay IV (Poblacion)">Barangay IV (Poblacion)</option>
-                  <option value="Bolo">Bolo</option>
-                  <option value="Colvo">Colvo</option>
-                  <option value="Cupang">Cupang</option>
-                  <option value="Durungao">Durungao</option>
-                  <option value="Gulibay">Gulibay</option>
-                  <option value="Inicbulan">Inicbulan</option>
-                  <option value="Locloc">Locloc</option>
-                  <option value="Magalang-Galang">Magalang-Galang</option>
-                  <option value="Malindig">Malindig</option>
-                  <option value="Manalupang">Manalupang</option>
-                  <option value="Manghinao Proper">Manghinao Proper</option>
-                  <option value="Manghinao Uno">Manghinao Uno</option>
-                  <option value="New Danglayan">New Danglayan</option>
-                  <option value="Orense">Orense</option>
-                  <option value="Pitugo">Pitugo</option>
-                  <option value="Rizal">Rizal</option>
-                  <option value="Sampaguita">Sampaguita</option>
-                  <option value="San Agustin">San Agustin</option>
-                  <option value="San Andres Proper">San Andres Proper</option>
-                  <option value="San Andres Uno">San Andres Uno</option>
-                  <option value="San Diego">San Diego</option>
-                  <option value="San Miguel">San Miguel</option>
-                  <option value="San Pablo">San Pablo</option>
-                  <option value="San Pedro">San Pedro</option>
-                  <option value="San Roque">San Roque</option>
-                  <option value="San Teodoro">San Teodoro</option>
-                  <option value="San Vicente">San Vicente</option>
-                  <option value="Santa Maria">Santa Maria</option>
-                  <option value="Santo Domingo">Santo Domingo</option>
-                  <option value="Sinala">Sinala</option>
-                </select>
-                <svg
-                  class="select-chevron pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"
-                  viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <path d="M4 6l4 4 4-4" />
-                </svg>
+                <button type="button" class="applications-barangay-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter applications by barangay" onclick="toggleApplicationsBarangayMenu(this,event)">
+                  <span class="applications-barangay-label">Barangay: All</span>
+                  <svg class="select-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
+                </button>
+                <div class="applications-barangay-menu" role="listbox" aria-label="Barangay options" hidden>
+                  <input type="search" class="applications-barangay-search" placeholder="Search barangay..." aria-label="Search barangay options" oninput="filterApplicationsBarangayOptions(this)" onkeydown="handleApplicationsBarangayMenuKeydown(event,this)">
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="true" data-value="" onclick="selectApplicationsBarangay(this)">All barangays</button>
+                  <div class="applications-barangay-options">
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Alagao" onclick="selectApplicationsBarangay(this)">Alagao</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Aplaya" onclick="selectApplicationsBarangay(this)">Aplaya</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="As-Is" onclick="selectApplicationsBarangay(this)">As-Is</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Bagong Silang" onclick="selectApplicationsBarangay(this)">Bagong Silang</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Baguilawa" onclick="selectApplicationsBarangay(this)">Baguilawa</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Balayong" onclick="selectApplicationsBarangay(this)">Balayong</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Barangay I (Poblacion)" onclick="selectApplicationsBarangay(this)">Barangay I (Poblacion)</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Barangay II (Poblacion)" onclick="selectApplicationsBarangay(this)">Barangay II (Poblacion)</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Barangay III (Poblacion)" onclick="selectApplicationsBarangay(this)">Barangay III (Poblacion)</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Barangay IV (Poblacion)" onclick="selectApplicationsBarangay(this)">Barangay IV (Poblacion)</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Bolo" onclick="selectApplicationsBarangay(this)">Bolo</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Colvo" onclick="selectApplicationsBarangay(this)">Colvo</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Cupang" onclick="selectApplicationsBarangay(this)">Cupang</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Durungao" onclick="selectApplicationsBarangay(this)">Durungao</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Gulibay" onclick="selectApplicationsBarangay(this)">Gulibay</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Inicbulan" onclick="selectApplicationsBarangay(this)">Inicbulan</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Locloc" onclick="selectApplicationsBarangay(this)">Locloc</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Magalang-Galang" onclick="selectApplicationsBarangay(this)">Magalang-Galang</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Malindig" onclick="selectApplicationsBarangay(this)">Malindig</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Manalupang" onclick="selectApplicationsBarangay(this)">Manalupang</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Manghinao Proper" onclick="selectApplicationsBarangay(this)">Manghinao Proper</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Manghinao Uno" onclick="selectApplicationsBarangay(this)">Manghinao Uno</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="New Danglayan" onclick="selectApplicationsBarangay(this)">New Danglayan</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Orense" onclick="selectApplicationsBarangay(this)">Orense</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Pitugo" onclick="selectApplicationsBarangay(this)">Pitugo</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Rizal" onclick="selectApplicationsBarangay(this)">Rizal</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Sampaguita" onclick="selectApplicationsBarangay(this)">Sampaguita</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Agustin" onclick="selectApplicationsBarangay(this)">San Agustin</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Andres Proper" onclick="selectApplicationsBarangay(this)">San Andres Proper</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Andres Uno" onclick="selectApplicationsBarangay(this)">San Andres Uno</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Diego" onclick="selectApplicationsBarangay(this)">San Diego</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Miguel" onclick="selectApplicationsBarangay(this)">San Miguel</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Pablo" onclick="selectApplicationsBarangay(this)">San Pablo</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Pedro" onclick="selectApplicationsBarangay(this)">San Pedro</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Roque" onclick="selectApplicationsBarangay(this)">San Roque</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Teodoro" onclick="selectApplicationsBarangay(this)">San Teodoro</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="San Vicente" onclick="selectApplicationsBarangay(this)">San Vicente</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Santa Maria" onclick="selectApplicationsBarangay(this)">Santa Maria</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Santo Domingo" onclick="selectApplicationsBarangay(this)">Santo Domingo</button>
+                  <button type="button" class="applications-barangay-option" role="option" aria-selected="false" data-value="Sinala" onclick="selectApplicationsBarangay(this)">Sinala</button>
+                  </div>
+                </div>
               </div>
 
               <!-- Sort Filter -->
@@ -946,8 +943,7 @@
                 <select
                   class="filter-select sort-select appearance-none shrink-0 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 pr-7 text-xs font-medium text-slate-800 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                   onchange="handleApplicationsSort(this.value)" aria-label="Sort applications">
-                  <option value="newest">Sort: </option>
-                  <option value="newest">Sort: Newest First</option>
+                  <option value="newest" selected>Sort: Latest</option>
                   <option value="oldest">Sort: Oldest First</option>
                 </select>
                 <svg
@@ -957,15 +953,14 @@
                   <path d="M4 6l4 4 4-4" />
                 </svg>
               </div>
-              <button type="button" class="applications-filter-reset" onclick="loadApplicationsFromDatabase()"
-                aria-label="Refresh applications table" title="Reload application records without refreshing the page">
-                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
-                <span>Refresh</span>
+              <button type="button" class="applications-refresh-button" onclick="loadApplicationsFromDatabase()"
+                aria-label="Refresh" title="Refresh" data-tooltip="Refresh">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 12.4-3"/></svg>
               </button>
               <button type="button" class="applications-filter-reset" onclick="resetApplicationsFilters()"
-                aria-label="Reset application filters" title="Clear search, stage, and barangay filters">
-                <i class="fi fi-rr-refresh" aria-hidden="true"></i>
-                <span>Reset</span>
+                aria-label="Clear filters" title="Clear filters" hidden>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+                <span>Clear filters</span>
               </button>
             </div>
           </div>
@@ -2617,7 +2612,7 @@
   <script src="theme.js?v=1"></script>
   <script src="app.js?v=analytics-restore-1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="staff.js?v=registered-seniors-toolbar-1"></script>
+  <script src="staff.js?v=applications-toolbar-1"></script>
 </body>
 
 </html>
