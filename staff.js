@@ -3528,7 +3528,7 @@ function buildApplicantProfiles(applications) {
         ? 'Legacy Record'
         : 'Not yet claimed';
     }
-    profile.isActive = profile.isRegistered && !profile.isDeceased && profile.ongoingApplications.length > 0;
+    profile.isActive = profile.ongoingApplications.length > 0;
     profile.hasDuplicateFlag = profile.applications.some(isProfileDuplicateFlagged);
     profile.status = profile.isRegistered ? 'Registered' : 'Rejected';
     return profile;
@@ -3572,7 +3572,6 @@ function renderLiveApplicants(applications) {
     const searchText = [profile.name, profile.seniorId, profile.barangay, profile.idClaimedBy, remarks, ids].join(' ').toLowerCase();
     return `<tr data-profile-index="${index}" data-status="${escapeApplicationHtml(status.toLowerCase())}"
       data-deceased="${profile.isDeceased ? 'true' : 'false'}"
-      data-active="${profile.isActive ? 'true' : 'false'}"
       data-barangay="${escapeApplicationHtml(profile.barangay.toLowerCase())}" data-name="${escapeApplicationHtml(profile.name || '')}"
       data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
       <td><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info">
@@ -3601,7 +3600,6 @@ function applyApplicantsFilters() {
   const statuses = Array.isArray(APPLICANTS_FILTER_STATE.status)
     ? APPLICANTS_FILTER_STATE.status.map(value => String(value).trim().toLowerCase())
     : [];
-  const activeOnly = APPLICANTS_FILTER_STATE.activeOnly === true;
   const deceasedOnly = APPLICANTS_FILTER_STATE.deceasedOnly === true;
   const matchingRows = rows.filter(row => {
     const rowBarangay = String(row.dataset.barangay || '').trim().toLowerCase();
@@ -3609,7 +3607,6 @@ function applyApplicantsFilters() {
     return (!search || (row.dataset.search || row.textContent).toLowerCase().includes(search)) &&
       (!barangays.length || barangays.includes(rowBarangay)) &&
       (!statuses.length || statuses.includes(rowStatus)) &&
-      (!activeOnly || row.dataset.active === 'true') &&
       (!deceasedOnly || row.dataset.deceased === 'true');
   });
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -3664,23 +3661,17 @@ function resetRegisteredApplicantFilters() {
   APPLICANTS_FILTER_STATE.search = '';
   APPLICANTS_FILTER_STATE.barangay = [];
   APPLICANTS_FILTER_STATE.status = [];
-  APPLICANTS_FILTER_STATE.activeOnly = false;
   APPLICANTS_FILTER_STATE.deceasedOnly = false;
-  document.getElementById('applicants-active-card')?.classList.remove('active');
   document.getElementById('applicants-deceased-card')?.classList.remove('active');
-  document.getElementById('applicants-active-card')?.setAttribute('aria-pressed', 'false');
   document.getElementById('applicants-deceased-card')?.setAttribute('aria-pressed', 'false');
   applyApplicantsFilters();
 }
 
-function toggleApplicantsKpiFilter(type) {
-  const stateKey = type === 'active' ? 'activeOnly' : 'deceasedOnly';
-  const enabling = APPLICANTS_FILTER_STATE[stateKey] !== true;
-  APPLICANTS_FILTER_STATE.activeOnly = type === 'active' && enabling;
-  APPLICANTS_FILTER_STATE.deceasedOnly = type === 'deceased' && enabling;
+function toggleDeceasedApplicantsFilter() {
+  const enabling = APPLICANTS_FILTER_STATE.deceasedOnly !== true;
+  APPLICANTS_FILTER_STATE.deceasedOnly = enabling;
   if (enabling) {
-    // KPI clicks should show their matching registered profiles directly,
-    // without unrelated search or table filters hiding them.
+    // The deceased KPI clears unrelated filters so matching profiles are visible.
     APPLICANTS_FILTER_STATE.search = '';
     APPLICANTS_FILTER_STATE.barangay = [];
     APPLICANTS_FILTER_STATE.status = [];
@@ -3689,25 +3680,13 @@ function toggleApplicantsKpiFilter(type) {
     if (search) search.value = '';
     if (barangay) barangay.value = '';
   }
-  const activeCard = document.getElementById('applicants-active-card');
   const deceasedCard = document.getElementById('applicants-deceased-card');
-  if (activeCard) {
-    activeCard.classList.toggle('active', APPLICANTS_FILTER_STATE.activeOnly);
-    activeCard.setAttribute('aria-pressed', String(APPLICANTS_FILTER_STATE.activeOnly));
-  }
   if (deceasedCard) {
     deceasedCard.classList.toggle('active', APPLICANTS_FILTER_STATE.deceasedOnly);
     deceasedCard.setAttribute('aria-pressed', String(APPLICANTS_FILTER_STATE.deceasedOnly));
   }
   applyApplicantsFilters();
 }
-function toggleActiveApplicantsFilter() {
-  toggleApplicantsKpiFilter('active');
-}
-function toggleDeceasedApplicantsFilter() {
-  toggleApplicantsKpiFilter('deceased');
-}
-window.toggleActiveApplicantsFilter = toggleActiveApplicantsFilter;
 window.toggleDeceasedApplicantsFilter = toggleDeceasedApplicantsFilter;
 
 function updateApplicantsSortUI() {
