@@ -4061,6 +4061,10 @@ body>.status-select__menu {
   line-height: 1.35;
 }
 
+.id-claimed-by--legacy {
+  white-space: nowrap;
+}
+
 /* Remarks are an editable applicant classification, separate from stage. */
 .remarks-status-select {
   width: 145px;
