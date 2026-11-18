@@ -3359,6 +3359,7 @@ body>.status-select__menu {
   min-height: 132px;
   padding: 16px 18px;
   gap: 12px;
+  justify-content: flex-start;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
