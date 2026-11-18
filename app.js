@@ -8420,6 +8420,101 @@ function getCurrentApplicant() {
   if (!sel || !sel.value) return null;
   return APP_DB[sel.value] || null;
 }
+
+function renderIssuanceApplicantPicker() {
+  const select = document.getElementById('id-applicant');
+  const list = document.getElementById('issuance-applicant-options');
+  const trigger = document.getElementById('issuance-applicant-trigger');
+  if (!select || !list || !trigger) return;
+
+  list.innerHTML = '';
+  Array.from(select.options).forEach(option => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'issuance-applicant-option';
+    item.setAttribute('role', 'option');
+    item.dataset.value = option.value;
+    item.textContent = option.textContent;
+    item.setAttribute('aria-selected', String(option.value === select.value));
+    item.hidden = option.disabled || !option.value;
+    item.onclick = () => selectIssuanceApplicant(item);
+    item.onkeydown = handleIssuanceApplicantPickerKeydown;
+    list.appendChild(item);
+  });
+  const selected = select.selectedOptions[0];
+  const label = trigger.querySelector('.issuance-applicant-trigger-label');
+  if (label) label.textContent = selected?.textContent || 'Select applicant';
+}
+
+function toggleIssuanceApplicantPicker(event) {
+  event?.preventDefault();
+  const trigger = document.getElementById('issuance-applicant-trigger');
+  const menu = document.getElementById('issuance-applicant-menu');
+  const search = document.getElementById('issuance-applicant-search');
+  if (!trigger || !menu) return;
+  menu.hidden = !menu.hidden;
+  trigger.setAttribute('aria-expanded', String(!menu.hidden));
+  if (!menu.hidden) {
+    if (search) { search.value = ''; filterIssuanceApplicantOptions(search); search.focus(); }
+  }
+}
+
+function filterIssuanceApplicantOptions(input) {
+  const query = String(input?.value || '').trim().toLowerCase();
+  document.querySelectorAll('#issuance-applicant-options .issuance-applicant-option').forEach(option => {
+    option.hidden = !option.textContent.toLowerCase().includes(query);
+  });
+}
+
+function selectIssuanceApplicant(item) {
+  const select = document.getElementById('id-applicant');
+  const menu = document.getElementById('issuance-applicant-menu');
+  const trigger = document.getElementById('issuance-applicant-trigger');
+  if (!select || !item) return;
+  select.value = item.dataset.value || '';
+  menu.hidden = true;
+  trigger?.setAttribute('aria-expanded', 'false');
+  renderIssuanceApplicantPicker();
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  trigger?.focus();
+}
+
+function handleIssuanceApplicantPickerKeydown(event) {
+  const list = document.getElementById('issuance-applicant-options');
+  const menu = document.getElementById('issuance-applicant-menu');
+  if (!list || !menu) return;
+  if (event.key === 'Escape') {
+    event.preventDefault(); menu.hidden = true;
+    document.getElementById('issuance-applicant-trigger')?.setAttribute('aria-expanded', 'false');
+    document.getElementById('issuance-applicant-trigger')?.focus();
+    return;
+  }
+  const visible = [...list.querySelectorAll('.issuance-applicant-option')].filter(option => !option.hidden);
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const index = visible.indexOf(document.activeElement);
+    const next = event.key === 'ArrowDown' ? Math.min(index + 1, visible.length - 1) : Math.max(index < 0 ? visible.length - 1 : index - 1, 0);
+    visible[next]?.focus();
+  } else if (event.key === 'Enter') {
+    const active = document.activeElement?.classList.contains('issuance-applicant-option')
+      ? document.activeElement
+      : visible[0];
+    if (active) { event.preventDefault(); active.click(); }
+  }
+}
+window.toggleIssuanceApplicantPicker = toggleIssuanceApplicantPicker;
+window.filterIssuanceApplicantOptions = filterIssuanceApplicantOptions;
+window.handleIssuanceApplicantPickerKeydown = handleIssuanceApplicantPickerKeydown;
+
+function closeIssuanceApplicantPickerOnOutsideClick(event) {
+  if (event.target.closest('#issuance-applicant-picker')) return;
+  const menu = document.getElementById('issuance-applicant-menu');
+  const trigger = document.getElementById('issuance-applicant-trigger');
+  if (menu) menu.hidden = true;
+  trigger?.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', closeIssuanceApplicantPickerOnOutsideClick);
+
 function updateIssuanceKPIs() {
   const strip = document.getElementById('issuance-kpi-strip');
   if (!strip) return;
@@ -8696,6 +8791,10 @@ async function refreshIdMakerQueueApplicationIds() {
 async function initSmallFormIssuance() {
   const select = document.getElementById('id-applicant');
   if (!select) return;
+  if (!select.dataset.pickerSync) {
+    select.addEventListener('change', renderIssuanceApplicantPicker);
+    select.dataset.pickerSync = 'true';
+  }
 
   // Prevent duplicate event listeners
   select.onchange = null;
@@ -8826,6 +8925,7 @@ async function initSmallFormIssuance() {
   };
 
   // Update immediately
+  renderIssuanceApplicantPicker();
   updatePreview();
 
   // Update issuance KPIs
@@ -9135,6 +9235,7 @@ function clearIDForm(silent = false) {
     if (el.tagName === 'SELECT') el.value = '';
     else el.value = '';
   });
+  renderIssuanceApplicantPicker();
   const pName = document.getElementById('preview-name');
   if (pName) pName.textContent = '________________';
   const pAddr = document.getElementById('preview-address');
