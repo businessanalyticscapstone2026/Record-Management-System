@@ -353,10 +353,12 @@ function selectCalendarDay(day, month, year) {
 function initBarangay(stacked = false) {
   const ctx = mkCanvas('chart-barangay'); if (!ctx) return;
   const data = analyticsScope();
+  // Keep source barangay values intact; normalize only the chart's displayed labels.
+  const displayBarangay = value => String(value ?? '').trim().toLowerCase().replace(/(^|[\s-])([a-z])/g, (_, separator, letter) => separator + letter.toUpperCase()).replace(/\b(i{1,3}|iv|v)\b/gi, numeral => numeral.toUpperCase());
   CHARTS['barangay'] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: data.barangayLabels, datasets: [
+      labels: (data.barangayLabels || []).map(displayBarangay), datasets: [
         { label: 'Total', data: data.barangayTotal, backgroundColor: 'rgba(26,79,186,0.22)', hoverBackgroundColor: 'rgba(26,79,186,0.5)', borderRadius: 5, borderSkipped: false },
         { label: 'Approved', data: data.barangayApproved, backgroundColor: 'rgba(11,158,108,0.6)', hoverBackgroundColor: C.green, borderRadius: 5, borderSkipped: false },
         { label: 'Pending Review', data: data.barangayPending, backgroundColor: 'rgba(192,122,10,0.6)', hoverBackgroundColor: C.amber, borderRadius: 5, borderSkipped: false },
