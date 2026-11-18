@@ -3576,7 +3576,7 @@ function renderLiveApplicants(applications) {
       data-sort-id="${escapeApplicationHtml(profile.seniorId || profile.key || '')}" data-registered-at="${profile.registeredAt ? profile.registeredAt.getTime() : 0}" data-search="${escapeApplicationHtml(searchText)}">
       <td><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info">
         <span class="applicant-name">${escapeApplicationHtml(profile.name)}</span><span class="applicant-id">${profile.applications.length} linked request${profile.applications.length === 1 ? '' : 's'}</span></div></div></td>
-      <td><span class="cell-text">${escapeApplicationHtml(profile.seniorId || '—')}</span>${profile.seniorId ? ` <button type="button" class="applicant-id-copy" data-copy-id="${escapeApplicationHtml(profile.seniorId)}" aria-label="Copy application ID ${escapeApplicationHtml(profile.seniorId)}" title="Copy application ID" onclick="copyApplicantApplicationId(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button>` : ''}</td>
+      <td><span class="applicant-id-cell"><span class="cell-text">${escapeApplicationHtml(profile.seniorId || '—')}</span>${profile.seniorId ? `<button type="button" class="applicant-id-copy" data-copy-id="${escapeApplicationHtml(profile.seniorId)}" aria-label="Copy application ID ${escapeApplicationHtml(profile.seniorId)}" title="Copy application ID" onclick="copyApplicantApplicationId(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button>` : ''}</span></td>
       <td><span class="cell-text">${escapeApplicationHtml(profile.barangay || '—')}</span></td>
       <td><span class="cell-text">${escapeApplicationHtml(String(profile.age))}</span></td>
       <td><span class="cell-text">${profile.registeredAt ? escapeApplicationHtml(formatStaffDate(profile.registeredAt)) : '—'}</span></td>
@@ -3646,11 +3646,154 @@ function applyApplicantsFilters() {
   if (footer) footer.textContent = `Showing ${visible.toLocaleString()} of ${rows.length.toLocaleString()} registered seniors`;
 }
 
+let activeApplicantsBarangayOption = -1;
+
+function updateRegisteredApplicantsToolbar() {
+  const search = document.getElementById('applicant-search');
+  const barangay = document.getElementById('applicants-barangay-filter');
+  const trigger = document.getElementById('applicants-barangay-trigger');
+  const clear = document.getElementById('applicants-clear-filters');
+  if (clear) clear.hidden = !(String(search?.value || '').trim() || barangay?.value);
+  if (search) {
+    search.placeholder = window.matchMedia('(max-width: 560px)').matches
+      ? 'Search name or ID'
+      : 'Search by name or application ID';
+  }
+  if (trigger && barangay) {
+    const selected = Array.from(barangay.options).find(option => option.value === barangay.value);
+    const label = barangay.value ? (selected?.textContent || barangay.value) : 'All';
+    trigger.querySelector('span').textContent = `Barangay: ${label}`;
+    trigger.classList.toggle('has-selection', Boolean(barangay.value));
+  }
+  const listbox = document.getElementById('applicants-barangay-listbox');
+  if (listbox && barangay) {
+    listbox.querySelectorAll('[role="option"]').forEach(option => {
+      option.setAttribute('aria-selected', String(option.dataset.value === barangay.value));
+    });
+  }
+}
+window.updateRegisteredApplicantsToolbar = updateRegisteredApplicantsToolbar;
+
+function filterApplicantsBarangayOptions() {
+  const search = document.getElementById('applicants-barangay-search');
+  const listbox = document.getElementById('applicants-barangay-listbox');
+  if (!search || !listbox) return;
+  const query = search.value.trim().toLocaleLowerCase();
+  activeApplicantsBarangayOption = -1;
+  listbox.querySelectorAll('[role="option"]').forEach(option => {
+    option.hidden = Boolean(option.dataset.value) && !option.textContent.toLocaleLowerCase().includes(query);
+    option.classList.remove('is-active');
+  });
+  search.removeAttribute('aria-activedescendant');
+}
+
+function moveApplicantsBarangayOption(direction) {
+  const search = document.getElementById('applicants-barangay-search');
+  const listbox = document.getElementById('applicants-barangay-listbox');
+  const query = String(search?.value || '').trim();
+  const visibleOptions = Array.from(listbox?.querySelectorAll('[role="option"]:not([hidden])') || []);
+  const options = query ? visibleOptions.filter(option => option.dataset.value) : visibleOptions;
+  if (!options.length) return;
+  activeApplicantsBarangayOption = activeApplicantsBarangayOption < 0
+    ? (direction > 0 ? 0 : options.length - 1)
+    : (activeApplicantsBarangayOption + direction + options.length) % options.length;
+  options.forEach(option => option.classList.remove('is-active'));
+  const active = options[activeApplicantsBarangayOption];
+  active.classList.add('is-active');
+  search?.setAttribute('aria-activedescendant', active.id);
+  active.scrollIntoView({ block: 'nearest' });
+}
+
+function closeApplicantsBarangayDropdown(returnFocus = false) {
+  const menu = document.getElementById('applicants-barangay-menu');
+  const trigger = document.getElementById('applicants-barangay-trigger');
+  const card = document.getElementById('applicant-barangay-dropdown')?.closest('.data-table-card');
+  if (menu) menu.hidden = true;
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  card?.classList.remove('applicant-barangay-open');
+  activeApplicantsBarangayOption = -1;
+  if (returnFocus) trigger?.focus();
+}
+
+function toggleApplicantsBarangayDropdown(forceOpen) {
+  const menu = document.getElementById('applicants-barangay-menu');
+  const trigger = document.getElementById('applicants-barangay-trigger');
+  const search = document.getElementById('applicants-barangay-search');
+  if (!menu || !trigger || !search) return;
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+  const card = document.getElementById('applicant-barangay-dropdown')?.closest('.data-table-card');
+  menu.hidden = !shouldOpen;
+  trigger.setAttribute('aria-expanded', String(shouldOpen));
+  card?.classList.toggle('applicant-barangay-open', shouldOpen);
+  if (shouldOpen) {
+    search.value = '';
+    filterApplicantsBarangayOptions();
+    search.focus();
+  }
+}
+window.toggleApplicantsBarangayDropdown = toggleApplicantsBarangayDropdown;
+
+function selectApplicantsBarangay(value) {
+  const select = document.getElementById('applicants-barangay-filter');
+  if (!select) return;
+  select.value = value;
+  filterRegisteredApplicantsByBarangay(select);
+  closeApplicantsBarangayDropdown(true);
+}
+
+function initializeApplicantsToolbar() {
+  const select = document.getElementById('applicants-barangay-filter');
+  const listbox = document.getElementById('applicants-barangay-listbox');
+  const search = document.getElementById('applicants-barangay-search');
+  const dropdown = document.getElementById('applicant-barangay-dropdown');
+  if (!select || !listbox || !search || dropdown?.dataset.initialized === 'true') return;
+  if (dropdown) dropdown.dataset.initialized = 'true';
+  Array.from(select.options).forEach((sourceOption, index) => {
+    const option = document.createElement('div');
+    option.id = `applicants-barangay-option-${index}`;
+    option.className = 'applicant-barangay-option';
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-selected', String(sourceOption.value === select.value));
+    option.dataset.value = sourceOption.value;
+    option.textContent = sourceOption.value ? sourceOption.textContent : 'All barangays';
+    option.addEventListener('click', () => selectApplicantsBarangay(sourceOption.value));
+    listbox.appendChild(option);
+  });
+  search.addEventListener('input', filterApplicantsBarangayOptions);
+  search.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveApplicantsBarangayOption(1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveApplicantsBarangayOption(-1);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const activeId = search.getAttribute('aria-activedescendant');
+      const active = activeId ? document.getElementById(activeId) : null;
+      if (active && !active.hidden) selectApplicantsBarangay(active.dataset.value || '');
+      else {
+        const first = listbox.querySelector('[role="option"][data-value]:not([hidden])') || listbox.querySelector('[role="option"]:not([hidden])');
+        if (first) selectApplicantsBarangay(first.dataset.value || '');
+      }
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeApplicantsBarangayDropdown(true);
+    }
+  });
+  document.addEventListener('click', event => {
+    if (dropdown && !dropdown.contains(event.target)) closeApplicantsBarangayDropdown();
+  });
+  window.addEventListener('resize', updateRegisteredApplicantsToolbar);
+  updateRegisteredApplicantsToolbar();
+}
+
 function filterRegisteredApplicantsByBarangay(control) {
   APPLICANTS_FILTER_STATE.barangay = control?.value
     ? [String(control.value).trim().toLowerCase()]
     : [];
   applyApplicantsFilters();
+  updateRegisteredApplicantsToolbar();
 }
 
 function resetRegisteredApplicantFilters() {
@@ -3664,8 +3807,12 @@ function resetRegisteredApplicantFilters() {
   APPLICANTS_FILTER_STATE.deceasedOnly = false;
   document.getElementById('applicants-deceased-card')?.classList.remove('active');
   document.getElementById('applicants-deceased-card')?.setAttribute('aria-pressed', 'false');
+  closeApplicantsBarangayDropdown();
   applyApplicantsFilters();
+  updateRegisteredApplicantsToolbar();
 }
+
+initializeApplicantsToolbar();
 
 function toggleDeceasedApplicantsFilter() {
   const enabling = APPLICANTS_FILTER_STATE.deceasedOnly !== true;
@@ -3686,6 +3833,7 @@ function toggleDeceasedApplicantsFilter() {
     deceasedCard.setAttribute('aria-pressed', String(APPLICANTS_FILTER_STATE.deceasedOnly));
   }
   applyApplicantsFilters();
+  updateRegisteredApplicantsToolbar();
 }
 window.toggleDeceasedApplicantsFilter = toggleDeceasedApplicantsFilter;
 
