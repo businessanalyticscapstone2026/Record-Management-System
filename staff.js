@@ -1556,6 +1556,9 @@ function updateLiveAnalyticsCharts(
   const processingCounts =
     Array(12).fill(0);
 
+  const processingSamples =
+    Array.from({ length: 12 }, () => []);
+
   const barangays = {};
 
   const ageDistribution =
@@ -1607,10 +1610,13 @@ function updateLiveAnalyticsCharts(
 
       // STATUS DATE
 
-      const statusDateValue =
+      const recordedStatusDateValue =
         application.status_updated_at ||
         application.updated_at ||
-        createdDateValue;
+        null;
+
+      const statusDateValue =
+        recordedStatusDateValue || createdDateValue;
 
       const statusDate =
         statusDateValue
@@ -1849,6 +1855,10 @@ function updateLiveAnalyticsCharts(
 
         processingCounts[month]++;
 
+        if (recordedStatusDateValue && statusDate >= createdDate) {
+          processingSamples[month].push(days);
+        }
+
       }
 
     }
@@ -1985,6 +1995,9 @@ function updateLiveAnalyticsCharts(
       data.processing =
         [...processing];
 
+      data.processingSamples =
+        processingSamples.map(month => [...month]);
+
     }
   );
 
@@ -2101,12 +2114,9 @@ function updateLiveAnalyticsCharts(
       if (
         CHARTS.processing
       ) {
-
-        CHARTS.processing.data.datasets[0]
-          .data =
-          processing;
-
-        CHARTS.processing.update();
+        if (typeof window.refreshTurnaroundChart === 'function') {
+          window.refreshTurnaroundChart();
+        }
 
       }
     }
@@ -4963,8 +4973,14 @@ function displayStaffAnalyticsInsights(insights) {
   for (const [key,value] of Object.entries(insights || {})) {
     const area = document.querySelector(`[data-ai-insight="${key}"]`);
     if (!area) continue;
-    area.querySelector("[data-ai-text]").textContent = String(value?.text || "Insight is currently unavailable.");
-    area.querySelector("[data-ai-source]").textContent = ["groq","cerebras","openrouter"].includes(value?.source) ? `${String(value.source).toUpperCase()} AI` : "DATA SUMMARY";
+    const hasTurnaroundSamples = (analyticsScope().processingSamples || []).some(month => month.length > 0);
+    const noTurnaroundData = key === "turnaroundTime" && !hasTurnaroundSamples;
+    area.querySelector("[data-ai-text]").textContent = noTurnaroundData
+      ? "No completed review data yet. Turnaround time will appear when valid submission and completion dates are recorded."
+      : String(value?.text || "Insight is currently unavailable.");
+    area.querySelector("[data-ai-source]").textContent = noTurnaroundData
+      ? "DATA SUMMARY"
+      : (["groq","cerebras","openrouter"].includes(value?.source) ? `${String(value.source).toUpperCase()} AI` : "DATA SUMMARY");
   }
 }
 function scheduleStaffAnalyticsInsights(applications, source) {

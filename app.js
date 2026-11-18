@@ -48,6 +48,7 @@ const ANALYTICS_DATA = {
     statusDenominator: 0,
     issuance: [],
     processing: [],
+    processingSamples: [],
     ageDistribution: []
   },
   Staff: {
@@ -71,6 +72,7 @@ const ANALYTICS_DATA = {
     statusDenominator: 0,
     issuance: [],
     processing: [],
+    processingSamples: [],
     ageDistribution: []
   },
   'ID Maker': {
@@ -94,6 +96,7 @@ const ANALYTICS_DATA = {
     statusDenominator: 0,
     issuance: [],
     processing: [],
+    processingSamples: [],
     ageDistribution: []
   }
 };
@@ -465,13 +468,57 @@ function initProcessing() {
     return;
   }
   const ctx = mkCanvas('chart-processing'); if (!ctx) return;
-  const vals = analyticsScope().processing;
+  const data = analyticsScope();
+  const samples = data.processingSamples || Array.from({ length: 12 }, () => []);
+  const counts = samples.map(month => month.length);
+  const averages = samples.map(month => month.length ? Number((month.reduce((sum, value) => sum + value, 0) / month.length).toFixed(1)) : null);
+  const medians = samples.map(month => {
+    if (!month.length) return null;
+    const ordered = month.slice().sort((a, b) => a - b);
+    const middle = Math.floor(ordered.length / 2);
+    return Number((ordered.length % 2 ? ordered[middle] : (ordered[middle - 1] + ordered[middle]) / 2).toFixed(1));
+  });
+  const hasSamples = counts.some(count => count > 0);
+  const chartWrap = document.getElementById('chart-processing')?.closest('.chart-wrap');
+  const emptyState = document.getElementById('processing-empty-state');
+  if (chartWrap) chartWrap.style.display = hasSamples ? '' : 'none';
+  if (emptyState) emptyState.style.display = hasSamples ? 'none' : 'flex';
   CHARTS['processing'] = new Chart(ctx, {
     type: 'bar',
-    data: { labels: MONTHS, datasets: [{ label: 'Avg Days', data: vals, backgroundColor: vals.map((v, i) => i >= 10 ? 'rgba(11,158,108,0.7)' : 'rgba(26,79,186,0.22)'), hoverBackgroundColor: vals.map((v, i) => i >= 10 ? C.green : C.primary), borderRadius: 4, borderSkipped: false }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` Avg: ${c.parsed.y} days` } } }, scales: { x: { grid: { display: false }, ticks: { color: C.text, font: { size: 10 } } }, y: { min: 0, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, font: { size: 10 }, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? v + 'd' : null } } } }
+    data: { labels: MONTHS, datasets: [
+      { type: 'bar', label: 'Average', data: averages, backgroundColor: 'rgba(26,79,186,0.35)', hoverBackgroundColor: C.primary, borderRadius: 4, borderSkipped: false },
+      { type: 'line', label: 'Median', data: medians, borderColor: C.teal, backgroundColor: C.teal, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2, tension: 0.25, spanGaps: false },
+      { type: 'line', label: '5-day reference', data: Array(12).fill(5), borderColor: '#94A3B8', backgroundColor: 'transparent', borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 0, borderWidth: 1.5 }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: hasSamples, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 14 } }, tooltip: { ...TIP, callbacks: { label: c => c.dataset.label === '5-day reference' ? ' 5-day reference' : ` ${c.dataset.label}: ${c.parsed.y} days · ${counts[c.dataIndex]} completed` } } }, scales: { x: { grid: { display: false }, ticks: { color: C.text, font: { size: 10 } } }, y: { min: 0, grid: { color: C.grid, drawBorder: false }, ticks: { color: C.text, font: { size: 10 }, precision: 0, stepSize: 1, callback: v => Number.isInteger(v) ? v + 'd' : null } } } }
   });
 }
+function refreshTurnaroundChart() {
+  const chart = CHARTS['processing'];
+  if (!chart) return;
+  const data = analyticsScope();
+  const samples = data.processingSamples || Array.from({ length: 12 }, () => []);
+  const counts = samples.map(month => month.length);
+  const averages = samples.map(month => month.length ? Number((month.reduce((sum, value) => sum + value, 0) / month.length).toFixed(1)) : null);
+  const medians = samples.map(month => {
+    if (!month.length) return null;
+    const ordered = month.slice().sort((a, b) => a - b);
+    const middle = Math.floor(ordered.length / 2);
+    return Number((ordered.length % 2 ? ordered[middle] : (ordered[middle - 1] + ordered[middle]) / 2).toFixed(1));
+  });
+  const hasSamples = counts.some(count => count > 0);
+  const chartWrap = document.getElementById('chart-processing')?.closest('.chart-wrap');
+  const emptyState = document.getElementById('processing-empty-state');
+  if (chartWrap) chartWrap.style.display = hasSamples ? '' : 'none';
+  if (emptyState) emptyState.style.display = hasSamples ? 'none' : 'flex';
+  chart.data.datasets[0].data = averages;
+  chart.data.datasets[1].data = medians;
+  chart.data.datasets[2].data = Array(12).fill(5);
+  chart.options.plugins.legend.display = hasSamples;
+  chart.options.plugins.tooltip.callbacks.label = c => c.dataset.label === '5-day reference' ? ' 5-day reference' : ` ${c.dataset.label}: ${c.parsed.y} days · ${counts[c.dataIndex]} completed`;
+  chart.update();
+}
+window.refreshTurnaroundChart = refreshTurnaroundChart;
 function initRadar() {
   const ctx = mkCanvas('chart-radar'); if (!ctx) return;
   CHARTS['radar'] = new Chart(ctx, {
