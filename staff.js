@@ -4973,12 +4973,16 @@ function displayStaffAnalyticsInsights(insights) {
   for (const [key,value] of Object.entries(insights || {})) {
     const area = document.querySelector(`[data-ai-insight="${key}"]`);
     if (!area) continue;
-    const hasTurnaroundSamples = (analyticsScope().processingSamples || []).some(month => month.length > 0);
-    const noTurnaroundData = key === "turnaroundTime" && !hasTurnaroundSamples;
-    area.querySelector("[data-ai-text]").textContent = noTurnaroundData
-      ? "No completed review data yet. Turnaround time will appear when valid submission and completion dates are recorded."
-      : String(value?.text || "Insight is currently unavailable.");
-    area.querySelector("[data-ai-source]").textContent = noTurnaroundData
+    const turnaroundSamples = (analyticsScope().processingSamples || []).reduce((total, month) => total + month.length, 0);
+    const turnaroundSummary = key === "turnaroundTime"
+      ? (turnaroundSamples === 0
+        ? "No completed review data yet. Turnaround time will appear when valid submission and completion dates are recorded."
+        : turnaroundSamples === 1
+          ? "One completed review has a valid recorded duration. More records are needed to identify a reliable monthly trend."
+          : `The chart summarizes ${turnaroundSamples.toLocaleString()} completed reviews with valid recorded dates. Compare monthly averages and medians as more reviews are recorded.`)
+      : null;
+    area.querySelector("[data-ai-text]").textContent = turnaroundSummary || String(value?.text || "Insight is currently unavailable.");
+    area.querySelector("[data-ai-source]").textContent = turnaroundSummary
       ? "DATA SUMMARY"
       : (["groq","cerebras","openrouter"].includes(value?.source) ? `${String(value.source).toUpperCase()} AI` : "DATA SUMMARY");
   }
