@@ -4616,6 +4616,9 @@ body > .remarks-select__menu {
   width: 100%;
   text-align: left;
   cursor: pointer;
+  /* The trigger already renders its own chevron; suppress .form-select's arrow. */
+  background-image: none;
+  padding-right: 13px;
 }
 #mod-id-issuance .issuance-applicant-trigger-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #mod-id-issuance .issuance-applicant-trigger > svg { flex: 0 0 16px; width: 16px; height: 16px; color: #64748b; }
