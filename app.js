@@ -4714,6 +4714,16 @@ async function sendToIdMaker() {
 
   const appId = DI_CURRENT_APP_ID;
 
+  // This is the actual button in the Generate Issuance Form modal.
+  const sendButton = document.getElementById('btn-send-idmaker');
+  const originalButtonHtml = sendButton?.innerHTML || '';
+  if (sendButton) {
+    if (sendButton.disabled) return;
+    sendButton.disabled = true;
+    sendButton.setAttribute('aria-busy', 'true');
+    sendButton.textContent = 'Sending...';
+  }
+
   const app =
     APP_DB[appId] ||
     ID_MAKER_QUEUE.find(a => a.id === appId) ||
@@ -5077,6 +5087,12 @@ async function sendToIdMaker() {
       error.message || 'Failed to send application to ID Maker.',
       'error'
     );
+  } finally {
+    if (sendButton) {
+      sendButton.disabled = false;
+      sendButton.removeAttribute('aria-busy');
+      sendButton.innerHTML = originalButtonHtml;
+    }
   }
 }
 
