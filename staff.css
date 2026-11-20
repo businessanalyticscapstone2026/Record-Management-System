@@ -4723,3 +4723,32 @@ body > .remarks-select__menu {
   #mod-applications .applications-barangay-dropdown,
   #mod-applications .sort-select-wrap { flex-basis: 100% !important; }
 }
+
+
+/* ID Maker submission loading state */
+.id-maker-send-overlay[hidden] { display: none !important; }
+.id-maker-send-overlay {
+  position: fixed; inset: 0; z-index: 100000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(15, 23, 42, .48);
+  backdrop-filter: blur(3px);
+}
+.id-maker-send-overlay__card {
+  width: min(100%, 360px); display: flex; flex-direction: column;
+  align-items: center; gap: 12px; padding: 30px 26px;
+  border-radius: 18px; background: var(--surface, #fff);
+  color: var(--text-primary, #172033); text-align: center;
+  box-shadow: 0 18px 55px rgba(0,0,0,.22);
+}
+.id-maker-send-overlay__card strong { font-size: 17px; }
+.id-maker-send-overlay__card > span:last-child {
+  color: var(--text-muted, #64748b); font-size: 13px; line-height: 1.5;
+}
+.id-maker-send-overlay__spinner, .btn__spinner {
+  display: inline-block; width: 22px; height: 22px; flex: 0 0 auto;
+  border: 3px solid rgba(20, 145, 132, .22); border-top-color: #149184;
+  border-radius: 50%; animation: id-maker-send-spin .75s linear infinite;
+}
+.btn__spinner { width: 14px; height: 14px; border-width: 2px; vertical-align: middle; }
+.btn.is-sending { opacity: .85; cursor: wait; }
+@keyframes id-maker-send-spin { to { transform: rotate(360deg); } }
