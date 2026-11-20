@@ -9057,7 +9057,21 @@ async function sendFromIssuanceToIdMaker() {
   }
   if (sendOverlay) {
     sendOverlay.hidden = false;
+    sendOverlay.removeAttribute('hidden');
     sendOverlay.setAttribute('aria-hidden', 'false');
+    // Inline fallback ensures the overlay remains visible even if a cached
+    // stylesheet is still being served by the browser or deployment CDN.
+    Object.assign(sendOverlay.style, {
+      position: 'fixed',
+      inset: '0',
+      zIndex: '2147483000',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      background: 'rgba(15, 23, 42, 0.52)',
+      backdropFilter: 'blur(3px)'
+    });
   }
   // Give the browser a frame to paint the loading state before fetch begins.
   await new Promise(resolve => requestAnimationFrame(() => resolve()));
@@ -9229,6 +9243,7 @@ async function sendFromIssuanceToIdMaker() {
     if (sendOverlay) {
       sendOverlay.hidden = true;
       sendOverlay.setAttribute('aria-hidden', 'true');
+      sendOverlay.style.display = 'none';
     }
     if (sendBtn) {
       sendBtn.disabled = false;
