@@ -9044,36 +9044,17 @@ async function sendFromIssuanceToIdMaker() {
     if (ctrlInput) ctrlInput.value = controlNo;
   }
 
-  // Show a visible page-level loading state before starting network requests.
-  const sendBtn = document.getElementById('btn-send-idmaker-issuance') ||
-    document.querySelector('.content-card button[onclick="sendFromIssuanceToIdMaker()"]');
+  // Show the loading state directly on the Send to ID Maker button.
+  const sendBtn = document.getElementById('btn-send-idmaker-issuance');
+  if (sendBtn?.disabled) return;
   const originalHtml = sendBtn?.innerHTML || '';
-  const sendOverlay = document.getElementById('id-maker-send-loading');
   if (sendBtn) {
     sendBtn.disabled = true;
     sendBtn.classList.add('is-sending');
     sendBtn.setAttribute('aria-busy', 'true');
     sendBtn.innerHTML = '<span class="btn__spinner" aria-hidden="true"></span><span>Sending...</span>';
   }
-  if (sendOverlay) {
-    sendOverlay.hidden = false;
-    sendOverlay.removeAttribute('hidden');
-    sendOverlay.setAttribute('aria-hidden', 'false');
-    // Inline fallback ensures the overlay remains visible even if a cached
-    // stylesheet is still being served by the browser or deployment CDN.
-    Object.assign(sendOverlay.style, {
-      position: 'fixed',
-      inset: '0',
-      zIndex: '2147483000',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-      background: 'rgba(15, 23, 42, 0.52)',
-      backdropFilter: 'blur(3px)'
-    });
-  }
-  // Give the browser a frame to paint the loading state before fetch begins.
+  // Let the browser render the updated button before starting the requests.
   await new Promise(resolve => requestAnimationFrame(() => resolve()));
   const apiBase = `${RMS_API_BASE}/api`;
   const fetchWithTimeout = (url, options = {}) => {
@@ -9240,11 +9221,6 @@ async function sendFromIssuanceToIdMaker() {
     console.error('Unable to send issuance form to ID Maker:', err);
     showToast(`Could not confirm sending to ID Maker. ${err.message || 'Check your connection and try again.'}`, 'error');
   } finally {
-    if (sendOverlay) {
-      sendOverlay.hidden = true;
-      sendOverlay.setAttribute('aria-hidden', 'true');
-      sendOverlay.style.display = 'none';
-    }
     if (sendBtn) {
       sendBtn.disabled = false;
       sendBtn.classList.remove('is-sending');
