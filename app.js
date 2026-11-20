@@ -5406,7 +5406,9 @@ async function runValidation() {
     showToast('Residency check requires manual verification.', 'info');
   }
 
-  const residencyOk = residencyResult.status === 'resident';
+  const staffResidencyVerified =
+    String(app.residency_review_status || '').toLowerCase() === 'staff_verified';
+  const residencyOk = residencyResult.status === 'resident' || staffResidencyVerified;
 
 
   // Documents
@@ -5515,10 +5517,13 @@ async function runValidation() {
 
 
   notes.push(
-    'Residency: ' + String(residencyResult.status || 'manual_review') +
-    (residencyResult.matchedBarangay ? ' (' + residencyResult.matchedBarangay + ')' : '') +
-    ' [provider: ' + String(residencyResult.provider || 'unavailable') + ']. ' +
-    String(residencyResult.explanation || 'Manual OSCA verification is required.')
+    staffResidencyVerified
+      ? 'Residency: Staff Verified by ' + String(app.residency_reviewed_by_name || 'OSCA staff') +
+        (app.residency_reviewed_at ? ' on ' + new Date(app.residency_reviewed_at).toLocaleString() : '') + '.'
+      : 'Residency: ' + String(residencyResult.status || 'manual_review') +
+        (residencyResult.matchedBarangay ? ' (' + residencyResult.matchedBarangay + ')' : '') +
+        ' [provider: ' + String(residencyResult.provider || 'unavailable') + ']. ' +
+        String(residencyResult.explanation || 'Manual OSCA verification is required.')
   );
 
 
@@ -5629,7 +5634,7 @@ async function runValidation() {
     }"
       >
         • RESIDENCY:
-        ${residencyOk ? 'Resident – ' + (residencyResult.matchedBarangay || 'Bauan') : 'Manual Review'}
+        ${staffResidencyVerified ? 'Staff Verified' : residencyOk ? 'Resident – ' + (residencyResult.matchedBarangay || 'Bauan') : 'Manual Review'}
       </span>
 
 
@@ -5704,6 +5709,20 @@ async function runValidation() {
   `;
 
 
+  // Offer an explicit staff decision only when AI/rule checks require manual review.
+  if (residencyResult.status === 'manual_review' && !staffResidencyVerified) {
+    const reviewAction = document.createElement('div');
+    reviewAction.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+    reviewAction.innerHTML = `
+      <button type="button" class="btn btn--primary" id="confirm-residency-button"
+        onclick="confirmApplicantResidency()" style="min-height:36px">
+        Confirm Applicant Lives in Bauan
+      </button>
+      <span style="font-size:12px;color:var(--text-muted)">Use only after checking the applicant's address or supporting proof.</span>
+    `;
+    body.appendChild(reviewAction);
+  }
+
   // SAVE VALIDATION RESULT TO DATABASE
   try {
     const response = await fetch(
@@ -5777,6 +5796,98 @@ async function runValidation() {
     );
   }
 
+}
+
+async function confirmApplicantResidency() {
+  const applicationId = CURRENT_APP_ID;
+  const app = APP_DB[applicationId];
+  const button = document.getElementById('confirm-residency-button');
+  if (!applicationId || !app || !button || button.disabled) return;
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Saving...';
+
+  try {
+    const reviewResponse = await fetch(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(applicationId)}/residency-review`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ decision: 'confirm_resident' })
+      }
+    );
+    const reviewResult = await reviewResponse.json();
+    if (!reviewResponse.ok || !reviewResult.success) {
+      throw new Error(reviewResult.message || 'Could not save the residency decision.');
+    }
+
+    const current = CURRENT_VALIDATION_RESULT || {};
+    const notes = String(current.notes || '').replace(
+      /Residency: [^]*?(?=\s(?:All required documents|Missing documents|Duplicate risk|Age 60\+)|$)/,
+      ''
+    ).trim();
+    const reviewerName = reviewResult.review?.reviewed_by_name || 'OSCA staff';
+    const reviewedAt = reviewResult.review?.reviewed_at || new Date().toISOString();
+    const residencyNote = `Residency: Staff Verified by ${reviewerName} on ${new Date(reviewedAt).toLocaleString()}.`;
+    const updatedNotes = [notes, residencyNote].filter(Boolean).join(' ');
+    const passed = Boolean(current.ageOk && current.docsOk && current.duplicateOk);
+
+    const validationResponse = await fetch(
+      `${RMS_API_BASE}/api/applications/${encodeURIComponent(applicationId)}/validation`,
+      {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          validation_status: passed ? 'Passed' : 'Incomplete',
+          validation_notes: updatedNotes
+        })
+      }
+    );
+    const validationResult = await validationResponse.json();
+    if (!validationResponse.ok || !validationResult.success) {
+      throw new Error(validationResult.message || 'Residency was recorded, but the overall validation result could not be updated. Run Validation again to synchronize it.');
+    }
+
+    app.residency_review_status = 'staff_verified';
+    app.residency_reviewed_by = reviewResult.review?.reviewed_by || null;
+    app.residency_reviewed_by_name = reviewerName;
+    app.residency_reviewed_at = reviewedAt;
+    app.validation_status = passed ? 'Passed' : 'Incomplete';
+    app.validation_notes = updatedNotes;
+    app.validation_updated_at = new Date().toISOString();
+
+    CURRENT_VALIDATION_RESULT = {
+      ...current,
+      residencyOk: true,
+      status: passed ? 'Passed' : 'Incomplete',
+      passed,
+      notes: updatedNotes
+    };
+
+    if (validationResult.application_status) {
+      syncStaffApplicationStatusFromServer(applicationId, validationResult.application_status);
+    }
+
+    appendAudit(
+      CURRENT_USER?.displayName || reviewerName,
+      'Residency manually verified for application ' + applicationId,
+      'Staff'
+    );
+
+    renderSavedValidation(app);
+    showToast(
+      passed
+        ? 'Residency confirmed and validation passed.'
+        : 'Residency confirmation saved. Other validation items still need review.',
+      'success'
+    );
+  } catch (error) {
+    console.error('Failed to confirm applicant residency:', error);
+    button.disabled = false;
+    button.textContent = originalText;
+    showToast(error.message || 'Failed to save residency confirmation.', 'error');
+  }
 }
 
 function renderSavedValidation(app) {
@@ -5898,6 +6009,9 @@ function renderSavedValidation(app) {
       >
         • SAVED
       </span>
+      ${String(app.residency_review_status || '').toLowerCase() === 'staff_verified' ? `
+        <span class="badge badge-approved">• RESIDENCY: STAFF VERIFIED</span>
+      ` : ''}
 
     </div>
 
