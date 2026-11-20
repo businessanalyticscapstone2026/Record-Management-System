@@ -32,6 +32,13 @@
 </head>
 
 <body class="portal-mode">
+  <div class="id-maker-send-overlay" id="id-maker-send-loading" role="status" aria-live="polite" aria-hidden="true" hidden>
+    <div class="id-maker-send-overlay__card">
+      <span class="id-maker-send-overlay__spinner" aria-hidden="true"></span>
+      <strong>Sending to ID Maker...</strong>
+      <span>Please wait while the applicant's ID request is being submitted.</span>
+    </div>
+  </div>
 
   <div class="app-shell" id="portal-shell">
 
@@ -2625,7 +2632,7 @@
 
   <!-- SCRIPTS -->
   <script src="theme.js?v=1"></script>
-  <script src="app.js?v=id-issuance-applicant-search-1"></script>
+  <script src="app.js?v=id-maker-send-loading-2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="staff.js?v=applications-toolbar-1"></script>
 </body>
