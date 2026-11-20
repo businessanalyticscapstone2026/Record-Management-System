@@ -11,6 +11,7 @@ const {
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,
+  reviewApplicationResidency,
   updateApplicationStatus,
   updateApplicationRemarks,
   updateMembershipStatus,
@@ -47,5 +48,6 @@ router.put("/:applicationId/documents/approve-all", authenticateToken, requireRo
 
 router.post("/:applicationId/residency-validation", authenticateToken, requireRoles("admin", "staff"), validateResidency);
 router.put("/:applicationId/validation", authenticateToken, requireRoles("admin", "staff"), saveApplicationValidation);
+router.post("/:applicationId/residency-review", authenticateToken, requireRoles("admin", "staff"), reviewApplicationResidency);
 
 module.exports = router;
