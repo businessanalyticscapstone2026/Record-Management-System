@@ -5710,7 +5710,7 @@ async function runValidation() {
 
 
   // Offer an explicit staff decision only when AI/rule checks require manual review.
-  if (residencyResult.status === 'manual_review' && !staffResidencyVerified) {
+  if (!residencyOk && !staffResidencyVerified) {
     const reviewAction = document.createElement('div');
     reviewAction.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
     reviewAction.innerHTML = `
@@ -5994,7 +5994,7 @@ function renderSavedValidation(app) {
   `;
   if (
     String(app.residency_review_status || '').toLowerCase() !== 'staff_verified' &&
-    /Residency: manual_review/i.test(String(app.validation_notes || ''))
+    /Residency:\s*manual[_ -]review/i.test(String(app.validation_notes || ''))
   ) {
     const reviewAction = document.createElement('div');
     reviewAction.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
