@@ -1107,6 +1107,19 @@ const getApplications = async (req, res) => {
     const documentAuthentications =
       documentAuthenticationResults.flat();
 
+    // Load face-verification outcomes so staff can identify alternative matches.
+    const faceVerificationResults = await Promise.all(
+      applicationIdChunks.map(async (idChunk) => {
+        const { data, error } = await supabase
+          .from("face_verifications")
+          .select("application_id, verified, initial_verified, alternative_verified, similarity, alternative_similarity, verification_path, requires_additional_review, staff_review_status, staff_reviewed_by, staff_reviewed_at")
+          .in("application_id", idChunk);
+        if (error) throw error;
+        return data || [];
+      })
+    );
+    const faceVerifications = faceVerificationResults.flat();
+
 
     // ============================================================
     // 6. BUILD FAST LOOKUP MAPS
@@ -1202,6 +1215,15 @@ const getApplications = async (req, res) => {
     }
 
 
+    const faceVerificationByApplication = new Map();
+    for (const record of faceVerifications) {
+      if (!record?.application_id) continue;
+      const current = faceVerificationByApplication.get(record.application_id);
+      if (!current || !current.requires_additional_review) {
+        faceVerificationByApplication.set(record.application_id, record);
+      }
+    }
+
     const documentAuthenticationsByApplication =
       new Map();
 
@@ -1287,6 +1309,9 @@ const getApplications = async (req, res) => {
               documentAuthentications:
                 applicationDocumentAuthentications,
 
+              faceVerification:
+                faceVerificationByApplication.get(applicationId) || null,
+
               documents: {
                 idFront: null,
                 idBack: null,
@@ -1327,6 +1352,9 @@ const getApplications = async (req, res) => {
 
             documentAuthentications:
               applicationDocumentAuthentications,
+
+            faceVerification:
+              faceVerificationByApplication.get(applicationId) || null,
 
             documents: {
               idFront:
