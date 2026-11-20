@@ -9044,16 +9044,23 @@ async function sendFromIssuanceToIdMaker() {
     if (ctrlInput) ctrlInput.value = controlNo;
   }
 
-  // Visual button feedback
+  // Show a visible page-level loading state before starting network requests.
   const sendBtn = document.getElementById('btn-send-idmaker-issuance') ||
     document.querySelector('.content-card button[onclick="sendFromIssuanceToIdMaker()"]');
   const originalHtml = sendBtn?.innerHTML || '';
+  const sendOverlay = document.getElementById('id-maker-send-loading');
   if (sendBtn) {
     sendBtn.disabled = true;
     sendBtn.classList.add('is-sending');
     sendBtn.setAttribute('aria-busy', 'true');
-    sendBtn.innerHTML = '<span class="btn__spinner" aria-hidden="true"></span><span>Sending to ID Maker...</span>';
+    sendBtn.innerHTML = '<span class="btn__spinner" aria-hidden="true"></span><span>Sending...</span>';
   }
+  if (sendOverlay) {
+    sendOverlay.hidden = false;
+    sendOverlay.setAttribute('aria-hidden', 'false');
+  }
+  // Give the browser a frame to paint the loading state before fetch begins.
+  await new Promise(resolve => requestAnimationFrame(() => resolve()));
   const apiBase = `${RMS_API_BASE}/api`;
   const fetchWithTimeout = (url, options = {}) => {
     const controller = new AbortController();
@@ -9219,6 +9226,10 @@ async function sendFromIssuanceToIdMaker() {
     console.error('Unable to send issuance form to ID Maker:', err);
     showToast(`Could not confirm sending to ID Maker. ${err.message || 'Check your connection and try again.'}`, 'error');
   } finally {
+    if (sendOverlay) {
+      sendOverlay.hidden = true;
+      sendOverlay.setAttribute('aria-hidden', 'true');
+    }
     if (sendBtn) {
       sendBtn.disabled = false;
       sendBtn.classList.remove('is-sending');
