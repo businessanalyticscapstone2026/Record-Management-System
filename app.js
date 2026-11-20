@@ -9012,6 +9012,18 @@ function generateID() {
   updatePreview();
 }
 
+function handleSendToIdMakerClick(event) {
+  const button = event?.currentTarget || document.getElementById('btn-send-idmaker-issuance');
+  if (!button || button.disabled) return;
+  // Update the button synchronously in the click event, before any async work.
+  button.dataset.originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.classList.add('is-sending');
+  button.setAttribute('aria-busy', 'true');
+  button.innerHTML = '<span class="btn__spinner" aria-hidden="true"></span><span>Sending...</span>';
+  sendFromIssuanceToIdMaker();
+}
+
 async function sendFromIssuanceToIdMaker() {
   var app = getCurrentApplicant();
   if (!app) {
@@ -9046,9 +9058,8 @@ async function sendFromIssuanceToIdMaker() {
 
   // Show the loading state directly on the Send to ID Maker button.
   const sendBtn = document.getElementById('btn-send-idmaker-issuance');
-  if (sendBtn?.disabled) return;
-  const originalHtml = sendBtn?.innerHTML || '';
-  if (sendBtn) {
+  const originalHtml = sendBtn?.dataset.originalHtml || sendBtn?.innerHTML || '';
+  if (sendBtn && !sendBtn.disabled) {
     sendBtn.disabled = true;
     sendBtn.classList.add('is-sending');
     sendBtn.setAttribute('aria-busy', 'true');
@@ -9226,6 +9237,7 @@ async function sendFromIssuanceToIdMaker() {
       sendBtn.classList.remove('is-sending');
       sendBtn.removeAttribute('aria-busy');
       sendBtn.innerHTML = originalHtml;
+      delete sendBtn.dataset.originalHtml;
     }
   }
 }
