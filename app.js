@@ -9013,7 +9013,9 @@ function generateID() {
 }
 
 function handleSendToIdMakerClick(event) {
-  const button = event?.currentTarget || document.getElementById('btn-send-idmaker-issuance');
+  const button = event?.currentTarget ||
+    Array.from(document.querySelectorAll('#btn-send-idmaker-issuance'))
+      .find(candidate => candidate.getClientRects().length > 0);
   if (!button || button.disabled) return;
   // Update the button synchronously in the click event, before any async work.
   button.dataset.originalHtml = button.innerHTML;
@@ -9057,7 +9059,11 @@ async function sendFromIssuanceToIdMaker() {
   }
 
   // Show the loading state directly on the Send to ID Maker button.
-  const sendBtn = document.getElementById('btn-send-idmaker-issuance');
+  // The issuance form may be rendered from a hidden template. Always target
+  // the button that is actually visible, not the first matching (hidden) ID.
+  const sendBtn = Array.from(document.querySelectorAll('#btn-send-idmaker-issuance'))
+    .find(candidate => candidate.getClientRects().length > 0) ||
+    document.getElementById('btn-send-idmaker-issuance');
   const originalHtml = sendBtn?.dataset.originalHtml || sendBtn?.innerHTML || '';
   if (sendBtn && !sendBtn.disabled) {
     sendBtn.disabled = true;
