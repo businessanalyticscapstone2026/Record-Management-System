@@ -4341,7 +4341,7 @@ function renderLiveApplications(applications) {
     const docs = typeof buildDocsStatusPill === 'function' ? buildDocsStatusPill(application) : '—';
     const faceReview = application.faceVerification?.requires_additional_review === true
       && application.faceVerification?.staff_review_status === 'pending'
-      ? '<span class="status-pill status-pill--warning" title="The ID photo did not match, but the latest submitted photo did. Staff must manually review this application.">Face review required</span>'
+      ? '<span class="status-pill status-pill--pending" title="The ID photo did not match, but the latest submitted photo did. Staff must manually review this application.">Face review required</span>'
       : '';
     const statusHtml = typeof buildStatusSelect === 'function' ? buildStatusSelect(id, status) : `<span class="status-select__label">${escapeApplicationHtml(status)}</span>`;
     const remarks = String(application.remarks || '').trim();
@@ -4354,7 +4354,7 @@ function renderLiveApplications(applications) {
       <td style="width:36px;text-align:center"><input type="checkbox" class="row-check" data-app-id="${escapeApplicationHtml(id)}" aria-label="Select ${escapeApplicationHtml(name)}" ${STAFF_SELECTED_APP_IDS.has(String(id)) ? 'checked' : ''}  /></td>
       <td data-label="Applicant"><div class="applicant-cell"><div class="applicant-avatar">${escapeApplicationHtml(initials)}</div><div class="applicant-info"><span class="applicant-name">${escapeApplicationHtml(name)}</span><span class="applicant-id">${escapeApplicationHtml(id)}</span></div></div></td>
       <td data-label="Submitted"><span class="cell-text">${escapeApplicationHtml(formatStaffDate(getApplicationSubmittedDate(application)))}</span></td>
-      <td data-label="Documents"><div class="document-status-stack">${docs}${faceReview}</div></td><td data-label="Stage">${statusHtml}</td><td data-label="Remarks">${remarksHtml}</td>
+      <td data-label="Documents"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:5px">${docs}${faceReview}</div></td><td data-label="Stage">${statusHtml}</td><td data-label="Remarks">${remarksHtml}</td>
       <td data-label="Days Pending" style="text-align:center"><span class="cell-text">${days === null ? '—' : Math.floor(days).toLocaleString()}</span></td>
       <td style="text-align:center"><button type="button" class="row-action-eye" onclick="event.stopPropagation();openApplicationDetail('${escapeApplicationHtml(id)}')" title="View applicant" aria-label="View applicant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="10" r="3"/></svg></button></td></tr>`;
   }).join('');
