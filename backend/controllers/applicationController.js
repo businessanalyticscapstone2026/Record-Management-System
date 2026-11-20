@@ -1752,6 +1752,72 @@ const saveApplicationValidation = async (req, res) => {
   }
 };
 
+// Record the OSCA staff member's manual residency decision separately from AI output.
+const reviewApplicationResidency = async (req, res) => {
+  try {
+    const applicationId = String(req.params.applicationId || '').trim();
+    const decision = String(req.body?.decision || '').trim();
+    if (!applicationId) {
+      return res.status(400).json({ success: false, message: 'Application ID is required.' });
+    }
+    if (decision !== 'confirm_resident') {
+      return res.status(400).json({ success: false, message: 'A valid residency decision is required.' });
+    }
+
+    const reviewerId = req.user?.id ? String(req.user.id) : null;
+    const reviewerName = String(
+      req.user?.displayName ||
+      req.user?.name ||
+      req.user?.username ||
+      req.user?.email ||
+      'OSCA staff'
+    ).slice(0, 160);
+    const reviewedAt = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('applications')
+      .update({
+        residency_review_status: 'staff_verified',
+        residency_reviewed_by: reviewerId,
+        residency_reviewed_by_name: reviewerName,
+        residency_reviewed_at: reviewedAt
+      })
+      .eq('application_id', applicationId)
+      .select('application_id, residency_review_status, residency_reviewed_by, residency_reviewed_by_name, residency_reviewed_at')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+
+    await createAuditLogFromRequest(req, {
+      action: 'APPLICATION_RESIDENCY_MANUALLY_VERIFIED',
+      entityType: 'APPLICATION',
+      entityId: applicationId,
+      details: `Residency manually confirmed as Bauan resident by ${reviewerName}.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Staff residency confirmation saved.',
+      review: {
+        reviewed_by: data.residency_reviewed_by,
+        reviewed_by_name: data.residency_reviewed_by_name,
+        reviewed_at: data.residency_reviewed_at,
+        status: data.residency_review_status
+      }
+    });
+  } catch (error) {
+    console.error('Error recording manual residency review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to save the staff residency decision.',
+      error: error.message
+    });
+  }
+};
+
 // BULK APPROVE ALL REQUIRED DOCUMENTS
 const approveAllDocumentAuthentications = async (req, res) => {
   try {
@@ -3200,6 +3266,7 @@ module.exports = {
   getApplicationById,
   getIssuanceDetails,
   saveApplicationValidation,
+  reviewApplicationResidency,
   updateApplicationStatus,
   updateApplicationRemarks,
   updateMembershipStatus,
